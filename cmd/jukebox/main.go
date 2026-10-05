@@ -1,6 +1,8 @@
 // Command jukebox is a window to try the library's songs in: pick a
 // song, play and pause it, set its tier where it has tiers, and watch
-// what each part plays, bar by bar.
+// what each part plays, bar by bar. In a song whose parts start and
+// stop one by one, a click on a part starts it, or stops it with its
+// outro, at the next phrase.
 //
 //	go run github.com/marrasen/gunim-music/cmd/jukebox@latest
 //
@@ -46,6 +48,8 @@ type (
 		// Where says where the song is: its bar and phrase.
 		Where string
 		Parts []PartRow
+		// Triggers says the song's parts start and stop one by one.
+		Triggers bool
 	}
 	// PartRow is a part, and what it plays.
 	PartRow struct {
@@ -53,6 +57,10 @@ type (
 		Tier        int
 		Playing     bool
 	}
+	// PartClicked travels when a part is clicked.
+	PartClicked struct{ Name string }
+	// TierFollowed travels when Follow the tier is pressed.
+	TierFollowed struct{}
 	// SongChosen travels when a song is picked.
 	SongChosen struct{ Song int }
 	// PlayToggled travels when Play or Pause is pressed.
@@ -72,6 +80,8 @@ func init() {
 	gunim.RegisterType[Restarted]("jukebox.restart")
 	gunim.RegisterType[TierChosen]("jukebox.tier")
 	gunim.RegisterType[VolumeSet]("jukebox.volume")
+	gunim.RegisterType[PartClicked]("jukebox.part")
+	gunim.RegisterType[TierFollowed]("jukebox.follow")
 }
 
 func main() {
@@ -108,6 +118,8 @@ type view struct {
 	tiers  *widget.Segmented
 	tierUI *widget.Label
 	where  *widget.Label
+	hint   *widget.Label
+	follow *widget.Button
 	parts  *widget.List
 	shown  int
 }
@@ -141,8 +153,15 @@ func buildView(s Jukebox) *keys {
 	v.where = widget.NewLabel("")
 	v.where.Color = widget.MenuHint
 	v.parts = widget.NewList()
+	v.parts.OnClick = func(k widget.Key) gunim.Intent { return PartClicked{Name: string(k)} }
+	v.hint = widget.NewLabel("")
+	v.hint.Color = widget.MenuHint
+	v.follow = widget.NewButton("Follow the tier")
+	v.follow.Icon, v.follow.On = icon.Layers, TierFollowed{}
+	partsHead := widget.Row(v.hint, v.follow).Grow(v.hint, 1)
+	partsHead.Cross = widget.CrossCenter
 	list := widget.NewScroll(v.parts)
-	col := widget.Column(title, v.songs, v.about, transport, v.tierUI, v.tiers, v.where, list).Grow(list, 1)
+	col := widget.Column(title, v.songs, v.about, transport, v.tierUI, v.tiers, v.where, partsHead, list).Grow(list, 1)
 	col.Cross = widget.CrossStretch
 	v.Pad = widget.NewPad(col)
 	v.Padding = widget.CardPadding
@@ -177,6 +196,12 @@ func (v *view) update(s Jukebox, u *gunim.UI) {
 		v.shown = 0
 	}
 	v.where.SetText(s.Where)
+	v.follow.Disabled = !s.Triggers
+	if s.Triggers {
+		v.hint.SetText("Click a part to start it, or stop it with its outro, at the next phrase.")
+	} else {
+		v.hint.SetText("The song chooses its parts.")
+	}
 	widget.Sync(v.parts, u, s.Parts, func(p PartRow) widget.Key { return widget.Key(p.Name) }, newPartRow, (*partRow).set)
 }
 
@@ -254,6 +279,47 @@ func (pl *player) start(i int) {
 	pl.voice = pl.mix.Play(pl.p, audio.Options{Volume: pl.volume, FadeIn: 300 * time.Millisecond})
 }
 
+// toggle starts the part named name where it rests or is leaving, and
+// stops it where it plays, from the next phrase on.
+func (pl *player) toggle(name string) {
+	t, ok := pl.p.(band.Triggered)
+	w, ok2 := pl.p.(band.Watcher)
+	if !ok || !ok2 {
+		return
+	}
+	for _, p := range w.Watch().Parts {
+		if p.Name != name {
+			continue
+		}
+		on := p.Playing && p.Piece != band.Outro
+		switch p.Control {
+		case band.PartOn:
+			on = true
+		case band.PartOff:
+			on = false
+		case band.PartAuto:
+		}
+		c := band.PartOn
+		if on {
+			c = band.PartOff
+		}
+		_ = t.SetPart(name, c)
+	}
+}
+
+// partNames returns the names of the song's parts.
+func (pl *player) partNames() []string {
+	w, ok := pl.p.(band.Watcher)
+	if !ok {
+		return nil
+	}
+	var names []string
+	for _, p := range w.Watch().Parts {
+		names = append(names, p.Name)
+	}
+	return names
+}
+
 // state returns what the window shows.
 func (pl *player) state() Jukebox {
 	s := Jukebox{Song: pl.song, Playing: !pl.voice.Paused()}
@@ -265,6 +331,7 @@ func (pl *player) state() Jukebox {
 	if t, ok := pl.p.(band.Tiered); ok {
 		s.Tiers, s.Tier = t.Tiers(), t.Tier()
 	}
+	_, s.Triggers = pl.p.(band.Triggered)
 	if w, ok := pl.p.(band.Watcher); ok {
 		st := w.Watch()
 		s.Where = fmt.Sprintf("Bar %d: phrase %d, bar %d of %d", st.Bar+1, st.Bar/st.PhraseBars+1, st.Bar%st.PhraseBars+1, st.PhraseBars)
@@ -272,6 +339,13 @@ func (pl *player) state() Jukebox {
 			doing := "resting"
 			if p.Playing {
 				doing = p.Piece.String()
+			}
+			switch p.Control {
+			case band.PartOn:
+				doing += " · on"
+			case band.PartOff:
+				doing += " · off"
+			case band.PartAuto:
 			}
 			s.Parts = append(s.Parts, PartRow{Name: p.Name, Tier: p.Tier, Doing: doing, Playing: p.Playing})
 		}
@@ -326,6 +400,14 @@ func serve(ctx context.Context, c gunim.Client) error {
 			case TierChosen:
 				if t, ok := pl.p.(band.Tiered); ok {
 					t.SetTier(v.Tier)
+				}
+			case PartClicked:
+				pl.toggle(v.Name)
+			case TierFollowed:
+				if t, ok := pl.p.(band.Triggered); ok {
+					for _, name := range pl.partNames() {
+						_ = t.SetPart(name, band.PartAuto)
+					}
 				}
 			case VolumeSet:
 				pl.volume = v.Volume

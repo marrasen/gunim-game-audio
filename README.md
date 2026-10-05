@@ -11,7 +11,9 @@ game's music. Each song plays without end, and changes as it goes.
 
 Try them in the jukebox, a window that plays a song, sets its tier
 with buttons or the keys 1 to 4, and shows what each part plays, bar by
-bar:
+bar. In A round song a click on a part starts it, or stops it with its
+outro, at the next phrase, and Follow the tier hands every part back to
+the tier:
 
 ```sh
 go run github.com/marrasen/gunim-music/cmd/jukebox@latest
@@ -53,6 +55,20 @@ if t, ok := p.(band.Tiered); ok {
 
 A tier change starts at the next phrase. The parts above the tier
 leave with their outros, and those up to it come in with their intros.
+
+A program can also start and stop the parts one by one, over the
+tiers. The player is then a `band.Triggered` too:
+
+```go
+if t, ok := p.(band.Triggered); ok {
+	t.SetPart("drums", band.PartOn)  // in with its intro, at the next phrase
+	t.SetPart("bass", band.PartOff)  // out with its outro
+	t.SetPart("bass", band.PartAuto) // back to the tier
+}
+```
+
+A part keeps its control through changes of tier, until `SetPart`
+changes it.
 
 ## Adding a song
 
