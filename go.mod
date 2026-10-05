@@ -2,7 +2,7 @@ module github.com/marrasen/gunim-music
 
 go 1.27.1
 
-require github.com/marrasen/gunim v0.0.0-20261005133859-fab2d98b5a47
+require github.com/marrasen/gunim v0.0.0-20261005135341-127e0e8d3e3e
 
 require (
 	github.com/ebitengine/purego v0.11.0 // indirect
