@@ -1,0 +1,18 @@
+{
+	"Kind": "tiers",
+	"Title": "A round song",
+	"Artist": "Marcus Johansson",
+	"BPM": 110,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Parts": {
+		"bass": {"Tier": 1},
+		"ensemble-pad": {"Tier": 1},
+		"light-percussion": {"Tier": 2},
+		"diana-ex": {"Tier": 3},
+		"magnetic-ex": {"Tier": 3},
+		"pizzicato-string": {"Tier": 3},
+		"drums": {"Tier": 4},
+		"solo": {"Tier": 4, "Loops": 2}
+	}
+}

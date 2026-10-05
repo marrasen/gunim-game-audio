@@ -32,7 +32,7 @@ part() {
 }
 
 for f in "$src"/*.wav; do
-	name=$(basename "$f" .wav | tr 'A-Z ' 'a-z-')
+	name=$(basename "$f" .wav | sed 's/^[0-9]*\. *//' | tr 'A-Z ' 'a-z-')
 	frames=$(ffprobe -v error -select_streams a:0 -show_entries stream=duration_ts -of csv=p=0 "$f")
 	rate=$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate -of csv=p=0 "$f")
 	bars=$(awk -v f="$frames" -v r="$rate" -v bpm="$bpm" -v n="$beats" 'BEGIN { printf "%d", f / r * bpm / 60 / n + 0.5 }')

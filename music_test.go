@@ -1,6 +1,7 @@
 package music
 
 import (
+	"cmp"
 	"errors"
 	"slices"
 	"testing"
@@ -25,23 +26,30 @@ func TestEverySongLoadsAndNamesItsMaker(t *testing.T) {
 	}
 }
 
-func TestEveryWandersPartsAreThereCutAtItsBars(t *testing.T) {
+// cut returns a song's parts, and where its bars start and how many
+// make a phrase, for the kinds of song the library holds.
+func cut(t *testing.T, s band.Song) (parts []band.Part, barAt func(int) int64, phraseBars int) {
+	t.Helper()
+	switch s := s.(type) {
+	case *band.Wander:
+		return s.Parts, s.BarAt, cmp.Or(s.PhraseBars, 16)
+	case *band.Tiers:
+		return s.Parts, s.BarAt, cmp.Or(s.PhraseBars, 8)
+	}
+	t.Fatalf("a song of type %T", s)
+	return nil, nil, 0
+}
+
+func TestEverySongsPartsAreThereCutAtItsBars(t *testing.T) {
 	for _, name := range Songs() {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		w, ok := s.(*band.Wander)
-		if !ok {
-			continue
-		}
-		bars := w.PhraseBars
-		if bars == 0 {
-			bars = 16
-		}
-		phrase := w.BarAt(bars)
+		parts, barAt, bars := cut(t, s)
+		phrase := barAt(bars)
 		looping := 0
-		for _, p := range w.Parts {
+		for _, p := range parts {
 			pieces := []band.Piece{band.Intro, band.Loop, band.Outro}
 			if p.Solo {
 				pieces = []band.Piece{band.Solo}
@@ -64,7 +72,7 @@ func TestEveryWandersPartsAreThereCutAtItsBars(t *testing.T) {
 						t.Fatalf("%s: %s's %s is %d frames, want a phrase, %d", name, p.Name, piece, n, phrase)
 					}
 				default:
-					if n < w.BarAt(1)/2 {
+					if n < barAt(1)/2 {
 						t.Fatalf("%s: %s's %s is %d frames, under half a bar", name, p.Name, piece, n)
 					}
 				}
@@ -93,6 +101,34 @@ func TestGreekThemesIsTenSynthsAndASolo(t *testing.T) {
 	}
 	if len(w.Parts) != 10 || solos != 1 {
 		t.Fatalf("%d parts, %d of them solos; want 10 and 1", len(w.Parts), solos)
+	}
+}
+
+func TestARoundSongPlaysInFourTiers(t *testing.T) {
+	s, err := Song(ARoundSong)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := s.Play(1).(band.Tiered)
+	if !ok {
+		t.Fatalf("A round song's player is a %T, want a band.Tiered", s.Play(1))
+	}
+	w, ok := p.(band.Watcher)
+	if !ok {
+		t.Fatal("A round song's player is no band.Watcher")
+	}
+	if p.Tiers() != 4 || p.Tier() != 1 {
+		t.Fatalf("%d tiers, at tier %d; want 4, at 1", p.Tiers(), p.Tier())
+	}
+	var playing []string
+	for _, ps := range w.Watch().Parts {
+		if ps.Playing {
+			playing = append(playing, ps.Name)
+		}
+	}
+	slices.Sort(playing)
+	if !slices.Equal(playing, []string{"bass", "ensemble-pad"}) {
+		t.Fatalf("tier 1 plays %v, want the bass and the pad", playing)
 	}
 }
 
