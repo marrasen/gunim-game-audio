@@ -21,6 +21,8 @@ github.com/jfreymuth/vorbis v1.0.2 h1:m1xH6+ZI4thH927pgKD8JOH4eaGRm18rEE9/0WKjvN
 github.com/jfreymuth/vorbis v1.0.2/go.mod h1:DoftRo4AznKnShRl1GxiTFCseHr4zR9BN3TWXyuzrqQ=
 github.com/marrasen/gunim v0.0.0-20261005220625-f098b1544f70 h1:M7gje4Na+xUBiglAFJVh5ovJgkXfIKyItCRToYb2g4c=
 github.com/marrasen/gunim v0.0.0-20261005220625-f098b1544f70/go.mod h1:q3W3ljTAfZ5FS4x6iqTi7KWqCUKMgxIK1b2J/yiuhDk=
+github.com/marrasen/gunim v0.0.0-20261006021435-7d4388651586 h1:xEUYf73CFsA7MrTjfy+NXtvhhDAh5mcAdUcJalIJTqw=
+github.com/marrasen/gunim v0.0.0-20261006021435-7d4388651586/go.mod h1:q3W3ljTAfZ5FS4x6iqTi7KWqCUKMgxIK1b2J/yiuhDk=
 github.com/marrasen/oto/v3 v3.5.1-gunim.4 h1:qySoQE4XnavRJdGID+jG8jZNeSYLS1XFDhICD4xUYGc=
 github.com/marrasen/oto/v3 v3.5.1-gunim.4/go.mod h1:9Kr9SPGrjo18cdaKxjd2kaf99e1Ln2CUKgbJP5TpiBU=
 github.com/mewkiz/flac v1.0.14 h1:hyRGAM8NCKznoPmIi9zz2jyO+nfmxY2ErqBnHZ+gxh4=
