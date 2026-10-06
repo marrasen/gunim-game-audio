@@ -116,6 +116,14 @@ func setPath(song *synth.Song, path string, x any) error {
 }
 
 func set(v reflect.Value, segs []string, x any) error {
+	if x == nil && len(segs) == 0 {
+		// Nothing clears the value, as a nil pointer or an empty list.
+		if !v.CanSet() {
+			return errNoPath
+		}
+		v.Set(reflect.Zero(v.Type()))
+		return nil
+	}
 	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			if !v.CanSet() {
@@ -187,6 +195,11 @@ func assign(v reflect.Value, x any) error {
 			return errNoPath
 		}
 		v.SetBool(x)
+	case []int:
+		if v.Type() != reflect.TypeOf(x) {
+			return errNoPath
+		}
+		v.Set(reflect.ValueOf(x))
 	default:
 		return errNoPath
 	}

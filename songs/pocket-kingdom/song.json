@@ -1,0 +1,325 @@
+{
+	"Kind": "synth",
+	"Title": "Pocket Kingdom",
+	"Artist": "Marcus Johansson",
+	"BPM": 144,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "G",
+	"Scale": "major",
+	"Chords": [
+		"G",
+		"Em",
+		"C",
+		"D",
+		"G",
+		"Em",
+		"Am D",
+		"G"
+	],
+	"Mode": "tiers",
+	"Patches": {
+		"lead": {
+			"Osc": [
+				{
+					"Wave": "nespulse",
+					"Width": 0.5
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.25,
+				"Sustain": 0.6,
+				"Release": 0.05
+			},
+			"LFO": [
+				{
+					"To": "pitch",
+					"Wave": "tri",
+					"Hz": 6,
+					"Depth": 0.18,
+					"Delay": 0.2
+				}
+			],
+			"Chip": {
+				"Levels": 16,
+				"Hz": 64
+			},
+			"Poly": 1,
+			"Gain": 0.55
+		},
+		"echo": {
+			"Osc": [
+				{
+					"Wave": "nespulse",
+					"Width": 0.125
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.25,
+				"Sustain": 0.6,
+				"Release": 0.05
+			},
+			"LFO": [
+				{
+					"To": "pitch",
+					"Wave": "tri",
+					"Hz": 6,
+					"Depth": 0.12,
+					"Delay": 0.2
+				}
+			],
+			"Chip": {
+				"Levels": 16,
+				"Hz": 64
+			},
+			"Poly": 1,
+			"Gain": 0.4
+		},
+		"stab": {
+			"Osc": [
+				{
+					"Wave": "nespulse",
+					"Width": 0.125
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.12,
+				"Sustain": 0.3,
+				"Release": 0.04
+			},
+			"Arpeggio": {
+				"Chord": true,
+				"Hz": 60
+			},
+			"Chip": {
+				"Levels": 16,
+				"Hz": 60
+			},
+			"Poly": 2,
+			"Gain": 0.45
+		},
+		"counter": {
+			"Osc": [
+				{
+					"Wave": "nespulse",
+					"Width": 0.25
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.1,
+				"Sustain": 0.25,
+				"Release": 0.04
+			},
+			"Chip": {
+				"Levels": 16,
+				"Hz": 60
+			},
+			"Poly": 2,
+			"Gain": 0.45
+		},
+		"wave": {
+			"Osc": [
+				{
+					"Wave": "gbwave",
+					"Table": [
+						8,
+						11,
+						13,
+						14,
+						15,
+						15,
+						14,
+						13,
+						11,
+						9,
+						8,
+						7,
+						6,
+						5,
+						4,
+						3,
+						2,
+						1,
+						1,
+						0,
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						8,
+						8,
+						8
+					]
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.12,
+				"Sustain": 0.7,
+				"Release": 0.03
+			},
+			"Chip": {
+				"Levels": 4,
+				"Hz": 64
+			},
+			"Poly": 1,
+			"Gain": 0.7
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {
+					"Type": "neskick"
+				},
+				"sn": {
+					"Type": "nessnare",
+					"Gain": 0.7
+				},
+				"hh": {
+					"Type": "neshat",
+					"Gain": 0.45
+				},
+				"oh": {
+					"Type": "nesohat",
+					"Gain": 0.35
+				},
+				"lt": {
+					"Type": "nestom",
+					"Tune": -4
+				},
+				"ht": {
+					"Type": "nestom",
+					"Tune": 3
+				},
+				"clk": {
+					"Type": "nesmetal",
+					"Gain": 0.4
+				}
+			}
+		},
+		"fx": {
+			"Kind": "drums",
+			"Kit": {
+				"riser": {
+					"Tone": 0.9,
+					"Gain": 0.3
+				},
+				"down": {
+					"Gain": 0.28
+				},
+				"boom": {
+					"Type": "neskick",
+					"Decay": 2,
+					"Gain": 0.8
+				},
+				"cr": {
+					"Type": "nesohat",
+					"Decay": 2.5,
+					"Gain": 0.4
+				}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "bass",
+			"Patch": "wave",
+			"Color": "#3fd0c9",
+			"Pattern": "b ~ ~ b ~ ~ c2 ~",
+			"Tier": 1,
+			"Octave": 2,
+			"Legato": 0.8,
+			"Params": {
+				"vel": "1 0.7 0.85"
+			},
+			"Gain": -0.4
+		},
+		{
+			"Name": "stabs",
+			"Patch": "stab",
+			"Color": "#7c8cff",
+			"Pattern": "~ ch ~ ch ~ ch ~ [ch ch]",
+			"Tier": 1,
+			"Octave": 4,
+			"Legato": 0.6,
+			"Gain": 1.7,
+			"Pan": -0.3
+		},
+		{
+			"Name": "drums",
+			"Patch": "kit",
+			"Color": "#ff8a4c",
+			"Pattern": "[bd ~ ~ bd sn ~ ~ ~, hh*8]",
+			"Tier": 2,
+			"Gain": -7.6
+		},
+		{
+			"Name": "counter",
+			"Patch": "counter",
+			"Color": "#5ce1a8",
+			"Pattern": "c2 ~ c1 c2 ~ c1 c0 ~",
+			"Tier": 2,
+			"Octave": 5,
+			"Legato": 0.5,
+			"Gain": -0.3,
+			"Pan": 0.3
+		},
+		{
+			"Name": "lead",
+			"Patch": "lead",
+			"Color": "#ff6b9d",
+			"Pattern": "[2 ~ 4 ~ 2 4 ~ 7] [7 ~ 5 ~ 4 2 ~ ~] [3 ~ 5 ~ 7 ~ 5 3] [1 ~ 4 ~ 6 _ ~ ~] [2 ~ 4 ~ 2 4 ~ 7] [9 ~ 7 5 ~ 4 ~ ~] [5 3 1 3 4 6 8 6] [7 _ _ ~ ~ ~ ~ ~]",
+			"Tier": 3,
+			"Bars": 8,
+			"Octave": 5,
+			"Legato": 0.85,
+			"Gain": -6.7
+		},
+		{
+			"Name": "echo",
+			"Patch": "echo",
+			"Color": "#e9f27a",
+			"Pattern": "[~ 2 ~ 4 ~ 2 4 ~] [~ 7 ~ 5 ~ 4 2 ~] [~ 3 ~ 5 ~ 7 ~ 5] [~ 1 ~ 4 ~ 6 _ ~] [~ 2 ~ 4 ~ 2 4 ~] [~ 9 ~ 7 5 ~ 4 ~] [~ 5 3 1 3 4 6 8] [~ 7 _ _ ~ ~ ~ ~]",
+			"Tier": 4,
+			"Bars": 8,
+			"Octave": 6,
+			"Legato": 0.8,
+			"Gain": -8,
+			"Pan": 0.4
+		},
+		{
+			"Name": "shaker",
+			"Patch": "kit",
+			"Color": "#ffcf5c",
+			"Pattern": "[~ hh]*4, ~ ~ ~ ~ ~ ~ ~ oh",
+			"Tier": 4,
+			"Gain": -7
+		}
+	],
+	"Mix": {
+		"Reverb": {
+			"Size": 0.4,
+			"Decay": 0.6,
+			"Tone": 0.6
+		},
+		"Delay": {
+			"Beats": 0.75,
+			"Feedback": 0.3,
+			"Tone": 0.5
+		},
+		"Transitions": {
+			"Patch": "fx",
+			"Lift": 1,
+			"Gain": -6
+		}
+	}
+}

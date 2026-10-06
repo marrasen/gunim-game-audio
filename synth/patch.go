@@ -40,6 +40,10 @@ type Patch struct {
 	// Arpeggio plays a chord as one voice, its notes in turn, fast, as a
 	// Commodore 64's tunes do.
 	Arpeggio *Arpeggio
+	// Chip steps the level as a console does, and Bend slides each note
+	// in from off its pitch.
+	Chip *Chip
+	Bend *Bend
 	// Kit is a drums patch's drums, by the names a pattern plays them
 	// by. A name the kit leaves out is a drum of the same name, as bd,
 	// sn, cp, hh, oh, rim, lt, mt, ht, cr, rd, sh, snap, tim, boom,
@@ -57,6 +61,14 @@ type Osc struct {
 	// the waves it makes of two at once, sawtri, pulsetri and pulsesaw,
 	// thin and buzzing.
 	Wave string
+	// The Nintendo chips give nespulse, a pulse snapped to the widths of
+	// 12.5, 25, 50 and 75% they have; nestri, the NES's stepped triangle;
+	// nesnoise and nesmetal, the NES's noise in its long mode and its
+	// short, metallic one; and gbwave, the Game Boy's wave channel,
+	// playing Table.
+	//
+	// Table is a gbwave's wave: 32 steps of 0 to 15, GBWave where empty.
+	Table []int
 	// Sync restarts it each time the oscillator before it starts a
 	// cycle, and Ring turns it over each half cycle of that one, as the
 	// SID's hard sync and ring modulation do.
@@ -123,8 +135,10 @@ type Drum struct {
 	// Type is what it is: kick, snare, clap, hat, ohat, rim, tom,
 	// crash, ride, shaker, snap, timpani, boom, riser or down; or the
 	// SID's, built a frame at a time as a Commodore 64's drums are:
-	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap. A
-	// drum named for its type needs no Type.
+	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
+	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
+	// neshat, nesohat, nestom or nesmetal. A drum named for its type needs
+	// no Type.
 	Type string
 	// Tune moves its pitch in semitones, Decay stretches how long it
 	// rings, 1 by default, and Tone brightens it, from 0 to 1.
@@ -153,6 +167,7 @@ var drumNames = map[string]string{
 	"down":  "down",
 	"sbd":   "sidkick", "ssn": "sidsnare", "scp": "sidclap", "shh": "sidhat", "soh": "sidohat",
 	"stom": "sidtom", "szap": "sidzap",
+	"nbd": "neskick", "nsn": "nessnare", "nhh": "neshat", "noh": "nesohat", "ntom": "nestom", "nclk": "nesmetal",
 }
 
 // tomTune tunes the low and high toms either side of the middle one.
@@ -182,6 +197,12 @@ const (
 	drSIDOHat
 	drSIDTom
 	drSIDZap
+	drNESKick
+	drNESSnare
+	drNESHat
+	drNESOHat
+	drNESTom
+	drNESMetal
 )
 
 var drumTypes = map[string]int{
@@ -190,6 +211,7 @@ var drumTypes = map[string]int{
 	"timpani": drTimpani, "boom": drBoom, "riser": drRiser, "down": drDown,
 	"sidkick": drSIDKick, "sidsnare": drSIDSnare, "sidclap": drSIDClap, "sidhat": drSIDHat, "sidohat": drSIDOHat,
 	"sidtom": drSIDTom, "sidzap": drSIDZap,
+	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
 }
 
 // The waves of an oscillator.
@@ -203,6 +225,8 @@ const (
 	oscSawTri
 	oscPulseTri
 	oscPulseSaw
+	oscTable
+	oscNESNoise
 )
 
 // The types of filter.
@@ -234,14 +258,18 @@ type patch struct {
 	arpHz    float64
 	arpSteps []float32
 	arpChord bool
-	kind     int
-	osc      []osc
-	filter   int
-	lfo      []lfo
-	vowel    byte
-	poly     int
-	kit      map[string]drum
-	gain     float32
+	// chipFrame is how many samples a chip patch's frame lasts, and
+	// chipLevels how many steps its level has.
+	chipFrame  int64
+	chipLevels int
+	kind       int
+	osc        []osc
+	filter     int
+	lfo        []lfo
+	vowel      byte
+	poly       int
+	kit        map[string]drum
+	gain       float32
 }
 
 type osc struct {
@@ -328,6 +356,24 @@ func (p *Patch) compile(name string) (*patch, error) {
 			}
 		case "noise":
 			co.wave = oscNoise
+		case "nespulse":
+			co.wave = oscSquare
+			co.Width = snapDuty(co.Width)
+		case "nestri":
+			co.wave, co.table = oscTable, stepped(nesTriangle)
+		case "gbwave":
+			steps := o.Table
+			if len(steps) == 0 {
+				steps = GBWave
+			}
+			for _, v := range steps {
+				if v < 0 || v > 15 {
+					return nil, fmt.Errorf("synth: patch %s, oscillator %d, has a step %d in its table, not 0 to 15", name, i+1, v)
+				}
+			}
+			co.wave, co.table = oscTable, stepped(steps)
+		case "nesnoise", "nesmetal":
+			co.wave = oscNESNoise
 		case "sawtri", "pulsetri", "pulsesaw":
 			co.wave = map[string]int{"sawtri": oscSawTri, "pulsetri": oscPulseTri, "pulsesaw": oscPulseSaw}[o.Wave]
 			if co.Width == 0 {
@@ -335,7 +381,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 			}
 			co.table = combined(co.wave, co.Width)
 		default:
-			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri or pulsesaw", name, i+1, o.Wave)
+			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri, pulsesaw, nespulse, nestri, nesnoise, nesmetal or gbwave", name, i+1, o.Wave)
 		}
 		if (o.Sync || o.Ring) && i == 0 {
 			return nil, fmt.Errorf("synth: patch %s syncs or rings its first oscillator, which has none before it", name)
@@ -388,6 +434,17 @@ func (p *Patch) compile(name string) (*patch, error) {
 		c.filter = filterSIDNotch
 	default:
 		return nil, fmt.Errorf("synth: patch %s has filter %q, not lp, lp24, hp, bp, sidlp, sidbp, sidhp, sidnotch or none", name, p.Filter.Type)
+	}
+	if ch := p.Chip; ch != nil {
+		hz := ch.Hz
+		if hz <= 0 {
+			hz = 60
+		}
+		c.chipFrame = max(int64(rate/hz), 1)
+		c.chipLevels = ch.Levels
+		if c.chipLevels <= 0 {
+			c.chipLevels = 16
+		}
 	}
 	if a := p.Arpeggio; a != nil {
 		c.arpHz = a.Hz

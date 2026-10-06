@@ -304,6 +304,19 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		if err != nil {
 			s.status = plain(err)
 		}
+	case ClearValue:
+		if err := s.edit(func(song *synth.Song) { _ = setPath(song, v.Path, nil) }); err != nil {
+			s.status = plain(err)
+		}
+	case SetInts:
+		var perr error
+		err := s.edit(func(song *synth.Song) { perr = setPath(song, v.Path, slices.Clone(v.Values)) })
+		if perr != nil {
+			err = perr
+		}
+		if err != nil {
+			s.status = plain(err)
+		}
 	case AddItem:
 		if err := s.edit(func(song *synth.Song) { _ = addItem(song, v.Path) }); err != nil {
 			s.status = plain(err)

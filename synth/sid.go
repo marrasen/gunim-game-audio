@@ -143,14 +143,12 @@ var sidDrums = map[int][]sidFrame{
 		{sfPulse, 61, 0.48}, {sfPulse, 55, 0.34}, {sfPulse, 50, 0.2}, {sfPulse, 46, 0.08}},
 }
 
-// isSID reports whether a drum's kind is one of the SID's.
-func isSID(kind int) bool { return kind >= drSIDKick && kind <= drSIDZap }
-
-// sidDrum makes the next sample of a SID drum: tune moves its notes,
-// decay stretches its frames, and tone narrows its pulse.
+// sidDrum makes the next sample of a chip's drum, the SID's or the
+// NES's: tune moves its notes, decay stretches its frames, and tone
+// narrows its pulse.
 func (h *hit) sidDrum(tune, decay, tone float32) float32 {
-	frames := sidDrums[h.d.kind]
-	frame := float32(rate/50) * decay
+	frames, fps := chipDrum(h.d.kind)
+	frame := rate / fps * decay
 	i := int(float32(h.t) / frame)
 	if i >= len(frames) {
 		h.sidVol *= 0.99
@@ -169,6 +167,11 @@ func (h *hit) sidDrum(tune, decay, tone float32) float32 {
 		if h.ph[0] < 0.5-0.4*tone {
 			s = 1
 		}
+	case sfNESNoise, sfNESMetal:
+		h.nes.short = f.wave == sfNESMetal
+		s = h.nes.at(h.ph[0])
+	case sfTri4:
+		s = float32(nesTriangle[int(h.ph[0]*32)&31])/7.5 - 1
 	default:
 		s = 1 - 4*abs32(h.ph[0]-0.5)
 	}
@@ -195,7 +198,19 @@ func OscCycle(o Osc, n int) []float32 {
 		tab = combined(oscPulseTri, width)
 	case "pulsesaw":
 		tab = combined(oscPulseSaw, width)
+	case "nestri":
+		tab = stepped(nesTriangle)
+	case "gbwave":
+		steps := o.Table
+		if len(steps) == 0 {
+			steps = GBWave
+		}
+		tab = stepped(steps)
+	case "nespulse":
+		width = snapDuty(width)
 	}
+	var nes nesNoise
+	nes.short = o.Wave == "nesmetal"
 	ratio := o.Ratio
 	if ratio == 0 {
 		ratio = 1
@@ -204,7 +219,7 @@ func OscCycle(o Osc, n int) []float32 {
 		ph := float64(i) / float64(n)
 		var v float64
 		switch o.Wave {
-		case "square", "pulse":
+		case "square", "pulse", "nespulse":
 			v = -1
 			if ph < width {
 				v = 1
@@ -218,8 +233,10 @@ func OscCycle(o Osc, n int) []float32 {
 		case "noise":
 			// Noise drawn over four of its cycles, as it steps.
 			v = float64(noise.at(float32(math.Mod(ph*4, 1))))
-		case "sawtri", "pulsetri", "pulsesaw":
+		case "sawtri", "pulsetri", "pulsesaw", "nestri", "gbwave":
 			v = float64(tab[int(ph*tableSize)%tableSize])
+		case "nesnoise", "nesmetal":
+			v = float64(nes.at(float32(math.Mod(ph*4, 1))))
 		default:
 			v = 2*ph - 1
 		}

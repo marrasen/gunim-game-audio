@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/marrasen/gunim"
@@ -306,3 +307,84 @@ func (v *vu) Step(dt time.Duration) bool {
 	}
 	return moving
 }
+
+// tableEdit draws a Game Boy wave's 32 steps of 0 to 15, and sets them
+// as the pointer draws over them.
+type tableEdit struct {
+	steps []int
+	held  bool
+	set   func(steps []int) gunim.Intent
+	size  geom.Size
+}
+
+// show takes the steps from the song, unless the pointer is drawing.
+func (te *tableEdit) show(steps []int) {
+	if te.held {
+		return
+	}
+	if len(steps) != 32 {
+		steps = synth.GBWave
+	}
+	te.steps = append(te.steps[:0], steps...)
+}
+
+func (te *tableEdit) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
+	te.size = c.Max
+	return c.Max
+}
+
+func (te *tableEdit) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
+	r := geom.Rc(0, 0, box.W, box.H)
+	screen(p, r)
+	if len(te.steps) == 0 {
+		return
+	}
+	w := (r.Size().W - 8) / float32(len(te.steps))
+	h := r.Size().H - 8
+	for i, v := range te.steps {
+		bh := max(float32(v)/15*h, 1)
+		p.RRect(geom.Rc(r.Min.X+4+float32(i)*w, r.Max.Y-4-bh, max(w-1, 1), bh), 1, paint.Solid(withAlpha(scopeColor, 0.85)))
+	}
+	run := audioui.Shaped("draw the wave", 10, false, false)
+	run.Paint(p, geom.Pt(r.Min.X+8, r.Min.Y+5), withAlpha(scopeColor, 0.6))
+}
+
+// draw sets the step under p to its height.
+func (te *tableEdit) draw(p geom.Point, u *gunim.UI) {
+	if len(te.steps) == 0 || te.size.W < 9 {
+		return
+	}
+	i := int((p.X - 4) / ((te.size.W - 8) / float32(len(te.steps))))
+	i = min(max(i, 0), len(te.steps)-1)
+	v := int(math.Round(float64((te.size.H - 4 - p.Y) / (te.size.H - 8) * 15)))
+	v = min(max(v, 0), 15)
+	if te.steps[i] == v {
+		return
+	}
+	te.steps[i] = v
+	if te.set != nil {
+		u.Send(te, te.set(slices.Clone(te.steps)))
+	}
+	u.Invalidate()
+}
+
+func (te *tableEdit) Handle(e input.Event, u *gunim.UI) bool {
+	switch e := e.(type) {
+	case input.PointerDown:
+		te.held = true
+		te.draw(e.Pos, u)
+		return true
+	case input.PointerMove:
+		if te.held {
+			te.draw(e.Pos, u)
+			return true
+		}
+	case input.PointerUp:
+		te.held = false
+		return true
+	}
+	return false
+}
+
+// DragsTouch says a finger draws rather than scrolling.
+func (te *tableEdit) DragsTouch() bool { return true }

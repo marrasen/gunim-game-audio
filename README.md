@@ -13,6 +13,11 @@ game's music. Each song plays without end, and changes as it goes.
 | Bubble Bounce | `bubble-bounce` | A bouncy chip tune in the manner of Bubble Bobble, made in code for the Commodore 64's sound, at 150 BPM in F major, in four tiers: a hopping bass and arpeggiated chords; a counter melody and drums; the lead; and its echo and a fuller beat. |
 | Sister Dreams | `sister-dreams` | A bittersweet chip tune in the manner of the Giana Sisters' intro, at 132 BPM in D minor: an arpeggio through a sweeping SID filter and a squelching bass always, and a lead, its echo, a pad, drums and wind coming and going. |
 | Graveyard Gallop | `graveyard-gallop` | A dark, driving chip tune in the manner of Ghosts'n Goblins, at 148 BPM in E minor, in four tiers: a galloping bass and eerie chord stabs; a march; the lead; and its harmony, toms and ringing bells. A stage-clear sting plays and the song resumes. |
+| Pocket Kingdom | `pocket-kingdom` | A sunny chip tune in the manner of Super Mario Land, made in code for the Game Boy's sound, at 144 BPM in G major, in four tiers: a calypso bass on the wave channel and offbeat stabs; drums and a counter melody; the lead; and its echo. |
+| Meadow Hop | `meadow-hop` | A swung, jazzy chip tune in the manner of Super Mario Bros. 3, for the NES's sound, at 140 BPM in F major, in four tiers: a walking triangle bass and comping sevenths; drums; the lead; and its harmony and toms. |
+| Hero's Field | `heros-field` | A heroic march in the manner of The Legend of Zelda, for the NES's sound, at 130 BPM in B flat major, in four tiers: triangle bass and triplet arpeggios; a march; the lead; and its harmony and drums. A treasure fanfare sting plays and the song resumes. |
+| Palace Run | `palace-run` | A driving chip tune in the manner of Zelda II's palaces, for the NES's sound, at 160 BPM in A minor, in four tiers: a pumping octave bass and racing arpeggios; drums; the lead; and its harmony and a metallic clank. |
+| Underworld Ascent | `underworld-ascent` | A quirky chip tune in the manner of Kid Icarus, for the NES's sound, at 150 BPM in G minor: a bouncing triangle bass and chirps always, and a lead, its harmony, chords and drums coming and going. |
 | Mascot Dance | `mascot-dance` | A bright dance groove, made in code, at 124 BPM in E major, for a mascot to dance to. Its tracks come and go by themselves around a kick, a bass and hats that always play, and a topline it writes itself changes every two phrases. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -308,6 +313,19 @@ drums `sbd`, `ssn`, `scp`, `shh`, `soh`, `stom` and `szap` are the SID's,
 built a frame at a time, a burst of noise and a falling tone, and a kit
 may give any name one of their types: `sidkick`, `sidsnare`, `sidclap`,
 `sidhat`, `sidohat`, `sidtom` or `sidzap`.
+
+The Nintendo patches sound like a NES or a Game Boy. `nespulse` is a
+pulse snapped to the chips' widths of 12.5, 25, 50 and 75%; `nestri` the
+NES's stepped triangle; `nesnoise` and `nesmetal` its noise, in its long
+mode and its short, metallic one; and `gbwave` the Game Boy's wave
+channel, playing an oscillator's `Table` of 32 steps of 0 to 15, which
+the studio's patch editor lets you draw. A patch's `Chip` steps its
+level as a console does, `{"Levels": 16, "Hz": 60}`, and its `Bend`
+slides each note in from off its pitch, `{"Semis": 12, "Time": 0.05}`.
+The drums `nbd`, `nsn`, `nhh`, `noh`, `ntom` and `nclk` are the NES's,
+60 frames a second: a triangle's falling kick and tom, the noise's snare
+and hats, and a metallic click, as the types `neskick`, `nessnare`,
+`neshat`, `nesohat`, `nestom` and `nesmetal`.
 
 A track's `Params` change each note, as TidalCycles' controls do: `vel`,
 `pan`, `cutoff`, `res`, `legato`, `octave`, `vowel` and `tune`, each a
