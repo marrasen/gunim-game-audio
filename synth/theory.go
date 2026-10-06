@@ -520,3 +520,14 @@ func (r *rng) intn(n int) int { return int(r.next() % uint64(n)) }
 
 // bipolar returns a number from -1 to 1, as noise.
 func (r *rng) bipolar() float32 { return float32(int32(r.next()>>32)) / (1 << 31) }
+
+// KeyNote returns the note of scale degree d, from 0 for the root, in
+// octave oct of the key root and scale, as a track's degrees play: for a
+// tool to name a degree's note.
+func KeyNote(root, scale string, d, oct int) (int, error) {
+	k, err := parseKey(root, scale)
+	if err != nil {
+		return 0, err
+	}
+	return k.degree(d, oct), nil
+}
