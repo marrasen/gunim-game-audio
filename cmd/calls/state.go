@@ -17,10 +17,6 @@ type (
 		Editor   Editor
 		// HighPass, Loudness and Ceiling finish every call.
 		HighPass, Loudness, Ceiling float64
-		// Versions are the versions of the calls to compare, and Version
-		// the one heard.
-		Versions []string
-		Version  int
 		// Phone plays the calls as a phone's speaker does.
 		Phone bool
 		// Songs are the songs to play under the calls, "None" first, and
@@ -115,9 +111,6 @@ type (
 	// Saved saves the companion; Reverted reads it back from its file.
 	Saved    struct{}
 	Reverted struct{}
-	// VersionChosen picks the version of the calls heard, and plays the
-	// call open in it.
-	VersionChosen struct{ Version int }
 	// PhoneSet turns the phone's speaker on or off.
 	PhoneSet struct{ On bool }
 	// SongChosen picks the song under the calls, 0 for none.
@@ -142,7 +135,6 @@ func init() {
 	gunim.RegisterType[Saved]("calls.save")
 	gunim.RegisterType[Reverted]("calls.revert")
 	gunim.RegisterType[PhoneSet]("calls.phone")
-	gunim.RegisterType[VersionChosen]("calls.version")
 	gunim.RegisterType[SongChosen]("calls.song")
 	gunim.RegisterType[MusicVolumeSet]("calls.musicvolume")
 }

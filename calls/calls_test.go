@@ -22,16 +22,7 @@ func library(t testing.TB) *Library {
 }
 
 func TestEveryCallMeetsTheBriefInEveryTake(t *testing.T) {
-	everyCallMeetsTheBrief(t, library(t))
-	// The calls as the brief first asked for them, kept to compare.
-	brief, err := LoadDir("../voices/brief")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Run("brief", func(t *testing.T) { everyCallMeetsTheBrief(t, brief) })
-}
-
-func everyCallMeetsTheBrief(t *testing.T, lib *Library) {
+	lib := library(t)
 	// The game's ten, as its brief names them; the library may hold
 	// more, as Whizpah, who must meet the brief too.
 	for _, id := range []string{"groda", "uggla", "enhorningskatt", "kpop-tjej", "kpop-kille",

@@ -50,29 +50,25 @@ func small(s string) *widget.Label {
 // view is the window, with handles on what updates change.
 type view struct {
 	*widget.Pad
-	versions   *widget.Segmented
-	versionsSw *switcher
-	version    int
-	nVersions  int
-	keys       *widget.Label
-	phone      *widget.Switch
-	songs      *widget.Dropdown
-	save       *widget.Button
-	status     *widget.Label
-	list       *widget.List
-	name       *widget.Label
-	about      *widget.Label
-	cards      *cardGrid
-	editing    *widget.Label
-	callKs     []*knob
-	master     []*knob
-	spec       *spectrum
-	layers     [maxLayers]*layerSlot
-	add        *widget.MenuButton
-	notes      *widget.TextArea
-	gen        int
-	sel        int
-	models     []string
+	keys    *widget.Label
+	phone   *widget.Switch
+	songs   *widget.Dropdown
+	save    *widget.Button
+	status  *widget.Label
+	list    *widget.List
+	name    *widget.Label
+	about   *widget.Label
+	cards   *cardGrid
+	editing *widget.Label
+	callKs  []*knob
+	master  []*knob
+	spec    *spectrum
+	layers  [maxLayers]*layerSlot
+	add     *widget.MenuButton
+	notes   *widget.TextArea
+	gen     int
+	sel     int
+	models  []string
 }
 
 // root is the window's root: it hears the keys that play.
@@ -97,11 +93,8 @@ func buildView(s Lab) *root {
 	revert := widget.NewButton("Revert")
 	revert.Icon, revert.On = icon.Undo2, Reverted{}
 	revert.Tooltip = "Reads the companion back from its file, dropping changes not saved"
-	v.versions = widget.NewSegmented(s.Versions...)
-	v.versions.OnChange = func(i int) gunim.Intent { return VersionChosen{Version: i} }
-	v.versionsSw = &switcher{kids: []gunim.Node{v.versions}}
 	gap := widget.NewSpacer()
-	top := widget.Row(title, v.versionsSw, gap, v.phone, v.songs, volBox, v.save, revert).Grow(gap, 1)
+	top := widget.Row(title, gap, v.phone, v.songs, volBox, v.save, revert).Grow(gap, 1)
 	top.Cross = widget.CrossCenter
 	v.status = small(s.Status)
 
@@ -180,18 +173,6 @@ func panel(title string, kids ...gunim.Node) *widget.Card {
 func (r *root) update(s Lab, u *gunim.UI) { r.view.update(s, u) }
 
 func (v *view) update(s Lab, u *gunim.UI) {
-	// The versions show where there are two or more to compare.
-	v.version, v.nVersions = s.Version, len(s.Versions)
-	v.versionsSw.which = -1
-	if len(s.Versions) > 1 {
-		v.versionsSw.which = 0
-		if !slices.Equal(v.versions.Labels, s.Versions) {
-			v.versions.Labels = s.Versions
-		}
-		if v.versions.Selected() != s.Version {
-			v.versions.SetSelected(s.Version, u)
-		}
-	}
 	v.phone.On = s.Phone
 	v.songs.Selected = s.Song
 	v.status.SetText(s.Status)
@@ -254,11 +235,6 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 		u.Send(r, NewTake{Call: r.sel})
 	case 'a', 'A':
 		u.Send(r, PlayAll{})
-	case 'b', 'B':
-		if r.nVersions < 2 {
-			return false
-		}
-		u.Send(r, VersionChosen{Version: (r.version + 1) % r.nVersions})
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		i := int(p.Char - '1')
 		if i >= r.cards.n {
@@ -283,7 +259,7 @@ func keysHint(cs []CallView) string {
 		digits = fmt.Sprintf("1 to %d", n)
 	}
 	return "Keys: Space plays the call open · N makes a new take · " + digits + " open and play " +
-		strings.Join(names, ", ") + " · A plays them all · B hears the call in the other version. " +
+		strings.Join(names, ", ") + " · A plays them all. " +
 		"Drag a knob up or down, Shift for fine steps; a double click sets it back. The call plays as you let go."
 }
 

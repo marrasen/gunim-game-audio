@@ -1,13 +1,11 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"math/rand/v2"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -24,11 +22,7 @@ import (
 type lab struct {
 	c   gunim.Client
 	mix *audio.Mixer
-	// versions are the libraries to compare, ver the one heard; lib,
-	// dir and dirty are its.
-	versions []version
-	ver      int
-	lib      *calls.Library
+	lib *calls.Library
 	// dir is where the library saves to, and embedded says it was read
 	// from the program, there being no folder yet.
 	dir      string
@@ -55,64 +49,28 @@ type lab struct {
 	gen      int
 }
 
-// A version is a library of the calls to compare with the others, as
-// fuller calls beside those the brief asked for: a folder of its own.
-type version struct {
-	name  string
-	dir   string
-	lib   *calls.Library
-	dirty map[string]bool
-}
-
 // newLab opens the library in dir, or the program's own where dir does
-// not exist yet, saving to dir. Each folder in dir with a library.json
-// of its own is another version of the calls, to compare with.
+// not exist yet, saving to dir.
 func newLab(c gunim.Client, mix *audio.Mixer, dir string) (*lab, error) {
-	l := &lab{c: c, mix: mix, musicVol: 0.35, call: -1}
+	l := &lab{c: c, mix: mix, dir: dir, musicVol: 0.35, dirty: map[string]bool{}, call: -1}
 	lib, err := calls.LoadDir(dir)
-	embedded := false
 	if errors.Is(err, fs.ErrNotExist) {
 		lib, err = music.Calls()
-		embedded = true
+		l.embedded = true
 	}
 	if err != nil {
 		return nil, err
 	}
-	l.versions = append(l.versions, version{name: cmp.Or(lib.Name, "Calls"), dir: dir, lib: lib, dirty: map[string]bool{}})
-	if !embedded {
-		entries, _ := os.ReadDir(dir)
-		for _, e := range entries {
-			sub := filepath.Join(dir, e.Name())
-			if _, err := os.Stat(filepath.Join(sub, "library.json")); !e.IsDir() || err != nil {
-				continue
-			}
-			other, err := calls.LoadDir(sub)
-			if err != nil {
-				return nil, err
-			}
-			l.versions = append(l.versions, version{name: cmp.Or(other.Name, e.Name()), dir: sub, lib: other, dirty: map[string]bool{}})
-		}
-	}
-	l.use(0)
-	l.embedded = embedded
+	l.lib = lib
 	l.songs = music.Songs()
 	l.open(lib.Companions[0].ID)
 	abs, _ := filepath.Abs(dir)
-	switch {
-	case embedded:
+	if l.embedded {
 		l.status = "Read the calls built into the program. Save writes them to " + abs + "."
-	case len(l.versions) > 1:
-		l.status = fmt.Sprintf("Read %d versions of the calls from %s. Pick one at the top, or press B to hear the call again in the other.", len(l.versions), abs)
-	default:
+	} else {
 		l.status = "Read the calls from " + abs + "."
 	}
 	return l, nil
-}
-
-// use makes version i the one heard and edited.
-func (l *lab) use(i int) {
-	v := l.versions[i]
-	l.ver, l.lib, l.dir, l.dirty = i, v.lib, v.dir, v.dirty
 }
 
 // open opens companion id, its calls as set, the first made chosen.
@@ -336,23 +294,6 @@ func (l *lab) handle(in gunim.Intent) {
 		l.open(fresh.ID)
 		l.sel = sel
 		l.status = "Read " + fresh.Name + " back from its file."
-	case VersionChosen:
-		if v.Version < 0 || v.Version >= len(l.versions) || v.Version == l.ver {
-			return
-		}
-		// The same companion and call, heard in the other version.
-		id, sel := l.comp.ID, l.sel
-		l.use(v.Version)
-		if l.lib.Companion(id) == nil {
-			id = l.lib.Companions[0].ID
-		}
-		l.queue = nil
-		l.open(id)
-		if l.has(sel) {
-			l.sel = sel
-		}
-		l.play(l.sel)
-		l.status = "Hearing " + l.versions[l.ver].name + "."
 	case PhoneSet:
 		l.phone = v.On
 	case SongChosen:
@@ -450,10 +391,6 @@ func (l *lab) state() Lab {
 		Dirty: l.dirty[l.comp.ID],
 	}
 	s.Songs = append([]string{"No music"}, l.songs...)
-	for _, v := range l.versions {
-		s.Versions = append(s.Versions, v.name)
-	}
-	s.Version = l.ver
 	for i, c := range l.lib.Companions {
 		row := CompanionRow{ID: c.ID, Name: c.Name, Made: len(c.Calls) > 0, Open: c == l.comp}
 		row.Doing = fmt.Sprintf("%d of 3 calls", len(c.Calls))

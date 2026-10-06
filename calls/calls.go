@@ -59,9 +59,6 @@ const Boss = "boss"
 
 // A Library is the companions and how their calls are finished.
 type Library struct {
-	// Name names the library where there are others to compare it
-	// with, as a version of the calls.
-	Name   string `json:",omitempty"`
 	Master Master
 	// Companions are the companions in the order they are shown.
 	Companions []*Companion `json:"-"`
