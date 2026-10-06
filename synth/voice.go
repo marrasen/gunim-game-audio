@@ -44,7 +44,9 @@ type voice struct {
 	lfoR   []float32
 	frames int64
 	form   formant
-	noise  *rng
+	// vowel is the vowel the formant is aimed at, 0 for none yet.
+	vowel byte
+	noise *rng
 	// pan is where the note sits, LFO and all, this control block.
 	pan float32
 	// hz is the pitch heard, from pitchAt, and cut and res the filter's
@@ -113,6 +115,7 @@ func (v *voice) start(p *patch, n note, age uint64) {
 	}
 	if vowel != 0 {
 		v.form.set(vowel)
+		v.vowel = vowel
 	}
 	if p.kind == kindPluck {
 		v.pluck()
@@ -246,7 +249,18 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 				}
 			}
 		}
-		if v.form.ready {
+		// The vowel is the note's, or else the patch's as it is now, so
+		// a patch's vowel turned off or changed is heard at once.
+		vowel := v.n.vowel
+		if vowel == 0 {
+			vowel = p.vowel
+		}
+		sing := vowel != 0
+		if sing {
+			if vowel != v.vowel {
+				v.form.set(vowel)
+				v.vowel = vowel
+			}
 			v.form.tune()
 		}
 		v.pan = min(max(v.n.pan+lPan, -1), 1)
@@ -278,7 +292,7 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 			}
 		}
 		v.filter(bl, br)
-		if v.form.ready {
+		if sing {
 			for i := range bl {
 				s := v.form.step((bl[i] + br[i]) * 0.5)
 				bl[i], br[i] = s, s
