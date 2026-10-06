@@ -1,0 +1,217 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/marrasen/gunim"
+	"github.com/marrasen/gunim/audio"
+	"github.com/marrasen/gunim/geom"
+	"github.com/marrasen/gunim/gunimtest"
+	"github.com/marrasen/gunim/input"
+	"github.com/marrasen/gunim/widget"
+
+	"github.com/marrasen/gunim-music/calls"
+)
+
+// harness runs the lab's two halves in a test: the window offscreen,
+// and the sound mixed by hand, with no speaker, on a copy of the
+// library in a folder of its own.
+type harness struct {
+	t   *testing.T
+	w   *gunim.Window
+	l   *lab
+	v   *root
+	dir string
+	at  map[gunim.Node]geom.Rect
+}
+
+func newHarness(t *testing.T) *harness {
+	t.Helper()
+	dir := t.TempDir()
+	src, err := filepath.Glob("../../voices/*.json")
+	if err != nil || len(src) == 0 {
+		t.Fatal("no recipes in voices/")
+	}
+	for _, f := range src {
+		b, _ := os.ReadFile(f)
+		if err := os.WriteFile(filepath.Join(dir, filepath.Base(f)), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := &harness{t: t, w: gunimtest.New(t, geom.Sz(1360, 940), widget.NewSurface()), dir: dir, at: map[gunim.Node]geom.Rect{}}
+	h.w.RegisterTheme(widget.Dark())
+	gunim.RegisterView(h.w, "lab", func(s Lab) *root {
+		h.v = buildView(s)
+		return h.v
+	}, func(r *root, s Lab, u *gunim.UI) {
+		r.update(s, u)
+		for n := range h.at {
+			h.at[n], _ = u.Bounds(n)
+		}
+	})
+	l, err := newLab(h.w.Client(), audio.NewMixer(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.l = l
+	if err := h.w.Client().Mount(gunim.Root, "lab", "lab", l.state()); err != nil {
+		t.Fatal(err)
+	}
+	h.frame()
+	return h
+}
+
+func (h *harness) frame() {
+	_ = h.w.Client().Update("lab", h.l.state())
+	h.w.Frame(time.Second / 60)
+	h.w.Frame(time.Second / 60)
+}
+
+// do carries out intents, as the window sends them.
+func (h *harness) do(vs ...gunim.Intent) {
+	for _, v := range vs {
+		h.l.handle(v)
+	}
+	h.frame()
+}
+
+// intent waits for the window to send an intent.
+func (h *harness) intent() gunim.Intent {
+	select {
+	case ev := <-h.w.Client().Intents():
+		return ev.Intent
+	case <-time.After(time.Second):
+		h.t.Fatal("the window sent no intent")
+		return nil
+	}
+}
+
+// centre returns the middle of n in the window.
+func (h *harness) centre(n gunim.Node) geom.Point {
+	h.at[n] = geom.Rect{}
+	h.frame()
+	r := h.at[n]
+	if r.Empty() {
+		h.t.Fatalf("%T is not on screen", n)
+	}
+	return geom.Pt((r.Min.X+r.Max.X)/2, (r.Min.Y+r.Max.Y)/2)
+}
+
+func TestTheLabShowsEachCompanionsCallsMeasured(t *testing.T) {
+	h := newHarness(t)
+	s := h.l.state()
+	if len(s.Companions) != 10 || s.Companions[0].ID != "groda" || !s.Companions[0].Open {
+		t.Fatalf("the list shows %+v", s.Companions)
+	}
+	for _, c := range s.Calls {
+		if !c.Made || len(c.Wave) == 0 || c.Stats == "" || len(c.Problems) > 0 {
+			t.Errorf("the frog's %s shows %+v", c.Kind, c)
+		}
+	}
+	h.do(CompanionChosen{ID: "raven"})
+	s = h.l.state()
+	if s.Name != "Räven (fox who runs)" || s.Calls[0].Made || len(s.Editor.Layers) != 0 {
+		t.Errorf("the fox shows %q, its hello made %v", s.Name, s.Calls[0].Made)
+	}
+	// A layer added makes a call where there was none.
+	h.do(LayerAdded{Model: "hoot"})
+	if s = h.l.state(); !s.Calls[0].Made || len(s.Editor.Layers) != 1 {
+		t.Error("a layer added made no hello")
+	}
+}
+
+func TestAKnobTurnedChangesTheCallAndPlaysItAsItIsLetGo(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "uggla"})
+	k := h.v.layers[0].ks[0]
+	if k.p.Name != "pitch" {
+		t.Fatalf("the first knob sets %s", k.p.Name)
+	}
+	c := h.centre(k)
+	h.w.Input(input.PointerDown{Pos: c, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerMove{Pos: c.Add(geom.Pt(0, -30)), Time: time.Now()})
+	got, ok := h.intent().(ParamSet)
+	if !ok || got.Layer != 0 || got.Name != "pitch" || got.Value <= 1100 || got.Done {
+		t.Fatalf("a drag up the pitch knob sent %#v", got)
+	}
+	h.w.Input(input.PointerUp{Pos: c.Add(geom.Pt(0, -30)), Time: time.Now()})
+	done := h.intent().(ParamSet)
+	if !done.Done {
+		t.Fatalf("letting go of the knob sent %#v", done)
+	}
+	before := h.l.takes[0].Stats.Presence
+	h.do(got, done)
+	if h.l.takes[0].Stats.Presence == before {
+		t.Error("the pitch turned up left the hello as it was")
+	}
+	if i, _ := h.l.playing(); i != 0 {
+		t.Error("the hello did not play as the knob was let go")
+	}
+	if !h.l.state().Dirty {
+		t.Error("the change is not marked unsaved")
+	}
+}
+
+func TestNotesAndChangesSaveToTheCompanionsFile(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "uggla"}, CallChosen{Call: 2},
+		ParamSet{Layer: 0, Name: "question", Value: 7},
+		NotesSet{Text: "More of a question, please"}, Saved{})
+	if s := h.l.state(); s.Dirty || !strings.HasPrefix(s.Status, "Saved") {
+		t.Fatalf("after saving the lab says %q, dirty %v", s.Status, s.Dirty)
+	}
+	lib, err := calls.LoadDir(h.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oops := lib.Companion("uggla").Calls[calls.Oops]
+	if oops.Notes != "More of a question, please" || oops.Layers[0].Params["question"] != 7 {
+		t.Errorf("the file holds %q and question %v", oops.Notes, oops.Layers[0].Params["question"])
+	}
+	// A change reverted reads the file back.
+	h.do(ParamSet{Layer: 0, Name: "question", Value: 1}, Reverted{})
+	if v := h.l.current().Layers[0].Params["question"]; v != 7 {
+		t.Errorf("reverted, the question is %v", v)
+	}
+}
+
+func TestANewTakeStraysAndAsSetComesBack(t *testing.T) {
+	h := newHarness(t)
+	set := h.l.takes[1].Samples
+	h.do(NewTake{Call: 1})
+	if h.l.takes[1].Seed == 0 || len(h.l.takes[1].Samples) == len(set) && h.l.takes[1].Samples[1000] == set[1000] {
+		t.Error("a new take is the call as set")
+	}
+	if !strings.HasPrefix(h.l.state().Calls[1].Take, "Take ") {
+		t.Errorf("the card says %q", h.l.state().Calls[1].Take)
+	}
+	h.do(AsSet{Call: 1})
+	if h.l.takes[1].Seed != 0 || h.l.state().Calls[1].Take != "As set" {
+		t.Error("as set did not come back")
+	}
+}
+
+func TestPlayAllPlaysTheThreeCallsInTurn(t *testing.T) {
+	h := newHarness(t)
+	h.do(PlayAll{})
+	var heard []int
+	buf := make([]float32, 2*1024)
+	for range 1000 {
+		if i, _ := h.l.playing(); i >= 0 && (len(heard) == 0 || heard[len(heard)-1] != i) {
+			heard = append(heard, i)
+		}
+		h.l.mix.Mix(buf)
+		h.l.tick()
+		if len(heard) == 3 {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	if len(heard) != 3 || heard[0] != 0 || heard[1] != 1 || heard[2] != 2 {
+		t.Errorf("heard the calls %v", heard)
+	}
+}

@@ -123,6 +123,72 @@ The engine makes a second of the busiest song, all twelve of Mascot
 Dance's tracks at once, in about 35 ms on one core of a 2015 desktop
 CPU, about 28 times faster than it plays.
 
+## Companion calls
+
+The library also holds the calls of Läxkompis's ten companions: a
+hello when a child taps one, a cheer for a level done, and an oops for a
+wrong answer. They are made in code, by package `calls`, from models of
+how the sounds are made: a voice as a throat makes it, a buzz shaped by
+the mouth's resonances into a vowel, with breath; a frog's croak rolled
+into pulses by its throat, with its throat sac ringing; and a bubble's
+rising tone, as Minnaert worked it out. The owl's and the frog's are
+made; the other eight come later.
+
+Each call is made anew each time it plays, a take of its own, so a
+child tapping a companion again and again never hears the same sound
+twice. A player makes takes ahead, in the background, so each plays at
+once:
+
+```go
+lib, err := music.Calls()
+if err != nil {
+	return err
+}
+voices := calls.NewPlayer(mix, lib)
+voices.Warm()                                       // make takes ahead
+voices.Play("uggla", calls.Hello, audio.Options{})  // a new take each time
+voices.PlayTake("uggla", calls.Oops, 0, audio.Options{}) // the call as set
+```
+
+Every call is finished the same way, as the game's brief asks: cut
+under 300 Hz, which a phone's speaker does not play, started from its
+first millisecond, brought to −14 LUFS at its loudest, and held under
+−1 dBTP. The tests check every call against the brief, as set and in 20
+takes: its length, 0.3 to 0.7 s, or up to 1.2 s for a cheer; its
+loudness and peak; that it sounds at once; that little of it is under
+300 Hz; and that most of it is at 1 to 4 kHz.
+
+### Setting the calls by ear
+
+The calls window plays each companion's calls, draws them, and
+measures them against the brief, with a knob for each number of the
+models that make them:
+
+```sh
+go run ./cmd/calls
+```
+
+![The calls window](cmd/calls/calls.png)
+
+A call plays as a knob is let go. New take plays another take, as the
+game makes one each time; As set plays the call as its knobs set it.
+Vary sets how far the takes stray, and Room how much of a small room is
+heard round the call. Phone speaker plays the calls as a phone's speaker
+does, and a song can play under them, as in the game. A call can have
+more than one layer, each a model, at a time and a level of its own.
+
+Save writes the companion to `voices/<id>.json`. Each call there has its
+Notes, which the window's notes box sets: write what should change, and
+save, for the next round of the call.
+
+`-render` writes every call to a WAV file instead, mono, 24 bits at 48
+kHz, as the brief names them, and says how each measures:
+
+```sh
+go run ./cmd/calls -render out
+go run ./cmd/calls -render out -seed 7   # take 7
+```
+
 ## gunim music studio
 
 The studio is a window to make game music in, with the engine playing
