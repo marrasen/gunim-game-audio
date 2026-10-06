@@ -30,6 +30,8 @@ import (
 	"slices"
 
 	"github.com/marrasen/gunim/audio/band"
+
+	"github.com/marrasen/gunim-music/synth"
 )
 
 // The songs, by name.
@@ -43,6 +45,20 @@ const (
 	// melodies, and then drums and a solo that comes round. It is a
 	// [band.Tiers].
 	ARoundSong = "a-round-song"
+	// KeypadRound is A round song made in code, by package synth, at
+	// 118 BPM in C major: eight tracks in four tiers, from a pad and
+	// bass to full drums, a sparkle and a vocal chop, with a keypad
+	// whose digits play the C major pentatonic over it.
+	KeypadRound = "keypad-round"
+	// BossEntrance is a cartoon villain's entrance, made in code, at
+	// 146 BPM in D minor: pizzicato, a tuba, brass stabs and timpani in
+	// four tiers that rise as a boss's health falls, and a victory
+	// sting.
+	BossEntrance = "boss-entrance"
+	// MascotDance is a bright dance groove, made in code, at 124 BPM in
+	// E major, for a mascot to dance to: its tracks come and go by
+	// themselves, and a topline it writes itself changes as it goes.
+	MascotDance = "mascot-dance"
 )
 
 // files holds the songs: a folder each, named for the song, with its
@@ -72,7 +88,8 @@ func Songs() []string {
 // spec is a song.json: the song's kind, which says what plays it, and
 // its settings. Kind "wander" is a [band.Wander], and "tiers" a
 // [band.Tiers], whose Parts give each part its tier, and Start the
-// tier it starts at.
+// tier it starts at. Kind "synth" is a [*synth.Song], made in code,
+// which the whole song.json describes.
 type spec struct {
 	Kind          string
 	Title, Artist string
@@ -100,6 +117,14 @@ func Song(name string) (band.Song, error) {
 	var s spec
 	if err = json.Unmarshal(b, &s); err != nil {
 		return nil, fmt.Errorf("music: %s: %w", name, err)
+	}
+	if s.Kind == "synth" {
+		// A song made in code is all in its song.json.
+		song, perr := synth.Parse(b)
+		if perr != nil {
+			return nil, fmt.Errorf("music: %s: %w", name, perr)
+		}
+		return song, nil
 	}
 	parts, err := band.Load(files, dir)
 	if err != nil {

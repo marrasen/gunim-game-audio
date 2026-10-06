@@ -8,6 +8,8 @@ import (
 
 	"github.com/marrasen/gunim/audio"
 	"github.com/marrasen/gunim/audio/band"
+
+	"github.com/marrasen/gunim-music/synth"
 )
 
 func TestEverySongLoadsAndNamesItsMaker(t *testing.T) {
@@ -27,17 +29,21 @@ func TestEverySongLoadsAndNamesItsMaker(t *testing.T) {
 }
 
 // cut returns a song's parts, and where its bars start and how many
-// make a phrase, for the kinds of song the library holds.
-func cut(t *testing.T, s band.Song) (parts []band.Part, barAt func(int) int64, phraseBars int) {
+// make a phrase, for the kinds of song the library holds cut from
+// recordings, and false for a song made in code, which package synth
+// tests.
+func cut(t *testing.T, s band.Song) (parts []band.Part, barAt func(int) int64, phraseBars int, ok bool) {
 	t.Helper()
 	switch s := s.(type) {
 	case *band.Wander:
-		return s.Parts, s.BarAt, cmp.Or(s.PhraseBars, 16)
+		return s.Parts, s.BarAt, cmp.Or(s.PhraseBars, 16), true
 	case *band.Tiers:
-		return s.Parts, s.BarAt, cmp.Or(s.PhraseBars, 8)
+		return s.Parts, s.BarAt, cmp.Or(s.PhraseBars, 8), true
+	case *synth.Song:
+		return nil, nil, 0, false
 	}
 	t.Fatalf("a song of type %T", s)
-	return nil, nil, 0
+	return nil, nil, 0, false
 }
 
 func TestEverySongsPartsAreThereCutAtItsBars(t *testing.T) {
@@ -46,7 +52,10 @@ func TestEverySongsPartsAreThereCutAtItsBars(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		parts, barAt, bars := cut(t, s)
+		parts, barAt, bars, ok := cut(t, s)
+		if !ok {
+			continue
+		}
 		phrase := barAt(bars)
 		looping := 0
 		for _, p := range parts {
@@ -151,6 +160,18 @@ func TestEverySongPlays(t *testing.T) {
 		}
 		if peak < 0.05 {
 			t.Fatalf("four seconds of %s peak at %v; want music", name, peak)
+		}
+	}
+}
+
+func TestTheSongsMadeInCodeAreThere(t *testing.T) {
+	for _, name := range []string{KeypadRound, BossEntrance, MascotDance} {
+		s, err := Song(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := s.(*synth.Song); !ok {
+			t.Fatalf("%s is a %T, want a *synth.Song", name, s)
 		}
 	}
 }
