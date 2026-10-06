@@ -95,7 +95,7 @@ func TestChords(t *testing.T) {
 		{"bII", amin, 10, []int{0, 4, 7}, 10},
 		{"F#m7b5", cmaj, 6, []int{0, 3, 6, 10}, 6},
 	} {
-		ch, err := parseChord(c.name, c.k)
+		ch, err := readChord(c.name, c.k)
 		if err != nil {
 			t.Errorf("%s: %v", c.name, err)
 			continue
@@ -104,7 +104,7 @@ func TestChords(t *testing.T) {
 			t.Errorf("%s: got root %d, tones %v, bass %d", c.name, ch.Root, ch.Tones, ch.Bass)
 		}
 	}
-	if _, err := parseChord("Hm", cmaj); err == nil {
+	if _, err := readChord("Hm", cmaj); err == nil {
 		t.Error("Hm parsed")
 	}
 }
@@ -113,7 +113,7 @@ func TestVoiceLeading(t *testing.T) {
 	k, _ := parseKey("C", "major")
 	var prev []int
 	for _, name := range []string{"C", "Am", "F", "G", "C"} {
-		ch, _ := parseChord(name, k)
+		ch, _ := readChord(name, k)
 		v := ch.voice(66, prev)
 		for _, n := range v {
 			if !ch.fits(n) {
@@ -142,7 +142,7 @@ func TestGenerateChords(t *testing.T) {
 				t.Fatalf("%s, seed %d: %v, %v", style, seed, got, err)
 			}
 			for i, c := range got {
-				if _, err := parseChord(c, k); err != nil {
+				if _, err := readChord(c, k); err != nil {
 					t.Errorf("%s wrote %q: %v", style, c, err)
 				}
 				if i > 0 && c == got[i-1] {
@@ -188,7 +188,7 @@ func TestTranspose(t *testing.T) {
 func TestSpelled(t *testing.T) {
 	k, _ := parseKey("E", "major")
 	for name, want := range map[string]string{"V": "B", "IVmaj7": "Amaj7", "iii7": "G#m7", "Isus4": "Esus4", "G/B": "G/B", "viio": "D#dim"} {
-		c, err := parseChord(name, k)
+		c, err := readChord(name, k)
 		if err != nil || c.Spelled() != want {
 			t.Errorf("%s: spelled %q, %v; want %q", name, c.Spelled(), err, want)
 		}

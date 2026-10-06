@@ -36,6 +36,8 @@ type patternPane struct {
 	ops     []*opButton
 	grid    *stepGrid
 	cycles  *widget.Segmented
+	res     *widget.Segmented
+	newRow  *widget.TextField
 	note    *widget.Label
 	shownOf string
 	gen     int
@@ -137,12 +139,32 @@ func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 		return pp.changed(pp.track)
 	}
 	pp.note = small("")
-	gridHead := widget.Row(small("STEPS · click a cell to set or clear it; Shift and click holds the note before it"), widget.NewSpacer(), pp.cycles)
-	gridHead.Grow(gridHead.Children()[1], 1)
-	gridHead.Cross = widget.CrossCenter
-	grid := panelWith(gridHead, sized(pp.grid, 0, 240), pp.note)
+	pp.res = widget.NewSegmented("8", "16", "32")
+	pp.res.KeepFocus = true
+	pp.res.OnChange = func(i int) gunim.Intent {
+		pp.grid.perBar = []int{8, 16, 32}[i]
+		pp.grid.src = ""
+		return pp.changed(pp.track)
+	}
+	pp.newRow = widget.NewTextField()
+	pp.newRow.Face = widget.MonoFont
+	pp.newRow.Placeholder = "add a row: 9, 4#, C5, tim…"
+	pp.newRow.Keys = func(k input.KeyPress, u *gunim.UI) bool {
+		if k.Key != input.KeyEnter {
+			return false
+		}
+		pp.grid.addRow(pp.newRow.Text())
+		pp.newRow.SetText("")
+		u.Invalidate()
+		return true
+	}
+	gridTools := widget.Row(sized(pp.newRow, 220, 0), widget.NewSpacer(), small("steps a bar"), pp.res, pp.cycles)
+	gridTools.Grow(gridTools.Children()[1], 1)
+	gridTools.Cross = widget.CrossCenter
+	grid := panel("STEPS · click to add or remove a note; drag to draw it longer, or drag a note to change its length",
+		gridTools, pp.grid, pp.note)
 
-	col := widget.Column(head, pp.err, structure, grid)
+	col := widget.Column(head, pp.err, grid, structure)
 	col.Cross = widget.CrossStretch
 	pp.Scroll = widget.NewScroll(widget.NewPad(col))
 	return pp
@@ -263,7 +285,6 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 	} else {
 		pp.choose(pp.sel)
 	}
-	bars := max(t.Bars, 1)
 	n := synth.PatternCycles(src)
 	if len(pp.cycles.Labels) != n {
 		labels := make([]string, n)
@@ -274,7 +295,10 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 		pp.grid.cycle = min(pp.grid.cycle, n-1)
 		pp.cycles.SetSelected(pp.grid.cycle, u)
 	}
-	pp.grid.set(src, n, bars, drums, t, row, ti, st)
+	pp.grid.set(src, n, t, song, row, ti, st)
+	if i := slices.Index([]int{8, 16, 32}, pp.grid.perBar); i >= 0 && pp.res.Selected() != i {
+		pp.res.SetSelected(i, u)
+	}
 	// Where the song is in the track's cycle, for the tree's light.
 	pp.tree.playing = pp.grid.playing
 	pp.tree.cycle = pp.grid.nowCycle
@@ -536,205 +560,4 @@ func (tv *treeView) Handle(e input.Event, u *gunim.UI) bool {
 		}
 	}
 	return false
-}
-
-// stepGrid is a track's notes on a grid of steps: a row a drum or a
-// note, a column a step, the cycle shown's notes lit, and a line where
-// the song is.
-type stepGrid struct {
-	src     string
-	cycles  int
-	cycle   int
-	cols    int
-	drums   bool
-	grids   []gridOf
-	color   color.NRGBA
-	playing float64
-	// nowCycle is the cycle the song plays of the track.
-	nowCycle int
-	lossy    bool
-	edit     func(text string, u *gunim.UI)
-	size     geom.Size
-}
-
-// set shows the pattern src, which takes cycles to come round, each
-// lasting bars, of track t, its row, at index ti of st.
-func (g *stepGrid) set(src string, cycles, bars int, drums bool, t *synth.Track, row TrackRow, ti int, st Studio) {
-	g.color = hexColor(row.Color, max(ti, 0))
-	g.drums = drums
-	perBar := 16
-	if bars >= 4 {
-		perBar = 8
-	}
-	g.cols = min(perBar*bars, 64)
-	g.cycles = cycles
-	g.cycle = min(g.cycle, cycles-1)
-	if src != g.src || len(g.grids) != cycles {
-		g.src = src
-		var rows []string
-		if drums {
-			rows = []string{"bd", "sn", "cp", "hh", "oh"}
-		}
-		g.grids = make([]gridOf, cycles)
-		all := map[string]bool{}
-		for c := range cycles {
-			for _, r := range readGrid(src, c, g.cols, rows).rows {
-				all[r] = true
-			}
-		}
-		// Every cycle has the same rows, in an order that reads.
-		for r := range all {
-			if !slices.Contains(rows, r) {
-				rows = append(rows, r)
-			}
-		}
-		if !drums {
-			slices.SortStableFunc(rows, func(a, b string) int { return rowOrder(b) - rowOrder(a) })
-		}
-		for c := range cycles {
-			g.grids[c] = readGrid(src, c, g.cols, rows)
-		}
-		g.lossy = !slices.Equal(evsOf(writeGrid(g.grids), cycles), evsOf(src, cycles))
-	}
-	// Where the song is in the track's cycle.
-	g.playing = -1
-	if st.BarFrames > 0 {
-		heard := heardAt(st.Clock, st.Clock.At)
-		pos := float64(st.Bar) + (heard-float64(st.BarFrame))/st.BarFrames
-		if pos >= 0 {
-			cyc := pos / float64(bars)
-			g.nowCycle = int(cyc)
-			g.playing = cyc - math.Floor(cyc)
-		}
-	}
-	_ = t
-}
-
-// evsOf returns a pattern's events over its cycles, as text, to tell
-// whether two patterns play the same.
-func evsOf(src string, cycles int) []string {
-	var out []string
-	for c := range cycles {
-		evs, _ := synth.PatternEvents(src, c)
-		for _, e := range evs {
-			out = append(out, fmt.Sprintf("%d %.4f %.4f %s", c, e.At, e.Dur, e.Atom))
-		}
-	}
-	// Events that start together play the same in any order.
-	slices.Sort(out)
-	return out
-}
-
-// rowOrder ranks a note's row: higher notes higher.
-func rowOrder(a string) int {
-	n, err := strconv.Atoi(a)
-	switch {
-	case err == nil:
-		return n * 10
-	case len(a) > 1 && a[0] == 'c':
-		if k, err := strconv.Atoi(a[1:]); err == nil {
-			return k*20 + 1
-		}
-	case a == "ch":
-		return 500
-	case a == "b":
-		return -100
-	}
-	return 1000
-}
-
-func (g *stepGrid) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
-	g.size = c.Max
-	return c.Max
-}
-
-const gridLabelW = 54
-
-// cell returns the cell at p, and false where p is on none.
-func (g *stepGrid) cell(p geom.Point) (row, col int, ok bool) {
-	if g.cycle >= len(g.grids) {
-		return 0, 0, false
-	}
-	gr := g.grids[g.cycle]
-	if len(gr.rows) == 0 || g.cols == 0 || p.X < gridLabelW {
-		return 0, 0, false
-	}
-	rh := g.size.H / float32(len(gr.rows))
-	cw := (g.size.W - gridLabelW) / float32(g.cols)
-	row, col = int(p.Y/rh), int((p.X-gridLabelW)/cw)
-	return row, col, row >= 0 && row < len(gr.rows) && col >= 0 && col < g.cols
-}
-
-func (g *stepGrid) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
-	r := geom.Rc(0, 0, box.W, box.H)
-	p.RRect(r, 8, paint.Solid(color.NRGBA{0x10, 0x12, 0x19, 0xff}))
-	if g.cycle >= len(g.grids) {
-		return
-	}
-	gr := g.grids[g.cycle]
-	if len(gr.rows) == 0 {
-		return
-	}
-	ink := audioui.Ink.Get(f.Theme)
-	rh := box.H / float32(len(gr.rows))
-	cw := (box.W - gridLabelW) / float32(g.cols)
-	beat := max(g.cols/max(g.cols/4, 1), 1)
-	perBeat := g.cols / max(beat, 1)
-	_ = perBeat
-	for i, name := range gr.rows {
-		y := float32(i) * rh
-		run := audioui.Shaped(name, min(12, rh*0.6), false, true)
-		run.Paint(p, geom.Pt(8, y+(rh-run.Height())/2), withAlpha(ink, 0.7))
-		for c := range g.cols {
-			x := gridLabelW + float32(c)*cw
-			cell := geom.Rc(x+1, y+1, cw-2, rh-2)
-			base := color.NRGBA{0xff, 0xff, 0xff, 0x06}
-			if (c/4)%2 == 0 {
-				base = color.NRGBA{0xff, 0xff, 0xff, 0x0b}
-			}
-			switch gr.cells[i][c] {
-			case 1:
-				p.RRect(cell, 3, paint.Solid(withAlpha(g.color, 0.85)))
-			case 2:
-				p.RRect(geom.Rc(x-1, y+rh*0.3, cw, rh*0.4), 2, paint.Solid(withAlpha(g.color, 0.5)))
-			default:
-				p.RRect(cell, 3, paint.Solid(base))
-			}
-		}
-	}
-	if g.playing >= 0 && g.nowCycle%max(g.cycles, 1) == g.cycle {
-		x := gridLabelW + (box.W-gridLabelW)*float32(g.playing)
-		p.ShadowRRect(geom.Rc(x-1, 0, 2, box.H), 1, paint.Solid(withAlpha(ink, 0.85)), paint.Shadow{Blur: 8, Color: withAlpha(scopeColor, 0.8)})
-	}
-}
-
-func (g *stepGrid) Handle(e input.Event, u *gunim.UI) bool {
-	d, ok := e.(input.PointerDown)
-	if !ok {
-		return false
-	}
-	row, col, ok := g.cell(d.Pos)
-	if !ok {
-		return true
-	}
-	cells := g.grids[g.cycle].cells[row]
-	switch {
-	case d.Mods.Has(input.ModShift) && col > 0 && cells[col] == 0 && cells[col-1] != 0:
-		cells[col] = 2
-	case cells[col] != 0:
-		cells[col] = 0
-		// A note cleared takes its holds with it.
-		for h := col + 1; h < len(cells) && cells[h] == 2; h++ {
-			cells[h] = 0
-		}
-	default:
-		cells[col] = 1
-	}
-	text := writeGrid(g.grids)
-	g.src = ""
-	if g.edit != nil {
-		g.edit(text, u)
-	}
-	u.Invalidate()
-	return true
 }

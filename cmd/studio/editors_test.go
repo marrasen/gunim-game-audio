@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/input"
 
 	music "github.com/marrasen/gunim-music"
@@ -80,7 +81,10 @@ func TestPatternOps(t *testing.T) {
 		{"bd(3,8) ~", PatternOp{At: "0", Op: "steps", Arg: "-1"}, "bd(3,7) ~", "0"},
 		{"hh*8", PatternOp{At: "", Op: "maybe"}, "hh*8?", ""},
 		{"hh*8?", PatternOp{At: "", Op: "maybe"}, "hh*8", ""},
-		{"0 2", PatternOp{At: "1", Op: "weight", Arg: "1"}, "0 2@2", "1"},
+		{"0 2 4 5", PatternOp{At: "1", Op: "weight", Arg: "1"}, "0 2@2 5", "1"},
+		{"0 2@2 5", PatternOp{At: "1", Op: "weight", Arg: "-1"}, "0 2 ~ 5", "1"},
+		{"0 2@2 ~ 5", PatternOp{At: "1", Op: "weight", Arg: "-1"}, "0 2 ~@2 5", "1"},
+		{"0 2@3 5", PatternOp{At: "0", Op: "weight", Arg: "1"}, "0@2 2@2 5", "0"},
 		{"0 2", PatternOp{At: "0", Op: "layer"}, "[0, 0] 2", "0/1"},
 		{"bd", PatternOp{At: "", Op: "delete"}, "~", ""},
 		{"bd ~", PatternOp{At: "1", Op: "set", Arg: "[cp cp]"}, "bd [cp cp]", "1"},
@@ -209,5 +213,108 @@ func TestEditorsRenderWhatTheyShow(t *testing.T) {
 	got, ok := h.intent().(SetValue)
 	if !ok || got.Path != k.path() || got.Num <= num(h.s.song, k.path()) {
 		t.Errorf("a drag up the cutoff knob sent %#v", got)
+	}
+}
+
+func TestTheStepGridDrawsAndKeepsItsRows(t *testing.T) {
+	h := newHarness(t, music.KeypadRound)
+	h.do(OpenEditor{Editor: "Pattern", Track: "bass"})
+	h.settle()
+	g := h.v.pattern.grid
+	if !slices.Contains(g.rows, "9") || !slices.Contains(g.rows, "c2") || !slices.Contains(g.rows, "b") {
+		t.Fatalf("the bass's grid has rows %v; want the scale's degrees and the chord's tones", g.rows)
+	}
+	if i := slices.Index(g.rows, "4"); g.labels[i] != "4 · G2" {
+		t.Errorf("the row of degree 4 says %q, want 4 · G2", g.labels[i])
+	}
+	at, ok := h.boundsOf(g)
+	if !ok {
+		t.Fatal("the grid is not on screen")
+	}
+	cw := (at.Size().W - gridLabelW) / float32(g.cols)
+	cellAt := func(row string, col int) geom.Point {
+		r := slices.Index(g.rows, row)
+		return geom.Pt(at.Min.X+gridLabelW+(float32(col)+0.5)*cw, at.Min.Y+(float32(r)+0.5)*gridRowH)
+	}
+	send := func(evs ...input.Event) {
+		for _, e := range evs {
+			h.w.Input(e)
+		}
+	}
+	edited := func() string {
+		got, ok := h.intent().(PatternEdited)
+		if !ok {
+			t.Fatalf("the grid sent %#v", got)
+		}
+		h.do(got)
+		h.settle()
+		return got.Text
+	}
+	now := time.Now()
+	// The bass's only c2 is at its last eighth, step 14: a click there
+	// takes it out, and the row stays.
+	send(input.PointerDown{Pos: cellAt("c2", 14), Clicks: 1, Time: now}, input.PointerUp{Pos: cellAt("c2", 14), Time: now})
+	if text := edited(); strings.Contains(text, "c2") || !slices.Contains(g.rows, "c2") {
+		t.Errorf("after the c2 is taken out the pattern is %q and the rows %v", text, g.rows)
+	}
+	// A drag along the row of degree 4 draws a note of four steps.
+	send(input.PointerDown{Pos: cellAt("4", 4), Clicks: 1, Time: now}, input.PointerMove{Pos: cellAt("4", 7), Time: now},
+		input.PointerUp{Pos: cellAt("4", 7), Time: now})
+	text := edited()
+	evs, _ := synth.PatternEvents(text, 0)
+	found := false
+	for _, e := range evs {
+		if e.Atom == "4" && e.At == 0.25 && e.Dur == 0.25 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("after a drag over steps 4 to 7 the pattern is %q, with no 4 of a quarter bar at a quarter", text)
+	}
+	// A drag from its start back to step 5 shortens it to two steps.
+	send(input.PointerDown{Pos: cellAt("4", 4), Clicks: 1, Time: now}, input.PointerMove{Pos: cellAt("4", 5), Time: now},
+		input.PointerUp{Pos: cellAt("4", 5), Time: now})
+	evs, _ = synth.PatternEvents(edited(), 0)
+	for _, e := range evs {
+		if e.Atom == "4" && e.Dur != 0.125 {
+			t.Errorf("after shortening, the 4 lasts %v of the bar, want an eighth", e.Dur)
+		}
+	}
+	// A row added holds what any row holds.
+	g.addRow("9'")
+	if g.rows[0] != "9'" || len(g.grids[0].cells) != len(g.rows) {
+		t.Errorf("after adding a row, the rows are %v", g.rows)
+	}
+}
+
+func TestTheGridShowsWhatChordTonesPlay(t *testing.T) {
+	am7, err := synth.ParseChord("Am7", "C", "major")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &stepGrid{oct: 2}
+	for atom, want := range map[string]string{"c0": "A2", "c1": "C3", "c2'": "E4", "c3": "G3", "c4": "A3", "b": "A2", "ch": "Am7", "4": ""} {
+		if got := g.resolve(atom, am7); got != want {
+			t.Errorf("%s over Am7 plays %q, want %q", atom, got, want)
+		}
+	}
+	c, _ := synth.ParseChord("C", "C", "major")
+	f, _ := synth.ParseChord("F", "C", "major")
+	g = &stepGrid{oct: 4, perBar: 16, chordBars: 1, chords: []synth.Chord{c, f}}
+	if ch, _ := g.chordAtCol(20); ch.Spelled() != "F" {
+		t.Errorf("column 20, in the second bar, plays over %s, want F", ch.Spelled())
+	}
+	g.cycleBar = 1
+	if ch, _ := g.chordAtCol(0); ch.Spelled() != "F" {
+		t.Errorf("a cycle from bar 1 starts over %s, want F", ch.Spelled())
+	}
+	h := newHarness(t, music.KeypadRound)
+	h.play(time.Second)
+	h.do(OpenEditor{Editor: "Pattern", Track: "bass"})
+	h.settle()
+	grid := h.v.pattern.grid
+	i := slices.Index(grid.rows, "c0")
+	if !strings.HasPrefix(grid.labels[i], "c0 · ") || strings.HasPrefix(grid.labels[slices.Index(grid.rows, "ch")], "ch · chord") {
+		t.Errorf("the chord's rows say %q and %q while the song plays", grid.labels[i], grid.labels[slices.Index(grid.rows, "ch")])
 	}
 }

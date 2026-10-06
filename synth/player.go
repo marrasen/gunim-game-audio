@@ -943,7 +943,7 @@ func (p *Player) scheduleTrack(t *track, bar int, k key) {
 		case actDegree:
 			p.queueNote(t, frame, n, k.degree(act.n, oct)+act.acc)
 		case actTone:
-			p.queueNote(t, frame, n, chord.tone(act.n, oct))
+			p.queueNote(t, frame, n, chord.Tone(act.n, oct))
 		case actBass:
 			p.queueNote(t, frame, n, chord.Bass+12*(oct+1))
 		case actNote:
@@ -968,7 +968,7 @@ func (p *Player) scheduleTrack(t *track, bar int, k key) {
 		case actDrum:
 			var pitch float32
 			if act.tone >= 0 {
-				pitch = float32(chord.tone(act.tone, oct-2))
+				pitch = float32(chord.Tone(act.tone, oct-2))
 			} else if act.drum.kind == drTimpani {
 				pitch = float32(chord.Root + 12*(oct-1))
 			}
@@ -992,7 +992,7 @@ func (p *Player) arp(t *track, chord Chord, ci, oct int) int {
 	ct := t.c
 	t.arpBuf = t.arpBuf[:0]
 	for i := range len(chord.Tones) * ct.arpOct {
-		t.arpBuf = append(t.arpBuf, chord.tone(i, oct))
+		t.arpBuf = append(t.arpBuf, chord.Tone(i, oct))
 	}
 	n := len(t.arpBuf)
 	s := t.arpStep

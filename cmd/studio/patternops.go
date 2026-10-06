@@ -26,7 +26,8 @@ import (
 //	euclid   spread it Euclid's way, or change the hits by Arg
 //	steps    change a Euclid's steps by Arg
 //	maybe    make it play half the time, or always again
-//	weight   change its share of its sequence by Arg
+//	weight   make it a step longer, Arg 1, taking the time from the
+//	         step after it, or a step shorter, Arg -1, leaving a rest
 type PatternOp struct {
 	Track, At, Op, Arg string
 }
@@ -180,7 +181,34 @@ func applyOp(src string, op PatternOp) (out, at string, err error) {
 		s.Weight = 1
 		parent.Kids[i] = &synth.Step{Kind: synth.StepDegrade, Chance: 0.5, Kids: []*synth.Step{s}, Weight: w}
 	case "weight":
-		s.Weight = max(1, s.Weight+float64(atoi(op.Arg, 1)))
+		// A step longer takes its time from the step after it, and a step
+		// shorter gives it back as a rest, so the steps around it keep
+		// their places in the bar.
+		if parent.Kind != synth.StepSeq || parent == holder {
+			return "", "", errors.New("only a step of a sequence grows or shrinks")
+		}
+		if atoi(op.Arg, 1) > 0 {
+			if i+1 >= len(parent.Kids) {
+				return "", "", errors.New("there is no step after it to take the time from")
+			}
+			next := parent.Kids[i+1]
+			if next.Weight > 1 {
+				next.Weight--
+			} else {
+				parent.Kids = slices.Delete(parent.Kids, i+1, i+2)
+			}
+			s.Weight++
+			break
+		}
+		if s.Weight <= 1 {
+			return "", "", errors.New("it is a single step, as short as it goes; split it to make it shorter")
+		}
+		s.Weight--
+		if i+1 < len(parent.Kids) && parent.Kids[i+1].Kind == synth.StepRest {
+			parent.Kids[i+1].Weight++
+		} else {
+			parent.Kids = slices.Insert(parent.Kids, i+1, &synth.Step{Kind: synth.StepRest, Weight: 1})
+		}
 	default:
 		return "", "", errors.New("no such change: " + op.Op)
 	}
