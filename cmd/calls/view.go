@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/input"
+	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/theme"
 	"github.com/marrasen/gunim/widget"
 
@@ -29,7 +31,15 @@ var (
 const maxLayers, maxKnobs = 4, 24
 
 // The calls' names as the window shows them.
-var kindNames = map[string]string{calls.Hello: "Hello", calls.Cheer: "Cheer", calls.Oops: "Oops"}
+var kindNames = map[string]string{
+	calls.Hello: "Hello", calls.Cheer: "Cheer", calls.Oops: "Oops",
+	calls.Taunt: "Taunt", calls.Roar: "Roar", calls.Hurt: "Hurt", calls.Laugh: "Laugh",
+	calls.Worried: "Worried", calls.Defeat: "Defeat", calls.Whimper: "Whimper",
+}
+
+// cardsPerRow is how many call cards stand side by side: a companion's
+// three in one row, a boss's seven in two.
+const cardsPerRow = 4
 
 func small(s string) *widget.Label {
 	l := widget.NewLabel(s)
@@ -40,6 +50,7 @@ func small(s string) *widget.Label {
 // view is the window, with handles on what updates change.
 type view struct {
 	*widget.Pad
+	keys    *widget.Label
 	phone   *widget.Switch
 	songs   *widget.Dropdown
 	save    *widget.Button
@@ -47,7 +58,7 @@ type view struct {
 	list    *widget.List
 	name    *widget.Label
 	about   *widget.Label
-	cards   [3]*callCard
+	cards   *cardGrid
 	editing *widget.Label
 	callKs  []*knob
 	master  []*knob
@@ -94,22 +105,15 @@ func buildView(s Lab) *root {
 	v.name = widget.NewLabel("")
 	v.name.Size = widget.HeadingSize
 	v.about = small("")
-	all := widget.NewButton("Play all three")
+	all := widget.NewButton("Play all")
 	all.Icon, all.On = icon.Play, PlayAll{}
-	all.Tooltip = "Plays hello, cheer and oops one after another (A)"
+	all.Tooltip = "Plays every call, one after another (A)"
 	hgap := widget.NewSpacer()
 	head := widget.Row(widget.Column(v.name, v.about), hgap, all).Grow(hgap, 1)
 	head.Cross = widget.CrossCenter
-	cardNodes := make([]gunim.Node, 3)
-	for i := range v.cards {
-		v.cards[i] = newCallCard(i)
-		cardNodes[i] = v.cards[i]
-	}
-	cardRow := widget.Row(cardNodes...)
-	for _, c := range cardNodes {
-		cardRow.Grow(c, 1)
-	}
-	cardRow.Cross = widget.CrossStretch
+	// The call cards, in rows: one for a companion's three, two for a
+	// boss's seven.
+	v.cards = newCardGrid()
 
 	v.editing = widget.NewLabel("")
 	v.editing.Size = widget.HeadingSize
@@ -144,9 +148,8 @@ func buildView(s Lab) *root {
 	addRow := widget.Row(v.add)
 	editor := widget.Column(append([]gunim.Node{v.editing, knobsRow}, append(layerNodes, addRow, notesPanel)...)...)
 	editor.Cross = widget.CrossStretch
-	keys := small("Keys: Space plays the call open · N makes a new take · 1, 2, 3 open and play hello, cheer, oops · A plays all three. " +
-		"Drag a knob up or down, Shift for fine steps; a double click sets it back. The call plays as you let go.")
-	right := widget.Column(head, cardRow, editor, keys)
+	v.keys = small("")
+	right := widget.Column(head, v.cards, editor, v.keys)
 	right.Cross = widget.CrossStretch
 	scroll := widget.NewScroll(widget.NewPad(right))
 	body := widget.Row(left, scroll).Grow(scroll, 1)
@@ -181,9 +184,8 @@ func (v *view) update(s Lab, u *gunim.UI) {
 	v.name.SetText(s.Name)
 	v.about.SetText(s.About)
 	v.sel = s.Selected
-	for i, c := range s.Calls {
-		v.cards[i].set(c, i == s.Selected)
-	}
+	v.cards.set(s.Calls, s.Selected)
+	v.keys.SetText(keysHint(s.Calls))
 	e := s.Editor
 	v.editing.SetText("Editing " + strings.ToLower(kindNames[e.Kind]))
 	made := len(e.Layers) > 0
@@ -219,8 +221,9 @@ func (v *view) update(s Lab, u *gunim.UI) {
 	u.Invalidate()
 }
 
-// Handle plays the calls by key.
-func (r *root) Handle(e input.Event, u *gunim.UI) bool {
+// CatchKey plays the calls by key, wherever the keyboard is, but for
+// keys something focused took, as the notes' typing.
+func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 	p, ok := e.(input.KeyPress)
 	if !ok || p.Mods != 0 {
 		return false
@@ -232,14 +235,32 @@ func (r *root) Handle(e input.Event, u *gunim.UI) bool {
 		u.Send(r, NewTake{Call: r.sel})
 	case 'a', 'A':
 		u.Send(r, PlayAll{})
-	case '1', '2', '3':
+	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		i := int(p.Char - '1')
+		if i >= r.cards.n {
+			return false
+		}
 		u.Send(r, CallChosen{Call: i})
 		u.Send(r, PlayCall{Call: i})
 	default:
 		return false
 	}
 	return true
+}
+
+// keysHint says which keys play what, for the calls shown.
+func keysHint(cs []CallView) string {
+	names := make([]string, len(cs))
+	for i, c := range cs {
+		names[i] = strings.ToLower(kindNames[c.Kind])
+	}
+	digits := "1"
+	if n := len(cs); n > 1 {
+		digits = fmt.Sprintf("1 to %d", n)
+	}
+	return "Keys: Space plays the call open · N makes a new take · " + digits + " open and play " +
+		strings.Join(names, ", ") + " · A plays them all. " +
+		"Drag a knob up or down, Shift for fine steps; a double click sets it back. The call plays as you let go."
 }
 
 // companionRow is a companion in the list.
@@ -278,8 +299,72 @@ type callCard struct {
 	edit                         *widget.Button
 }
 
-func newCallCard(i int) *callCard {
-	c := &callCard{title: widget.NewLabel(kindNames[calls.Kinds[i]]), take: small(""), stats: small(""), problems: small("")}
+// cardGrid holds a card for each call a character may make, and shows
+// the first n, in rows of cardsPerRow: a companion's three in one row,
+// a boss's seven in two. The cards it does not show take no room and
+// are not drawn.
+type cardGrid struct {
+	cards []*callCard
+	n     int
+}
+
+// cardGap is the room between two cards, across and down.
+const cardGap = 10
+
+func newCardGrid() *cardGrid {
+	g := &cardGrid{}
+	for i := range max(len(calls.Kinds), len(calls.BossKinds)) {
+		g.cards = append(g.cards, newCallCard(i, ""))
+	}
+	return g
+}
+
+// Children implements [gunim.Parent].
+func (g *cardGrid) Children() []gunim.Node {
+	out := make([]gunim.Node, len(g.cards))
+	for i, c := range g.cards {
+		out[i] = c
+	}
+	return out
+}
+
+// Layout implements [gunim.Node]: each row's cards side by side, each
+// as wide as the row allows and as tall as the row's tallest.
+func (g *cardGrid) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
+	w, y := c.Max.W, float32(0)
+	for from := 0; from < g.n; from += cardsPerRow {
+		k := min(cardsPerRow, g.n-from)
+		cw := (w - cardGap*float32(k-1)) / float32(k)
+		h := float32(0)
+		for j := range k {
+			h = max(h, kids.At(from+j).Layout(gunim.Constraints{Min: geom.Sz(cw, 0), Max: geom.Sz(cw, c.Max.H)}).H)
+		}
+		for j := range k {
+			kids.At(from + j).Layout(gunim.Tight(geom.Sz(cw, h)))
+			kids.At(from + j).Place(geom.Pt(float32(j)*(cw+cardGap), y))
+		}
+		y += h + cardGap
+	}
+	return geom.Sz(w, max(0, y-cardGap))
+}
+
+// Paint implements [gunim.Node].
+func (g *cardGrid) Paint(p *paint.Painter, _ gunim.Frame, _ geom.Size, kids gunim.Children) {
+	for i := range min(g.n, kids.Len()) {
+		kids.At(i).Paint(p)
+	}
+}
+
+// set shows calls on the cards, the chosen one marked.
+func (g *cardGrid) set(views []CallView, selected int) {
+	g.n = min(len(views), len(g.cards))
+	for i := range g.n {
+		g.cards[i].set(views[i], i == selected)
+	}
+}
+
+func newCallCard(i int, kind string) *callCard {
+	c := &callCard{title: widget.NewLabel(kindNames[kind]), take: small(""), stats: small(""), problems: small("")}
 	c.title.Size = theme.Length("calls.cardtitle", 17)
 	c.problems.Color = problem
 	c.wave = &wave{h: 84, click: PlayCall{Call: i}, playhead: -1}
@@ -305,6 +390,7 @@ func newCallCard(i int) *callCard {
 }
 
 func (c *callCard) set(v CallView, selected bool) {
+	c.title.SetText(kindNames[v.Kind])
 	c.wave.data = v.Wave
 	c.wave.playhead = v.Playhead
 	c.take.SetText(v.Take)

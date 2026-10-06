@@ -32,6 +32,31 @@ const (
 // Kinds are the calls each companion makes, in order.
 var Kinds = []string{Hello, Cheer, Oops}
 
+// The calls a boss makes, the candy monster at the end of each of the
+// game's tables: menacing as a cartoon villain is, never frightening.
+const (
+	// Taunt calls out at the child, from the map and in the fight.
+	Taunt = "taunt"
+	// Roar plays as the boss comes into its fight.
+	Roar = "roar"
+	// Hurt is the boss struck by a right answer: "oof!".
+	Hurt = "hurt"
+	// Laugh mocks a wrong answer.
+	Laugh = "laugh"
+	// Worried is the boss nearly beaten: "uh-oh".
+	Worried = "worried"
+	// Defeat is the boss falling: "nooo".
+	Defeat = "defeat"
+	// Whimper is a beaten boss, lying dizzy on the map.
+	Whimper = "whimper"
+)
+
+// BossKinds are the calls each boss makes, in order.
+var BossKinds = []string{Taunt, Roar, Hurt, Laugh, Worried, Defeat, Whimper}
+
+// Boss is the Role of a boss.
+const Boss = "boss"
+
 // A Library is the companions and how their calls are finished.
 type Library struct {
 	Master Master
@@ -65,8 +90,19 @@ type Companion struct {
 	Name      string
 	Style     string
 	Character string
-	// Calls are its calls by kind: Hello, Cheer and Oops.
+	// Role is Boss for a boss; empty for a companion.
+	Role string `json:",omitempty"`
+	// Calls are its calls by kind: a companion's Kinds, a boss's
+	// BossKinds.
 	Calls map[string]*Call
+}
+
+// Kinds returns the calls c makes, in order: a boss's or a companion's.
+func (c *Companion) Kinds() []string {
+	if c.Role == Boss {
+		return BossKinds
+	}
+	return Kinds
 }
 
 // A Call is a sound a companion makes: layers of models of sound, each
@@ -143,8 +179,8 @@ func Load(fsys fs.FS) (*Library, error) {
 			c.Calls = map[string]*Call{}
 		}
 		for kind, call := range c.Calls {
-			if !slices.Contains(Kinds, kind) {
-				return nil, fmt.Errorf("calls: %s makes a call %q, not hello, cheer or oops", id, kind)
+			if !slices.Contains(c.Kinds(), kind) {
+				return nil, fmt.Errorf("calls: %s makes a call %q, not one of %v", id, kind, c.Kinds())
 			}
 			for _, ly := range call.Layers {
 				if _, ok := models[ly.Model]; !ok {

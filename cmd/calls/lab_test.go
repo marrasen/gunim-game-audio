@@ -250,3 +250,93 @@ func TestTheTopKnobStepsThroughTheOddHarmonicsByTheWheel(t *testing.T) {
 		t.Errorf("the wheel stepped the top through %v, not 1, 3, 5", got)
 	}
 }
+
+func TestABossShowsItsSevenCallsAndACompanionItsThree(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "boss-stor"})
+	if h.v.cards.n != len(calls.BossKinds) {
+		t.Fatalf("a boss shows %d calls, want %d", h.v.cards.n, len(calls.BossKinds))
+	}
+	if got := h.v.cards.cards[6].title.Text; got != "Whimper" {
+		t.Errorf("the boss's seventh card is %q, want Whimper", got)
+	}
+	h.do(CompanionChosen{ID: "uggla"})
+	if h.v.cards.n != len(calls.Kinds) {
+		t.Fatalf("a companion shows %d calls, want %d", h.v.cards.n, len(calls.Kinds))
+	}
+}
+
+func TestACallTheCharacterOpenDoesNotMakeIsLeftAlone(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "boss-stor"}, CompanionChosen{ID: "uggla"})
+	// The window still showed the boss as these were sent.
+	for _, in := range []gunim.Intent{PlayCall{Call: 6}, NewTake{Call: 5}, AsSet{Call: 4}, CallChosen{Call: 6}, PlayCall{Call: -1}} {
+		h.do(in)
+	}
+	if s := h.l.state(); s.Selected != 0 || len(s.Calls) != 3 {
+		t.Errorf("the owl shows call %d of %d", s.Selected, len(s.Calls))
+	}
+}
+
+func TestTheDigitKeysOpenEachCallTheCharacterMakes(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "boss-mellan"})
+	if !strings.Contains(h.v.keys.Text, "1 to 7") || !strings.Contains(h.v.keys.Text, "whimper") {
+		t.Errorf("a boss's keys say %q", h.v.keys.Text)
+	}
+	h.w.Input(input.KeyPress{Key: input.Key7, Char: '7', Time: time.Now()})
+	if in, ok := h.intent().(CallChosen); !ok || in.Call != 6 {
+		t.Fatalf("7 sent %#v, not the seventh call", in)
+	}
+	h.intent() // and plays it
+	h.do(CompanionChosen{ID: "uggla"})
+	if !strings.Contains(h.v.keys.Text, "1 to 3 open and play hello, cheer, oops") {
+		t.Errorf("a companion's keys say %q", h.v.keys.Text)
+	}
+	h.w.Input(input.KeyPress{Key: input.Key7, Char: '7', Time: time.Now()})
+	select {
+	case ev := <-h.w.Client().Intents():
+		t.Errorf("7 sent %#v for a companion of three calls", ev.Intent)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestKeysTypedInTheNotesPlayNothing(t *testing.T) {
+	h := newHarness(t)
+	// The notes lie below the window's edge: scroll down to them, over
+	// the heading, where no knob takes the wheel.
+	over := h.centre(h.v.name)
+	for range 10 {
+		h.w.Input(input.Scroll{Pos: over, Delta: geom.Pt(0, -120), Time: time.Now()})
+		for range 10 {
+			h.w.Frame(time.Second / 60)
+		}
+	}
+	at := h.centre(h.v.notes)
+	if at.Y > 900 {
+		t.Fatalf("the notes still lie off the window, at %v", at)
+	}
+	h.w.Input(input.PointerDown{Pos: at, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: at, Time: time.Now()})
+	h.frame()
+	h.w.Input(input.KeyPress{Key: input.KeyA, Char: 'a', Typed: true, Time: time.Now()})
+	h.w.Input(input.TextInput{Text: "a"})
+	h.w.Input(input.KeyPress{Key: input.KeySpace, Char: ' ', Typed: true, Time: time.Now()})
+	h.w.Input(input.TextInput{Text: " "})
+	h.frame()
+	for {
+		select {
+		case ev := <-h.w.Client().Intents():
+			switch ev.Intent.(type) {
+			case NotesSet:
+			default:
+				t.Errorf("typing in the notes sent %#v", ev.Intent)
+			}
+		case <-time.After(200 * time.Millisecond):
+			if got := h.v.notes.Text(); got != "a " {
+				t.Errorf("the notes read %q, not \"a \"", got)
+			}
+			return
+		}
+	}
+}
