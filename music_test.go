@@ -182,3 +182,17 @@ func TestSongSaysWhenThereIsNoSuchSong(t *testing.T) {
 		t.Fatalf("Song returned %v, want ErrNoSong", err)
 	}
 }
+
+func TestTheCompanionsCallsLoadFromTheLibrary(t *testing.T) {
+	lib, err := Calls()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"groda", "uggla", "enhorningskatt", "kpop-tjej", "kpop-kille",
+		"robo-ninja", "trollkarlen", "drakungen", "fotbollsstjarnan", "raven", "whizpah"} {
+		c := lib.Companion(id)
+		if c == nil || len(c.Calls) != 3 {
+			t.Errorf("%s makes %v", id, c)
+		}
+	}
+}

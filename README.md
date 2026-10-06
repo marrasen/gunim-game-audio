@@ -123,6 +123,96 @@ The engine makes a second of the busiest song, all twelve of Mascot
 Dance's tracks at once, in about 35 ms on one core of a 2015 desktop
 CPU, about 28 times faster than it plays.
 
+## Companion calls
+
+The library also holds the calls of Läxkompis's ten companions: a
+hello when a child taps one, a cheer for a level done, and an oops for a
+wrong answer. They are made in code, by package `calls`, from models of
+how the sounds are made:
+
+| Model | What it makes | Who uses it |
+|---|---|---|
+| `hoot` | an owl's breathy "hoo", sliding up into each hoot | the owl |
+| `ribbit` | a frog's "rib-bit", rolled by its throat, its throat sac ringing | the frog |
+| `blub` | a gulp: a lip's pop, a falling "blub", and rising bubbles | the frog |
+| `mew` | a kitten's "m-i-a-u", its pitch arching, rolled into a trill if asked | the unicorn cat |
+| `sing` | a sung phrase: a syllable, "la", "oh", "yeah", "hey", "ooh", "na", "ah" or "ha", on each of up to four notes, with vibrato | the two K-pop singers, the wizard, the football star's "hey!", Whizpah's laugh |
+| `beeps`, `whirr`, `glitch` | a robot's beeps, a servo's whirr, and a stuttering, falling "bwoo" | the robot ninja |
+| `sparkle`, `chime` | small bells climbing a pentatonic scale, and notes struck on a celesta, as a "ta-da" | the wizard, the unicorn cat |
+| `whoosh`, `puff`, `fizzle` | air rushing past, a burst of smoke or flame, and crackles thinning over a hiss | the wizard, the dragon, the fox |
+| `roar` | a small creature's rough "rawr", ending in a squeak if asked | the baby dragon |
+| `yip` | a fox's short, bright yip, rising at its end as a question if asked | the fox, the dragon's hiccup |
+| `whistle`, `crowd`, `bonk` | a referee's pea whistle, a small crowd's "yay" or "ooh" with claps, and a ball's hollow knock | the football star |
+
+An eleventh companion hides at the end of the list: Whizpah, a giggling
+gremlin named for the one who made the wizard old, who laughs at
+everything on the sung "ha". Its hello flies in with a "whizz-pHA!", its
+cheer is a cackle that runs down and then up an octave into a squeaky
+"HAAA", and its oops is a nervous "heh-heh-heh… huh?".
+
+The voices are made as a throat makes them: a buzz of every harmonic
+of a pitch, and breath, shaped by the mouth's resonances into a vowel
+that moves through the call. A call layers models, each at a time and
+a level of its own: the unicorn cat's hello is a mew with a sparkle
+after it.
+
+Each call is made anew each time it plays, a take of its own, so a
+child tapping a companion again and again never hears the same sound
+twice. A player makes takes ahead, in the background, so each plays at
+once:
+
+```go
+lib, err := music.Calls()
+if err != nil {
+	return err
+}
+voices := calls.NewPlayer(mix, lib)
+voices.Warm()                                       // make takes ahead
+voices.Play("uggla", calls.Hello, audio.Options{})  // a new take each time
+voices.PlayTake("uggla", calls.Oops, 0, audio.Options{}) // the call as set
+```
+
+Every call is finished the same way, as the game's brief asks: cut
+under 300 Hz, which a phone's speaker does not play, started from its
+first millisecond, brought to −14 LUFS at its loudest, and held under
+−1 dBTP. The tests check every call against the brief, as set and in 20
+takes: its length, 0.3 to 0.7 s, or up to 1.2 s for a cheer; its
+loudness and peak; that it sounds at once; that little of it is under
+300 Hz; and that most of it is at 1 to 4 kHz.
+
+### Setting the calls by ear
+
+The calls window plays each companion's calls, draws them, and
+measures them against the brief, with a knob for each number of the
+models that make them:
+
+```sh
+go run ./cmd/calls
+```
+
+![The calls window](cmd/calls/calls.png)
+
+A call plays as a knob is let go. New take plays another take, as the
+game makes one each time; As set plays the call as its knobs set it.
+Vary sets how far the takes stray, and Room how much of a small room is
+heard round the call. Presence lifts a call about 2.2 kHz, where a
+phone's speaker carries it, and Ends by fades out a call whose bells
+would ring past the length the brief allows. Phone speaker plays the calls as a phone's speaker
+does, and a song can play under them, as in the game. A call can have
+more than one layer, each a model, at a time and a level of its own.
+
+Save writes the companion to `voices/<id>.json`. Each call there has its
+Notes, which the window's notes box sets: write what should change, and
+save, for the next round of the call.
+
+`-render` writes every call to a WAV file instead, mono, 24 bits at 48
+kHz, as the brief names them, and says how each measures:
+
+```sh
+go run ./cmd/calls -render out
+go run ./cmd/calls -render out -seed 7   # take 7
+```
+
 ## gunim music studio
 
 The studio is a window to make game music in, with the engine playing

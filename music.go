@@ -15,6 +15,15 @@
 // [Songs] lists them all. A song may offer features beyond playing, as
 // interfaces its player implements; package band says which there are.
 //
+// [Calls] holds the companions' calls, short sounds a game's characters
+// make, made in code by package calls, a new take each time:
+//
+//	lib, err := music.Calls()
+//	...
+//	voices := calls.NewPlayer(mix, lib)
+//	voices.Warm()
+//	voices.Play("uggla", calls.Hello, audio.Options{})
+//
 // The songs are © 2026 Marcus Johansson, under the Creative Commons
 // Attribution 4.0 licence in LICENSE-music: use them as you like, and
 // credit him.
@@ -31,6 +40,7 @@ import (
 
 	"github.com/marrasen/gunim/audio/band"
 
+	"github.com/marrasen/gunim-music/calls"
 	"github.com/marrasen/gunim-music/synth"
 )
 
@@ -106,6 +116,21 @@ const (
 //
 //go:embed songs
 var files embed.FS
+
+// voices holds the companions' calls: library.json, and a recipe for
+// each companion, named for its ID.
+//
+//go:embed voices/*.json
+var voices embed.FS
+
+// Calls returns the companions' calls, as the library holds them.
+func Calls() (*calls.Library, error) {
+	sub, err := fs.Sub(voices, "voices")
+	if err != nil {
+		return nil, err
+	}
+	return calls.Load(sub)
+}
 
 // ErrNoSong is returned for a name the library holds no song of.
 var ErrNoSong = errors.New("music: no such song")

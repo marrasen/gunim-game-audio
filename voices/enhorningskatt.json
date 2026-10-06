@@ -1,0 +1,88 @@
+{
+	"Name": "Enhörningskatt (unicorn cat)",
+	"Style": "Söt",
+	"Character": "sparkly kitten",
+	"Calls": {
+		"hello": {
+			"Layers": [
+				{
+					"Model": "mew",
+					"Params": {
+						"pitch": 1050,
+						"length": 0.32,
+						"arch": 4,
+						"fall": 6
+					}
+				},
+				{
+					"Model": "sparkle",
+					"Params": {
+						"bells": 5,
+						"length": 0.2,
+						"low": 2400,
+						"high": 5200,
+						"decay": 0.09,
+						"climb": 0.8
+					},
+					"At": 0.2,
+					"Gain": -6
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Presence": 6,
+			"Cut": 0.66
+		},
+		"cheer": {
+			"Layers": [
+				{
+					"Model": "mew",
+					"Params": {
+						"pitch": 780,
+						"length": 0.5,
+						"arch": 8,
+						"fall": 2,
+						"trill": 0.7,
+						"trillhz": 26,
+						"open": 0.9
+					}
+				},
+				{
+					"Model": "sparkle",
+					"Params": {
+						"bells": 12,
+						"length": 0.55,
+						"low": 2000,
+						"high": 6500,
+						"decay": 0.12,
+						"climb": 0.9
+					},
+					"At": 0.12,
+					"Gain": -5
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Cut": 1.15
+		},
+		"oops": {
+			"Layers": [
+				{
+					"Model": "mew",
+					"Params": {
+						"pitch": 1000,
+						"length": 0.3,
+						"arch": 2,
+						"fall": 0,
+						"question": 5,
+						"open": 0.6,
+						"close": 0.4
+					}
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Presence": 6
+		}
+	}
+}
