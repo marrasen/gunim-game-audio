@@ -191,7 +191,7 @@ func (v *view) update(s Lab, u *gunim.UI) {
 		About: "How far each take strays from the call as set"})
 	v.callKs[1].show(-1, ParamView{Name: "room", Label: "Room", Lo: 0, Hi: 1, Def: 0.15, Value: e.Room,
 		About: "How much of a small room is heard round the call"})
-	v.callKs[2].show(-1, ParamView{Name: "cut", Label: "Ends by", Unit: "s", Lo: 0, Hi: 1.5, Def: 0, Value: e.Cut,
+	v.callKs[2].show(-1, ParamView{Name: "cut", Label: "Ends by", Unit: "s", Lo: 0, Hi: 1.5, Def: 0, Value: e.Cut, Zero: "rings out",
 		About: "Fades the call out to end by then; 0 lets it ring out"})
 	v.callKs[3].show(-1, ParamView{Name: "presence", Label: "Presence", Unit: "dB", Lo: -6, Hi: 12, Def: 0, Value: e.Presence,
 		About: "Lifts the call about 2.2 kHz, where a phone's speaker carries it"})

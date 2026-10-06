@@ -77,7 +77,7 @@ func init() {
 			{Name: "n2", Label: "Note 2", Unit: "st", Lo: -12, Hi: 12, Def: 2, Step: 1, About: "The second note, in semitones from the first"},
 			{Name: "n3", Label: "Note 3", Unit: "st", Lo: -12, Hi: 12, Def: 4, Step: 1, About: "The third note"},
 			{Name: "n4", Label: "Note 4", Unit: "st", Lo: -12, Hi: 24, Def: 7, Step: 1, About: "The fourth note"},
-			{Name: "syllable", Label: "Syllable", Def: 0, Choices: syllables, About: "The syllable each note is sung on"},
+			{Name: "syllable", Label: "Syllable", Def: 0, Choices: syllables, About: "The syllable each note is sung on: \"ha\" and \"hey\" start with a breathed \"h\""},
 			{Name: "lastsyl", Label: "Last syl", Def: 0, Choices: syllables, About: "The syllable the last note is sung on"},
 			{Name: "length", Label: "Length", Unit: "s", Lo: 0.06, Hi: 0.5, Def: 0.13, Vary: 0.04, About: "Each note's length"},
 			{Name: "last", Label: "Last", Unit: "×", Lo: 0.5, Hi: 4, Def: 1.6, Vary: 0.03, About: "The last note's length, times the others'"},
@@ -114,7 +114,9 @@ func init() {
 }
 
 // syllables are the syllables a singer sings.
-var syllables = []string{"la", "oh", "yeah", "hey", "ooh", "na", "ah"}
+// A recipe holds a syllable by its place here, so a new one goes at the
+// end.
+var syllables = []string{"la", "oh", "yeah", "hey", "ooh", "na", "ah", "ha"}
 
 // sungSyllable returns the mouth and the level a syllable takes over a
 // note dur seconds long, and how much breath starts it: each
@@ -138,6 +140,11 @@ func sungSyllable(name string, dur float64) (mouth func(u float64) [3]float64, l
 		return glide(mark{0, 'a'}), flat, none
 	case "yeah":
 		return glide(mark{0, 'i'}, mark{1.2 * c, 'i'}, mark{2.5 * c, 'e'}, mark{4.5 * c, 'a'}), flat, none
+	case "ha":
+		// Breath first, shaped as the "a" it opens into.
+		return glide(mark{0, 'a'}),
+			func(u float64) float64 { return smooth((u - 0.8*c) / c) },
+			func(u float64) float64 { return 1 - smooth((u-c)/c) }
 	case "hey":
 		return glide(mark{0, 'e'}, mark{0.6, 'e'}, mark{1, 'i'}),
 			func(u float64) float64 { return smooth((u - 0.8*c) / c) },

@@ -6,7 +6,8 @@ import "math"
 
 func init() {
 	waveParam := Param{Name: "wave", Label: "Wave", Lo: 0, Hi: 1, Def: 0.35, Vary: 0.02, About: "The tone's shape: 0 a pure sine, 1 a buzzing square"}
-	topParam := Param{Name: "top", Label: "Top", Lo: 0, Hi: 15, Def: 0, Step: 1, About: "The highest odd harmonic the tone keeps, as 5 keeps the 3rd and the 5th: rounder than the whole square; 0 keeps every one up to 12 kHz"}
+	topParam := Param{Name: "top", Label: "Top", Lo: 0, Hi: 15, Def: 0, Step: 1, Odd: true, Zero: "all",
+		About: "The highest odd harmonic the tone keeps, as 5 keeps the 3rd and the 5th: rounder than the whole square; all keeps every one up to 12 kHz"}
 	register(&Model{
 		Name:  "beeps",
 		About: "A robot's beeps: tones in a run, each a step from the last, sliding if asked",

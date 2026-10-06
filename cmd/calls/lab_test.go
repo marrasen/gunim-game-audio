@@ -219,3 +219,34 @@ func TestPlayAllPlaysTheThreeCallsInTurn(t *testing.T) {
 		t.Errorf("heard the calls %v", heard)
 	}
 }
+
+func TestTheTopKnobStepsThroughTheOddHarmonicsByTheWheel(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "robo-ninja"}, CallChosen{Call: 2})
+	var k *knob
+	for _, kk := range h.v.layers[0].ks {
+		if kk.p.Name == "top" {
+			k = kk
+		}
+	}
+	if k == nil {
+		t.Fatal("the glitch shows no top knob")
+	}
+	if k.format() != "all" {
+		t.Errorf("a top of 0 reads %q, not all", k.format())
+	}
+	c := h.centre(k)
+	var got []float64
+	for range 3 {
+		h.w.Input(input.Scroll{Pos: c, Delta: geom.Pt(0, -40)})
+		in, ok := h.intent().(ParamSet)
+		if !ok || in.Name != "top" {
+			t.Fatalf("the wheel sent %#v", in)
+		}
+		got = append(got, in.Value)
+		h.do(in)
+	}
+	if got[0] != 1 || got[1] != 3 || got[2] != 5 {
+		t.Errorf("the wheel stepped the top through %v, not 1, 3, 5", got)
+	}
+}

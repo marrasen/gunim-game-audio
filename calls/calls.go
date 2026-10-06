@@ -278,6 +278,12 @@ type Param struct {
 	// Choices, where set, names the values 0, 1, 2 and on, as a
 	// syllable's; the parameter steps through them.
 	Choices []string `json:",omitempty"`
+	// Odd keeps a stepped parameter to 0 and the odd numbers, as a
+	// square's harmonics, which are all odd.
+	Odd bool `json:",omitempty"`
+	// Zero, where set, names the value 0, as "all" for a top that keeps
+	// every harmonic.
+	Zero string `json:",omitempty"`
 	// Vary is how far a take strays from the value, at a call's Vary 1:
 	// a deviation of that fraction of the range, or for a Log
 	// parameter of the value.
@@ -291,20 +297,48 @@ type Param struct {
 func (p Param) stray(v, vary float64, seed uint64, r *rng) float64 {
 	d := r.norm()
 	if seed == 0 || vary == 0 || p.Vary == 0 {
-		return p.clamp(v)
+		return p.Snap(v)
 	}
 	if p.Log {
 		v *= math.Exp(d * p.Vary * vary)
 	} else {
 		v += d * p.Vary * vary * (p.Hi - p.Lo)
 	}
-	if p.Step > 0 {
-		v = math.Round(v/p.Step) * p.Step
-	}
-	return p.clamp(v)
+	return p.Snap(v)
 }
 
 func (p Param) clamp(v float64) float64 { return min(max(v, p.Lo), p.Hi) }
+
+// Snap returns the value the parameter takes nearest v: within its
+// range, rounded to its step, and odd where it must be.
+func (p Param) Snap(v float64) float64 {
+	v = p.clamp(v)
+	if p.Step > 0 {
+		v = math.Round(v/p.Step) * p.Step
+	}
+	if p.Odd && v > 0 {
+		v = 2*math.Round((v-1)/2) + 1
+		if v > p.Hi {
+			v -= 2
+		}
+	}
+	return v
+}
+
+// Next returns the value a stepped parameter takes next after v, up for
+// dir 1 and down for -1, or v where there is none.
+func (p Param) Next(v float64, dir int) float64 {
+	v = p.Snap(v)
+	if p.Step <= 0 {
+		return v
+	}
+	for c := v + float64(dir)*p.Step; c >= p.Lo && c <= p.Hi; c += float64(dir) * p.Step {
+		if n := p.Snap(c); n != v {
+			return n
+		}
+	}
+	return v
+}
 
 // A Model makes a kind of sound from its numbers, as a hoot or a
 // bubble.

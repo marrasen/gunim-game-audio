@@ -73,6 +73,9 @@ type (
 		Lo, Hi, Def, Value, Step float64
 		Log                      bool
 		Choices                  []string
+		// Odd keeps a stepped number odd, or 0; Zero names 0.
+		Odd  bool
+		Zero string
 	}
 
 	// CompanionChosen travels when a companion is picked.

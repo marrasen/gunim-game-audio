@@ -420,7 +420,7 @@ func (l *lab) editor() Editor {
 		lv := LayerView{Model: ly.Model, About: m.About}
 		for _, p := range m.Params {
 			lv.Params = append(lv.Params, ParamView{Name: p.Name, Label: p.Label, Unit: p.Unit, About: p.About,
-				Lo: p.Lo, Hi: p.Hi, Def: p.Def, Value: ly.Get(p.Name), Step: p.Step, Log: p.Log, Choices: p.Choices})
+				Lo: p.Lo, Hi: p.Hi, Def: p.Def, Value: ly.Get(p.Name), Step: p.Step, Log: p.Log, Choices: p.Choices, Odd: p.Odd, Zero: p.Zero})
 		}
 		lv.Params = append(lv.Params,
 			ParamView{Name: "@at", Label: "Starts", Unit: "s", About: "When the layer starts in the call", Lo: 0, Hi: 1, Value: ly.At},
