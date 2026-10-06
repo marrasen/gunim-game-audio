@@ -10,6 +10,8 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
+
+	"github.com/marrasen/gunim-music/calls"
 )
 
 // The readouts' colours.
@@ -76,10 +78,13 @@ func (k *knob) value(t float64) float64 {
 	} else {
 		v = k.p.Lo + (k.p.Hi-k.p.Lo)*t
 	}
-	if k.p.Step > 0 {
-		v = math.Round(v/k.p.Step) * k.p.Step
-	}
-	return v
+	return k.param().Snap(v)
+}
+
+// param returns the knob's number as package calls has it, to step it
+// as the engine does.
+func (k *knob) param() calls.Param {
+	return calls.Param{Lo: k.p.Lo, Hi: k.p.Hi, Step: k.p.Step, Odd: k.p.Odd}
 }
 
 func (k *knob) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
@@ -136,8 +141,8 @@ func (k *knob) format() string {
 	if i := int(math.Round(v)); len(k.p.Choices) > 0 && i >= 0 && i < len(k.p.Choices) {
 		return k.p.Choices[i]
 	}
-	if k.p.Name == "cut" && v == 0 {
-		return "rings out"
+	if k.p.Zero != "" && v == 0 {
+		return k.p.Zero
 	}
 	var s string
 	switch {
@@ -194,11 +199,18 @@ func (k *knob) Handle(e input.Event, u *gunim.UI) bool {
 			return true
 		}
 	case input.Scroll:
-		d := -float64(e.Delta.Y) / 600
+		// A stepped knob steps to its next value each notch.
 		if k.p.Step > 0 {
-			d = math.Copysign(max(math.Abs(d), k.p.Step/(k.p.Hi-k.p.Lo)*1.01), d)
+			if e.Delta.Y != 0 {
+				dir := 1
+				if e.Delta.Y > 0 {
+					dir = -1
+				}
+				k.set(k.param().Next(k.v, dir), false, u)
+			}
+			return true
 		}
-		k.set(k.value(k.at(k.v)+d), false, u)
+		k.set(k.value(k.at(k.v)-float64(e.Delta.Y)/600), false, u)
 		return true
 	}
 	return false

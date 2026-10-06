@@ -104,7 +104,7 @@ func (h *harness) centre(n gunim.Node) geom.Point {
 func TestTheLabShowsEachCompanionsCallsMeasured(t *testing.T) {
 	h := newHarness(t)
 	s := h.l.state()
-	if len(s.Companions) != 10 || s.Companions[0].ID != "groda" || !s.Companions[0].Open {
+	if len(s.Companions) != len(h.l.lib.Order) || s.Companions[0].ID != "groda" || !s.Companions[0].Open {
 		t.Fatalf("the list shows %+v", s.Companions)
 	}
 	for _, c := range s.Calls {
@@ -217,5 +217,36 @@ func TestPlayAllPlaysTheThreeCallsInTurn(t *testing.T) {
 	}
 	if len(heard) != 3 || heard[0] != 0 || heard[1] != 1 || heard[2] != 2 {
 		t.Errorf("heard the calls %v", heard)
+	}
+}
+
+func TestTheTopKnobStepsThroughTheOddHarmonicsByTheWheel(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "robo-ninja"}, CallChosen{Call: 2})
+	var k *knob
+	for _, kk := range h.v.layers[0].ks {
+		if kk.p.Name == "top" {
+			k = kk
+		}
+	}
+	if k == nil {
+		t.Fatal("the glitch shows no top knob")
+	}
+	if k.format() != "all" {
+		t.Errorf("a top of 0 reads %q, not all", k.format())
+	}
+	c := h.centre(k)
+	var got []float64
+	for range 3 {
+		h.w.Input(input.Scroll{Pos: c, Delta: geom.Pt(0, -40)})
+		in, ok := h.intent().(ParamSet)
+		if !ok || in.Name != "top" {
+			t.Fatalf("the wheel sent %#v", in)
+		}
+		got = append(got, in.Value)
+		h.do(in)
+	}
+	if got[0] != 1 || got[1] != 3 || got[2] != 5 {
+		t.Errorf("the wheel stepped the top through %v, not 1, 3, 5", got)
 	}
 }
