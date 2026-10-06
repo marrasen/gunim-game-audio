@@ -25,9 +25,25 @@ type harness struct {
 	w *gunim.Window
 	s *studio
 	v *root
-	// stageAt is where the stage lay at the last update.
+	// stageAt is where the stage lay at the last update, and measure
+	// where the nodes asked about lay.
 	stageAt geom.Rect
+	measure map[gunim.Node]geom.Rect
 }
+
+// boundsOf returns where n lies in the window.
+func (h *harness) boundsOf(n gunim.Node) (geom.Rect, bool) {
+	if h.measure == nil {
+		h.measure = map[gunim.Node]geom.Rect{}
+	}
+	h.measure[n] = geom.Rect{}
+	h.frame()
+	h.frame()
+	r := h.measure[n]
+	return r, !r.Empty()
+}
+
+func geomPt(x, y float32) geom.Point { return geom.Pt(x, y) }
 
 func newHarness(t *testing.T, song string) *harness {
 	t.Helper()
@@ -39,6 +55,9 @@ func newHarness(t *testing.T, song string) *harness {
 	}, func(r *root, s Studio, u *gunim.UI) {
 		r.update(s, u)
 		h.stageAt, _ = u.Bounds(r.stage)
+		for n := range h.measure {
+			h.measure[n], _ = u.Bounds(n)
+		}
 	})
 	s, err := newStudio(h.w.Client(), audio.NewMixer(), song)
 	if err != nil {
@@ -76,14 +95,29 @@ func (h *harness) frame() {
 	h.w.Frame(time.Second / 60)
 }
 
-// intent waits for the window to send an intent.
+// settle runs frames for a second, for what moves to come to rest, as a
+// tab sliding in does.
+func (h *harness) settle() {
+	_ = h.w.Client().Update("studio", h.s.state())
+	for range 60 {
+		h.w.Frame(time.Second / 60)
+	}
+}
+
+// intent waits for the window to send an intent, passing by those that
+// say what the editors show, which it sends as they change.
 func (h *harness) intent() gunim.Intent {
-	select {
-	case ev := <-h.w.Client().Intents():
-		return ev.Intent
-	case <-time.After(time.Second):
-		h.t.Fatal("the window sent no intent")
-		return nil
+	for {
+		select {
+		case ev := <-h.w.Client().Intents():
+			if _, ok := ev.Intent.(Focus); ok {
+				continue
+			}
+			return ev.Intent
+		case <-time.After(time.Second):
+			h.t.Fatal("the window sent no intent")
+			return nil
+		}
 	}
 }
 

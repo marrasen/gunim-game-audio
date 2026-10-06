@@ -139,6 +139,51 @@ track's notes in its colour, joined so an arpeggio shows its shape, the
 drums in lanes under them, and the chords above. The notes of the bar
 to come show as outlines before they sound.
 
+The tabs over the stage swap it for the editors, each heard as it is
+changed, with no file to edit and nothing to reload:
+
+- **Mixer.** A strip for each track, with mute and solo, knobs for its
+  pan, its reverb and delay sends, its sidechain duck, its low and high
+  cut, its drive and its chorus, a stereo meter, and its fader. The
+  master's strip has the mix's meter, its fader, its compressor with a
+  bar of how far it turns the mix down, and its loudness in LUFS. The
+  track panel slides away to give the desk the window's width.
+- **Patch.** A synth's oscillators, up to four, each with its wave drawn
+  (a click on it turns to the next wave), its octave, tuning, level,
+  unison voices and spread, and its pulse width or FM ratio and index;
+  its filter with its response drawn; its filter and amp envelopes,
+  drawn; two LFOs; its voices, glide, drive, noise and the vowel it
+  sings. A plucked string's decay, brightness and body. Under them a
+  note of the patch drawn whole and close up, the track playing it on a
+  scope as it plays, and a keyboard that plays it over the song.
+- **Kit.** A kit's drums as pads, which light as the song hits them and
+  play as they are pressed, and the drum chosen: its type, tune, decay,
+  tone, level and pan, and its hit drawn.
+- **Effects.** The reverb with its tail drawn, the delay with its
+  echoes, the compressor with its curve and where the mix sits on it,
+  the master level, the swing, the sidechain's track, and the tier
+  changes' riser and impact.
+- **Pattern.** A track's pattern by sight. Its structure is drawn as
+  boxes in boxes: a sequence splits its box by its steps' shares,
+  layers and turns stack, the turn playing lit, and a repeat, a
+  Euclidean rhythm or a maybe marks its box. Click a step, then set it
+  from the palette or change it: split it, add one after it, delete
+  it, make it faster or slower, make it take turns or add a layer,
+  spread it Euclid's way, play it half the time, or give it a bigger
+  share. Under it the pattern on a grid of steps, a row a drum or a
+  note, where a click sets or clears a cell and Shift and a click holds
+  the note before it. Each change writes the pattern back as text.
+
+Patches and kits save to a file of their own, a `.patch.json`, and load
+from one, in place of a patch or as a new one; a new synth, pluck or kit
+starts from a sound that plays, and a copy starts from another. A
+track's card picks the patch it plays, and its two buttons open its
+patch and its pattern in the editors.
+
+![The patch editor](cmd/studio/patch.png)
+![The mixer](cmd/studio/mixer.png)
+![The pattern editor](cmd/studio/pattern.png)
+
 Each track's card takes a new pattern as it is typed, heard from the
 next bar; a pattern that does not play says why, and the old one plays
 on. Its sliders set its level, its filter and what it sends to the

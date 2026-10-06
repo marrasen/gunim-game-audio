@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/marrasen/gunim"
+
+	"github.com/marrasen/gunim-music/synth"
 )
 
 // The vocabulary the two halves share: the state the window shows, and
@@ -63,6 +65,42 @@ type (
 		Spectrum []float32
 		// Status says what was last done, or went wrong.
 		Status string
+		// Doc is the song open, as edited, for the editors to read. It is
+		// never changed once sent: an edit makes another.
+		Doc *synth.Song
+		// Preview is a note of the patch the patch editor shows, and
+		// DrumPreview a hit of the drum the kit editor shows.
+		Preview, DrumPreview Preview
+		// Scope is the last sound the track watched made, mono, and
+		// ScopeTrack its name.
+		Scope      []float32
+		ScopeTrack string
+		// Editor is the editor to show, by its tab's title, on
+		// EditorTrack, each time EditorGen counts another.
+		Editor      string
+		EditorTrack string
+		EditorGen   int
+		// PatternSel is the step the pattern editor chooses after a change
+		// to PatternTrack's pattern, PatternSelGen counting the changes.
+		PatternTrack  string
+		PatternSel    string
+		PatternSelGen int
+		// Master is the mix's level, and LUFS its short-term loudness;
+		// Reduction is how far the compressor turns it down, in decibels.
+		Master    Meter
+		LUFS      float64
+		Reduction float32
+	}
+	// Preview is a sound rendered for an editor to draw: Wave is its
+	// whole as the lows and highs of a column each, Cycle a stretch of it
+	// held steady, a few cycles long.
+	Preview struct {
+		Patch, Drum string
+		Wave, Cycle []float32
+	}
+	// Meter is a pair of channels' levels, from 0 to 1 at full scale.
+	Meter struct {
+		Peak, RMS [2]float32
 	}
 	// Clock says where a song is heard.
 	Clock struct {
@@ -96,15 +134,61 @@ type (
 		// octaves from 20 Hz, for a synth's patch, or its lowpass for
 		// drums; Reverb and Delay its sends.
 		Gain, Filter, Reverb, Delay float32
+		// Meter is how loud it is after its fader, and Patch the patch
+		// it plays.
+		Meter Meter
+		Patch string
+		Mute  bool
+		Solo  bool
 	}
-	// NoteDot is a note heard, or to be heard.
+	// NoteDot is a note heard, or to be heard. DrumName names the drum
+	// of a drum's note, as bd.
 	NoteDot struct {
 		Frame, Len int64
 		Track      int
 		Pitch      int
 		Vel        float32
 		Drum       bool
+		DrumName   string
 	}
+
+	// SetValue sets the value at Path in the song, as path.go names it,
+	// to Num, or to Str where IsStr says.
+	SetValue struct {
+		Path  string
+		Num   float64
+		Str   string
+		IsStr bool
+	}
+	// AddItem appends an item, as an oscillator, to the list at Path.
+	AddItem struct{ Path string }
+	// RemoveItem takes item Index out of the list at Path.
+	RemoveItem struct {
+		Path  string
+		Index int
+	}
+	// PatchNew makes a patch of Kind, synth, pluck or drums, and
+	// PatchCopy a copy of the patch named Name.
+	PatchNew  struct{ Kind string }
+	PatchCopy struct{ Name string }
+	// PatchSave saves the patch named Name to a file, and PatchLoad
+	// loads one from a file in its place, or as a new patch where Name
+	// is empty.
+	PatchSave struct{ Name string }
+	PatchLoad struct{ Name string }
+	// TrackPatch sets the patch Track plays.
+	TrackPatch struct{ Track, Patch string }
+	// Audition plays a note of Patch, or its Drum, at once.
+	Audition struct {
+		Patch, Drum string
+		Pitch       int
+	}
+	// OpenEditor shows the editor named Editor, by its tab's title, on
+	// Track.
+	OpenEditor struct{ Editor, Track string }
+	// Focus says what the editors show: the patch and drum to render for
+	// them, and the track whose sound the scope shows.
+	Focus struct{ Patch, Kit, Drum, Track string }
 
 	// SongChosen travels when a song is picked.
 	SongChosen struct{ Song int }
@@ -162,6 +246,17 @@ func init() {
 	gunim.RegisterType[Transposed]("studio.transpose")
 	gunim.RegisterType[VolumeSet]("studio.volume")
 	gunim.RegisterType[Saved]("studio.save")
+	gunim.RegisterType[SetValue]("studio.set")
+	gunim.RegisterType[AddItem]("studio.add")
+	gunim.RegisterType[RemoveItem]("studio.remove")
+	gunim.RegisterType[PatchNew]("studio.patch.new")
+	gunim.RegisterType[PatchCopy]("studio.patch.copy")
+	gunim.RegisterType[PatchSave]("studio.patch.save")
+	gunim.RegisterType[PatchLoad]("studio.patch.load")
+	gunim.RegisterType[TrackPatch]("studio.track.patch")
+	gunim.RegisterType[Audition]("studio.audition")
+	gunim.RegisterType[Focus]("studio.focus")
+	gunim.RegisterType[OpenEditor]("studio.open")
 }
 
 // styles are the progression styles Generate offers, in order.

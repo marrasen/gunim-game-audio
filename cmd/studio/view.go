@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"slices"
 	"strconv"
 	"time"
 
@@ -47,11 +48,23 @@ type view struct {
 	keypad    *widget.Label
 	status    *widget.Label
 	spectrum  *spectrum
+	tabs      *widget.Tabs
+	side      *side
+	mixer     *mixerPane
+	patch     *patchPane
+	kit       *kitPane
+	fx        *fxPane
+	pattern   *patternPane
+	// focused is the focus last sent, and editorGen the studio's
+	// EditorGen last obeyed.
+	focused   Focus
+	editorGen int
 	// gen is the studio's Gen the fields were last set for, and shown
 	// the number of tiers the segmented control shows.
 	gen, shown int
 	stingNames []string
 	s          Studio
+	root       *root
 }
 
 // root is the view's root: it catches the keys, for the keypad, the
@@ -65,7 +78,9 @@ func small(s string) *widget.Label {
 }
 
 func buildView(s Studio) *root {
-	v := &view{gen: -1, shown: -1}
+	v := &view{gen: -1, shown: -1, editorGen: -1}
+	r := &root{v}
+	v.root = r
 	title := widget.NewLabel("gunim music studio")
 	title.Size = widget.HeadingSize
 	v.songs = widget.NewDropdown(s.Songs...)
@@ -106,8 +121,17 @@ func buildView(s Studio) *root {
 
 	v.stage = newStage()
 	v.flow = newFlow()
-	left := widget.Column(v.stage, widget.NewSized(v.flow, 0, 250)).Grow(v.stage, 1)
-	left.Cross = widget.CrossStretch
+	stagePage := widget.Column(v.stage, widget.NewSized(v.flow, 0, 250)).Grow(v.stage, 1)
+	stagePage.Cross = widget.CrossStretch
+	v.mixer = newMixerPane()
+	v.patch = newPatchPane(func(string) gunim.Intent { return v.focus() })
+	v.kit = newKitPane(func(string, string) gunim.Intent { return v.focus() })
+	v.fx = newFxPane()
+	v.pattern = newPatternPane(func(string) gunim.Intent { return v.focus() })
+	v.tabs = widget.NewTabs(editorTabs, stagePage, v.mixer, v.patch, v.kit, v.fx, v.pattern)
+	v.tabs.Icons = []*icon.Icon{icon.Orbit, icon.SlidersHorizontal, icon.AudioWaveform, icon.Drum, icon.Waves, icon.Grid3x3}
+	v.tabs.OnChange = func(int) gunim.Intent { return v.focus() }
+	left := v.tabs
 
 	head := widget.NewLabel("Tracks")
 	head.Size = widget.HeadingSize
@@ -126,7 +150,8 @@ func buildView(s Studio) *root {
 	panel := widget.NewCard(right)
 	panel.Fill = panelFill
 
-	middle := widget.Row(left, widget.NewSized(panel, 480, 0)).Grow(left, 1)
+	v.side = newSide(panel, 480)
+	middle := widget.Row(left, v.side).Grow(left, 1)
 	middle.Cross = widget.CrossStretch
 
 	chordsLabel := widget.NewLabel("Chords")
@@ -145,20 +170,18 @@ func buildView(s Studio) *root {
 	}
 	v.keypad = small("")
 	v.spectrum = newSpectrum()
-	chordCol := widget.Column(widget.Row(chordsLabel, v.chords).Grow(v.chords, 1), v.chordErr)
-	chordCol.Cross = widget.CrossStretch
-	genRow := widget.Row(append([]gunim.Node{small("Write:")}, genButtons...)...)
-	genRow.Cross = widget.CrossCenter
-	bottomLeft := widget.Column(chordCol, genRow, v.keypad)
+	chordRow := widget.Row(append([]gunim.Node{chordsLabel, v.chords, small("Write:")}, genButtons...)...).Grow(v.chords, 1)
+	chordRow.Cross = widget.CrossCenter
+	bottomLeft := widget.Column(chordRow, v.chordErr, v.keypad)
 	bottomLeft.Cross = widget.CrossStretch
-	bottom := widget.Row(bottomLeft, widget.NewSized(v.spectrum, 380, 96)).Grow(bottomLeft, 1)
+	bottom := widget.Row(bottomLeft, widget.NewSized(v.spectrum, 380, 76)).Grow(bottomLeft, 1)
 	bottom.Cross = widget.CrossStretch
 	v.status = small("")
 
 	col := widget.Column(top, v.about, middle, bottom, v.status).Grow(middle, 1)
 	col.Cross = widget.CrossStretch
 	v.Pad = widget.NewPad(col)
-	return &root{v}
+	return r
 }
 
 func (r *root) update(s Studio, u *gunim.UI) { r.view.update(s, u) }
@@ -221,8 +244,23 @@ func (v *view) update(s Studio, u *gunim.UI) {
 	v.status.SetText(s.Status)
 	v.stage.s = s
 	v.flow.s = s
+	if s.EditorGen != v.editorGen {
+		v.editorGen = s.EditorGen
+		v.open(s, u)
+	}
+	v.side.open = v.tabs.Selected() != tabMixer
+	v.mixer.update(s, u)
+	v.patch.update(s, u)
+	v.kit.update(s)
+	v.fx.update(s)
+	v.pattern.update(s, u)
+	if f := v.focus(); f != v.focused {
+		v.focused = f
+		u.Send(v.root, f)
+	}
 	v.spectrum.target = s.Spectrum
-	widget.Sync(v.tracks, u, s.Tracks, func(t TrackRow) widget.Key { return widget.Key(t.Name) }, newCard, (*card).set)
+	widget.Sync(v.tracks, u, s.Tracks, func(t TrackRow) widget.Key { return widget.Key(t.Name) }, newCard,
+		func(c *card, t TrackRow, u *gunim.UI) { c.set(t, u); c.patches(s) })
 	u.Invalidate()
 }
 
@@ -259,6 +297,9 @@ type card struct {
 	gain, filter, reverb, delay *widget.Slider
 	gen                         int
 	track                       string
+	patch                       *widget.Dropdown
+	patchNames                  []string
+	patchName                   string
 }
 
 func newCard(t TrackRow) *card {
@@ -275,7 +316,20 @@ func newCard(t TrackRow) *card {
 		return s
 	}
 	c.gain, c.filter, c.reverb, c.delay = knob(-36, 6, "gain"), knob(0, 1, "filter"), knob(0, 1, "reverb"), knob(0, 1, "delay")
-	head := widget.Row(widget.NewSized(c.swatch, 12, 12), c.name, c.doing, widget.NewSpacer(), widget.NewSized(c.meter, 90, 8))
+	c.patch = widget.NewDropdown("–")
+	c.patch.Label = "Patch"
+	c.patch.MaxWidth = 110
+	c.patch.OnChange = func(i int) gunim.Intent {
+		if i < len(c.patchNames) {
+			return TrackPatch{Track: name, Patch: c.patchNames[i]}
+		}
+		return TrackPatch{Track: name, Patch: c.patchName}
+	}
+	editPattern := widget.NewIconButton(icon.Grid3x3, "Edit the pattern")
+	editPattern.On, editPattern.KeepFocus = OpenEditor{Editor: "Pattern", Track: name}, true
+	editPatch := widget.NewIconButton(icon.AudioWaveform, "Edit the patch")
+	editPatch.On, editPatch.KeepFocus = OpenEditor{Editor: "Patch", Track: name}, true
+	head := widget.Row(widget.NewSized(c.swatch, 12, 12), c.name, c.doing, widget.NewSpacer(), widget.NewSized(c.meter, 60, 8), c.patch, editPatch, editPattern)
 	head.Cross = widget.CrossCenter
 	head.Grow(head.Children()[3], 1)
 	pair := func(label string, s *widget.Slider) gunim.Node {
@@ -311,6 +365,7 @@ func (c *card) set(t TrackRow, _ *gunim.UI) {
 		c.Fill = playing
 	}
 	c.err.SetText(t.PatternErr)
+	c.patchName = t.Patch
 	c.swatch.c = hexColor(t.Color, 0)
 	c.swatch.on = t.Playing
 	c.meter.c = hexColor(t.Color, 0)
@@ -401,4 +456,81 @@ func (s *spectrum) Step(dt time.Duration) bool {
 	}
 	s.sp.Step(dt, s.target, nil)
 	return true
+}
+
+// The editors the middle of the window shows, by their tabs.
+var editorTabs = []string{"Stage", "Mixer", "Patch", "Kit", "Effects", "Pattern"}
+
+const (
+	tabStage = iota
+	tabMixer
+	tabPatch
+	tabKit
+	tabEffects
+	tabPattern
+)
+
+// focus says what the editors show: the patch and the drum to render,
+// and the track whose sound the scope shows, for the tab chosen.
+func (v *view) focus() Focus {
+	f := Focus{Patch: v.patch.name, Kit: v.kit.name, Drum: v.kit.drum}
+	song := v.s.Doc
+	firstPlaying := func(patch string) string {
+		if song == nil {
+			return ""
+		}
+		for _, t := range song.Tracks {
+			if t.Patch == patch {
+				return t.Name
+			}
+		}
+		return ""
+	}
+	switch v.tabs.Selected() {
+	case tabPatch:
+		f.Track = firstPlaying(v.patch.name)
+	case tabKit:
+		f.Track = firstPlaying(v.kit.name)
+	case tabPattern:
+		f.Track = v.pattern.track
+	}
+	return f
+}
+
+// open shows the editor the studio asks for, on its track.
+func (v *view) open(s Studio, u *gunim.UI) {
+	song := s.Doc
+	t := track(song, s.EditorTrack)
+	tab := slices.Index(editorTabs, s.Editor)
+	if tab < 0 {
+		return
+	}
+	if t != nil {
+		switch tab {
+		case tabPattern:
+			v.pattern.track = t.Name
+			v.pattern.gen, v.pattern.sel = -1, ""
+		case tabPatch:
+			if p := song.Patches[t.Patch]; p != nil && p.Kind == "drums" {
+				tab = tabKit
+				v.kit.choose(t.Patch)
+			} else {
+				v.patch.choose(t.Patch)
+			}
+		}
+	}
+	v.tabs.Select(tab, u)
+}
+
+// patches offers the song's patches for the card's track to play.
+func (c *card) patches(s Studio) {
+	if s.Doc == nil {
+		return
+	}
+	names := sortedNames(s.Doc.Patches)
+	if !slices.Equal(names, c.patchNames) {
+		c.patchNames = names
+		c.patch.Items = names
+	}
+	c.patch.Selected = max(slices.Index(names, c.patchName), 0)
 }

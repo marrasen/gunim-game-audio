@@ -14,8 +14,16 @@
 // stings, the tempo and the key change as it plays, and the digit keys
 // play the keypad over a song that has one.
 //
-// -song opens a song by name. -shot writes the window to a PNG after
-// -after, and quits; -tier sets the tier to start at.
+// Tabs swap the stage for the editors: a mixing desk; a synth's patch,
+// its oscillators, filter, envelopes and LFOs drawn and turned by
+// knobs, played from a keyboard; a kit's drums as pads; the effects;
+// and a track's pattern, its structure as boxes and its notes on a grid
+// of steps. Patches and kits save to files of their own and load from
+// them.
+//
+// -song opens a song by name, and -editor an editor, by its tab, on the
+// track -track. -shot writes the window to a PNG after -after, and
+// quits; -tier sets the tier to start at.
 package main
 
 import (
@@ -41,15 +49,17 @@ import (
 func main() {
 	song := flag.String("song", music.KeypadRound, "the song to open, by name")
 	tier := flag.Int("tier", 0, "the tier to start at")
+	editor := flag.String("editor", "", "the editor to open, by its tab: Stage, Mixer, Patch, Kit, Effects or Pattern")
+	on := flag.String("track", "", "with -editor, the track to open it on")
 	shot := flag.String("shot", "", "write the window to this PNG file after -after, and quit")
 	after := flag.Duration("after", 6*time.Second, "how long -shot waits")
 	flag.Parse()
-	if err := run(*song, *tier, *shot, *after); err != nil {
+	if err := run(*song, *tier, *editor, *on, *shot, *after); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(song string, tier int, shot string, after time.Duration) error {
+func run(song string, tier int, editor, on, shot string, after time.Duration) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	err := gunim.Main(ctx, func(a *gunim.App) error {
@@ -74,6 +84,9 @@ func run(song string, tier int, shot string, after time.Duration) error {
 		}
 		if tier > 0 {
 			s.p.SetTier(tier)
+		}
+		if editor != "" {
+			s.handle(ctx, OpenEditor{Editor: editor, Track: on})
 		}
 		if shot != "" {
 			go func() {

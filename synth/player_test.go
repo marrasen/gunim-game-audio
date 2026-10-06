@@ -327,3 +327,64 @@ func TestPlayerIsSafeFromOtherGoroutines(t *testing.T) {
 		}
 	}
 }
+
+func TestMuteSoloMetersAndAuditions(t *testing.T) {
+	s := songs(t)["keypad-round"].Clone()
+	for _, tr := range s.Tracks {
+		if tr.Name == "bass" {
+			tr.Mute = true
+		}
+	}
+	p := synth.NewPlayer(s, 1)
+	p.WatchTrack("pad")
+	play(p, 48000)
+	levels := map[string]synth.TrackLook{}
+	for _, tr := range p.Look(p.Played()).Tracks {
+		levels[tr.Name] = tr
+	}
+	if l := levels["pad"]; l.Peak[0] <= 0.01 || l.RMS[1] <= 0.001 || l.RMS[0] > l.Peak[0] {
+		t.Errorf("the pad's meter reads %+v", l)
+	}
+	if l := levels["bass"]; !l.Mute || l.Peak[0] != 0 {
+		t.Errorf("the muted bass's meter reads %+v", l)
+	}
+	scope := p.Scope(make([]float32, 512))
+	if rms, _, _ := stats(scope); len(scope) != 512 || rms < 0.001 {
+		t.Errorf("the pad's scope holds %d frames at %.4f rms", len(scope), rms)
+	}
+	solo := s.Clone()
+	for _, tr := range solo.Tracks {
+		tr.Mute, tr.Solo = false, tr.Name == "bass"
+	}
+	if err := p.SetSong(solo); err != nil {
+		t.Fatal(err)
+	}
+	// The pad's meter falls some 14 dB a second.
+	play(p, 4*48000)
+	for _, tr := range p.Look(p.Played()).Tracks {
+		if tr.Name == "pad" && tr.Peak[0] > 0.01 {
+			t.Errorf("the pad reads %v while the bass is soloed", tr.Peak[0])
+		}
+	}
+	quiet := synth.NewPlayer(&synth.Song{BPM: 120, Patches: s.Patches, Tracks: []*synth.Track{{Name: "rest", Tier: 1, Patch: "pad", Pattern: "~"}}}, 1)
+	quiet.Audition("lead", 72, 1, 0.3)
+	quiet.AuditionDrum("kit", "sn", 1)
+	if rms, _, _ := stats(play(quiet, 9600)); rms < 0.01 {
+		t.Errorf("the auditions played at %.4f rms", rms)
+	}
+}
+
+func TestPreviews(t *testing.T) {
+	s := songs(t)["boss-entrance"]
+	wave, err := synth.PreviewPatch(s.Patches["brass"], 60, 0.5, 1)
+	if rms, _, _ := stats(wave); err != nil || len(wave) != 48000 || rms < 0.01 {
+		t.Errorf("the brass's preview: %v, %d frames, %.4f rms", err, len(wave), rms)
+	}
+	hit, err := synth.PreviewDrum(s.Patches["orch"], "tim", 1)
+	if rms, _, _ := stats(hit); err != nil || rms < 0.01 {
+		t.Errorf("the timpani's preview: %v, %.4f rms", err, rms)
+	}
+	if _, err := synth.PreviewDrum(s.Patches["orch"], "zap", 1); err == nil {
+		t.Error("a drum of no kit previewed")
+	}
+}

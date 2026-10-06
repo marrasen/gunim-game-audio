@@ -36,39 +36,44 @@ type Player struct {
 	tiersSeen atomic.Int32
 
 	// The mixer's goroutine alone.
-	c        *compiled
-	tracks   []*track
-	all      []*track
-	ghosts   []*track
-	kp       *track
-	trans    *track
-	duckT    *track
-	sting    *stingRun
-	stingNow string
-	stopped  bool
-	at       int64
-	bar      int
-	origin   int
-	barStart int64
-	barEnd   int64
-	tier     int
-	risen    bool
-	queue    []sched
-	qi       int
-	evs      []pev
-	wanderN  int
-	ml, mr   []float32
-	rl, rr   []float32
-	dl, dr   []float32
-	tl, tr   []float32
-	duckBuf  []float32
-	duckEnv  float32
-	duckOn   bool
-	rev      *reverb
-	dly      *delay
-	comp     *compressor
-	lim      *limiter
-	gain     float32
+	audit *track
+	// auditPatch names the patch auditioned last.
+	auditPatch string
+	watched    *track
+	solo       bool
+	c          *compiled
+	tracks     []*track
+	all        []*track
+	ghosts     []*track
+	kp         *track
+	trans      *track
+	duckT      *track
+	sting      *stingRun
+	stingNow   string
+	stopped    bool
+	at         int64
+	bar        int
+	origin     int
+	barStart   int64
+	barEnd     int64
+	tier       int
+	risen      bool
+	queue      []sched
+	qi         int
+	evs        []pev
+	wanderN    int
+	ml, mr     []float32
+	rl, rr     []float32
+	dl, dr     []float32
+	tl, tr     []float32
+	duckBuf    []float32
+	duckEnv    float32
+	duckOn     bool
+	rev        *reverb
+	dly        *delay
+	comp       *compressor
+	lim        *limiter
+	gain       float32
 	// low cuts the rumble under the music, as mastering does.
 	low [2]svf
 	ctx renderCtx
@@ -84,7 +89,18 @@ type Player struct {
 	// levels are the tracks, to read their levels from: replaced, never
 	// changed, as songs change.
 	levels []*track
-	played atomic.Int64
+	// scope holds the last frames the watched track made, mono, for
+	// Scope, scopeAt where the next goes.
+	scope   [scopeFrames]float32
+	scopeAt int
+	// reduction is how far the compressor turns the mix down, in
+	// decibels, as float bits.
+	reduction atomic.Uint32
+	// watch names the track Scope watches, and auditions are the notes
+	// asked for with Audition, guarded by mu.
+	watch     string
+	auditions []audition
+	played    atomic.Int64
 }
 
 // A track is a track playing.
@@ -105,8 +121,11 @@ type track struct {
 	voicing  []int
 	pcycle   []int
 	pevs     [][]pev
-	level    atomic.Uint32
-	peak     float32
+	// lv are the track's peaks, left and right, and its RMS levels, as
+	// float bits, and pk and ms the peaks and mean squares they show.
+	lv       [4]atomic.Uint32
+	pk       [2]float32
+	ms       [2]float32
 	rng      *rng
 	sounding bool
 }
@@ -143,7 +162,7 @@ type Note struct {
 	// none.
 	Pitch int
 	Vel   float32
-	// Drum names the drum, for a drum.
+	// Drum names the drum, for a drum, as its kit does: bd, or oh.
 	Drum string
 }
 
@@ -189,8 +208,12 @@ type TrackLook struct {
 	Playing     bool
 	Piece       band.Piece
 	Control     band.PartControl
-	// Level is how loud it is now, from 0 to 1 at full scale.
-	Level float32
+	// Level is how loud it is now, from 0 to 1 at full scale; Peak are
+	// its peaks, left and right, falling back slowly, and RMS its RMS
+	// levels, over some 300 ms. Mute and Solo are its own.
+	Level      float32
+	Peak, RMS  [2]float32
+	Mute, Solo bool
 }
 
 // barInfo is what a bar plays, for Look.
@@ -373,7 +396,19 @@ func (p *Player) takeRequests() {
 	p.keys = nil
 	sting := p.stingReq
 	p.stingReq = ""
+	as := p.auditions
+	p.auditions = nil
+	watch := p.watch
 	p.mu.Unlock()
+	p.watched = nil
+	for _, t := range p.tracks {
+		if t.name == watch {
+			p.watched = t
+		}
+	}
+	if len(as) > 0 {
+		p.playAuditions(as)
+	}
 	if p.kp != nil {
 		ck := p.c.keypad
 		beat := int64(p.c.fpb / float64(p.c.beats))
@@ -441,6 +476,19 @@ func (p *Player) adopt(c *compiled) {
 			p.trans.retune(ct)
 		}
 	}
+	p.solo = false
+	for _, ct := range c.tracks {
+		p.solo = p.solo || ct.t.Solo
+	}
+	if p.audit != nil {
+		// Notes auditioned sound on as their patch is edited.
+		if pt, ok := c.patches[p.auditPatch]; ok && pt.kind == p.audit.c.patch.kind {
+			p.audit.retune(&ctrack{t: p.audit.c.t, patch: pt, gain: 1})
+		} else {
+			p.audit.release()
+		}
+	}
+	p.waiting.Store(true)
 	p.duckT = nil
 	if c.duck >= 0 {
 		p.duckT = p.tracks[c.duck]
@@ -514,6 +562,9 @@ func (p *Player) gather() {
 	}
 	if p.sting != nil {
 		p.all = append(p.all, p.sting.tracks...)
+	}
+	if p.audit != nil {
+		p.all = append(p.all, p.audit)
 	}
 	p.all = append(p.all, p.ghosts...)
 }
@@ -1052,32 +1103,35 @@ func (p *Player) render(dst []float32, n int) {
 			sounding = t.hs.render(tl, tr)
 		}
 		t.sounding = sounding
-		if !sounding {
-			t.peak *= 0.9
-			t.level.Store(math.Float32bits(t.peak))
+		ct := t.c
+		if !sounding || !p.audible(ct.t) {
+			t.meter(nil, nil)
+			if t == p.watched {
+				p.tap(nil, nil, n)
+			}
 			continue
 		}
 		t.ins.process(tl, tr)
-		ct := t.c
 		gl, gr := min(1, 1-ct.pan), min(1, 1+ct.pan)
 		gl *= ct.gain
 		gr *= ct.gain
 		rv, dv := float32(ct.t.Reverb), float32(ct.t.Delay)
 		dk := float32(ct.t.Duck)
-		var peak float32
 		for i := range tl {
 			g := 1 - dk*duck[i]
 			l, r := tl[i]*gl*g, tr[i]*gr*g
+			tl[i], tr[i] = l, r
 			ml[i] += l
 			mr[i] += r
 			rl[i] += l * rv
 			rr[i] += r * rv
 			dl[i] += l * dv
 			dr[i] += r * dv
-			peak = max(peak, abs32(l), abs32(r))
 		}
-		t.peak = max(peak, t.peak*0.92)
-		t.level.Store(math.Float32bits(t.peak))
+		t.meter(tl, tr)
+		if t == p.watched {
+			p.tap(tl, tr, n)
+		}
 	}
 	for _, g := range p.ghosts {
 		ghosts = ghosts || g.sounding
@@ -1102,6 +1156,7 @@ func (p *Player) render(dst []float32, n int) {
 		_, _, mr[i] = p.low[1].step(mr[i])
 	}
 	p.comp.process(ml, mr)
+	p.reduction.Store(math.Float32bits(p.comp.reduction))
 	p.lim.process(ml, mr)
 	for i := range ml {
 		dst[2*i] = ml[i]
@@ -1128,7 +1183,7 @@ func (p *Player) publishBar(sb int) {
 	for _, s := range p.queue {
 		nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
 		if s.drum {
-			nt.Len, nt.Pitch, nt.Drum = max(s.dur, rate/20), int(s.pitch), s.d.Type
+			nt.Len, nt.Pitch, nt.Drum = max(s.dur, rate/20), int(s.pitch), s.d.name
 		}
 		notes = append(notes, nt)
 	}
@@ -1171,7 +1226,7 @@ func (p *Player) lookNow(sb int) Look {
 	p.mu.Lock()
 	for _, t := range p.tracks {
 		tl := TrackLook{Name: t.name, Color: t.c.t.Color, Tier: t.c.t.Tier, Core: t.c.t.Core, Drums: t.c.patch.kind == kindDrums,
-			Playing: t.active, Control: p.ctl[t.name], Piece: band.Loop}
+			Playing: t.active, Control: p.ctl[t.name], Piece: band.Loop, Mute: t.c.t.Mute, Solo: t.c.t.Solo}
 		if t.active && t.since <= 1 {
 			tl.Piece = band.Intro
 		}
@@ -1249,9 +1304,15 @@ func (p *Player) Look(at int64) Look {
 	l.Frame = p.played.Load()
 	for i := range l.Tracks {
 		for _, t := range p.tracks0() {
-			if t.name == l.Tracks[i].Name {
-				l.Tracks[i].Level = math.Float32frombits(t.level.Load())
+			if t.name != l.Tracks[i].Name {
+				continue
 			}
+			tl := &l.Tracks[i]
+			for ch := range 2 {
+				tl.Peak[ch] = math.Float32frombits(t.lv[ch].Load())
+				tl.RMS[ch] = math.Float32frombits(t.lv[2+ch].Load())
+			}
+			tl.Level = max(tl.Peak[0], tl.Peak[1])
 		}
 	}
 	return l
@@ -1273,4 +1334,143 @@ func (p *Player) Watch() band.Status {
 		st.Parts = append(st.Parts, band.PartStatus{Name: t.Name, Tier: t.Tier, Playing: t.Playing, Piece: t.Piece, Control: t.Control})
 	}
 	return st
+}
+
+// scopeFrames is how many of its last frames Scope keeps of a track.
+const scopeFrames = 2048
+
+// meter takes the frames a track made, after its fader, into its
+// meters: its peaks rise at once and fall back, and its RMS eases over
+// some 300 ms. Nil frames are silence.
+func (t *track) meter(l, r []float32) {
+	n := max(len(l), 1)
+	fall := float32(math.Exp(-float64(n) / (0.6 * rate)))
+	ease := float32(1 - math.Exp(-float64(n)/(0.3*rate)))
+	for ch, x := range [2][]float32{l, r} {
+		var pk, ms float32
+		for _, s := range x {
+			pk = max(pk, abs32(s))
+			ms += s * s
+		}
+		if len(x) > 0 {
+			ms /= float32(len(x))
+		} else {
+			// Silence passes the time a block would.
+			fall = float32(math.Exp(-float64(maxBlock) / (0.6 * rate)))
+			ease = float32(1 - math.Exp(-float64(maxBlock)/(0.3*rate)))
+		}
+		t.pk[ch] = max(pk, t.pk[ch]*fall)
+		t.ms[ch] += (ms - t.ms[ch]) * ease
+		if t.pk[ch] < 1e-6 {
+			t.pk[ch] = 0
+		}
+		if t.ms[ch] < 1e-12 {
+			t.ms[ch] = 0
+		}
+		t.lv[ch].Store(math.Float32bits(t.pk[ch]))
+		t.lv[2+ch].Store(math.Float32bits(float32(math.Sqrt(float64(t.ms[ch])))))
+	}
+}
+
+// audible reports whether t is heard: not muted, and soloed where any
+// track is.
+func (p *Player) audible(t *Track) bool {
+	return !t.Mute && (!p.solo || t.Solo)
+}
+
+// tap keeps the watched track's frames, mono, for Scope.
+func (p *Player) tap(l, r []float32, n int) {
+	p.wmu.Lock()
+	for i := range n {
+		var s float32
+		if l != nil {
+			s = (l[i] + r[i]) / 2
+		}
+		p.scope[p.scopeAt] = s
+		p.scopeAt = (p.scopeAt + 1) % scopeFrames
+	}
+	p.wmu.Unlock()
+}
+
+// WatchTrack sets the track whose sound Scope keeps, by name, "" for none.
+func (p *Player) WatchTrack(name string) {
+	p.mu.Lock()
+	p.watch = name
+	p.mu.Unlock()
+	p.waiting.Store(true)
+}
+
+// Scope fills dst with the last frames the watched track made, mono,
+// oldest first, as an oscilloscope shows them: at most 2048.
+func (p *Player) Scope(dst []float32) []float32 {
+	p.wmu.Lock()
+	defer p.wmu.Unlock()
+	n := min(len(dst), scopeFrames)
+	for i := range n {
+		dst[i] = p.scope[(p.scopeAt-n+i+scopeFrames)%scopeFrames]
+	}
+	return dst[:n]
+}
+
+// Reduction returns how far the mix's compressor turns it down now, in
+// decibels.
+func (p *Player) Reduction() float32 { return math.Float32frombits(p.reduction.Load()) }
+
+// audition is a note asked for with Audition.
+type audition struct {
+	patch string
+	drum  string
+	pitch int
+	vel   float32
+	secs  float64
+}
+
+// Audition plays a note of the song's patch named patch at once, held
+// for secs seconds, over whatever plays, as a tool tries a patch out.
+func (p *Player) Audition(patch string, pitch int, vel float32, secs float64) {
+	p.mu.Lock()
+	p.auditions = append(p.auditions, audition{patch: patch, pitch: pitch, vel: vel, secs: secs})
+	p.mu.Unlock()
+	p.waiting.Store(true)
+}
+
+// AuditionDrum plays the drum named drum of the song's drums patch named
+// patch at once.
+func (p *Player) AuditionDrum(patch, drum string, vel float32) {
+	p.mu.Lock()
+	p.auditions = append(p.auditions, audition{patch: patch, drum: drum, vel: vel, secs: 1})
+	p.mu.Unlock()
+	p.waiting.Store(true)
+}
+
+// playAuditions plays the notes asked for, on a track of their own.
+func (p *Player) playAuditions(as []audition) {
+	for _, a := range as {
+		pt, ok := p.c.patches[a.patch]
+		if !ok {
+			continue
+		}
+		p.auditPatch = a.patch
+		ct := &ctrack{t: &Track{Name: "audition", Reverb: 0.15}, patch: pt, gain: 1}
+		if p.audit == nil {
+			p.audit = newTrack(ct, p.seed+4242)
+			p.gather()
+		} else {
+			p.audit.retune(ct)
+		}
+		if pt.kind == kindDrums {
+			d, ok := pt.kit[a.drum]
+			if !ok {
+				continue
+			}
+			var pitch float32
+			if d.kind == drTimpani {
+				ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
+				pitch = float32(ch.Root + 36)
+			}
+			p.audit.hs.play(d, a.vel, 0, pitch, int64(p.c.fpb), 0)
+			continue
+		}
+		p.audit.vs.play(pt, note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1})
+	}
 }

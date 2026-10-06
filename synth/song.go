@@ -129,6 +129,9 @@ type Track struct {
 	// Human moves each note a little in time and level, from 0 to 1, as
 	// a player's hands do.
 	Human float64
+	// Mute silences the track, and Solo silences every track but those
+	// soloed, as a mixing desk's buttons do.
+	Mute, Solo bool
 	// Color is the track's colour in a tool, as #ff6b9d.
 	Color string
 }
@@ -629,7 +632,7 @@ func (c *compiled) compileTrack(t *Track, k key, progs [][]Chord, sting bool) (*
 	if strings.TrimSpace(src) == "" {
 		src = "~"
 	}
-	pat, err := parsePattern(src)
+	pat, err := readPattern(src)
 	if err != nil {
 		return nil, fmt.Errorf("synth: track %s: %w", t.Name, err)
 	}
@@ -646,7 +649,7 @@ func (c *compiled) compileTrack(t *Track, k key, progs [][]Chord, sting bool) (*
 		if !ok {
 			return nil, fmt.Errorf("synth: track %s has a parameter %q, which is none of vel, pan, cutoff, res, legato, octave, vowel or tune", t.Name, name)
 		}
-		pp, err := parsePattern(t.Params[name])
+		pp, err := readPattern(t.Params[name])
 		if err != nil {
 			return nil, fmt.Errorf("synth: track %s, %s: %w", t.Name, name, err)
 		}

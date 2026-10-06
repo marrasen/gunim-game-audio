@@ -54,13 +54,36 @@ type studio struct {
 	notes     []synth.Note
 	seed      uint64
 	saved     chan string
+	loads     chan loaded
+	// focus is what the editors show, and preview and drum the sounds
+	// rendered of it, with the patches they were rendered from, as JSON.
+	focus     Focus
+	preview   Preview
+	previewOf string
+	drum      Preview
+	drumOf    string
+	// levels are the mix's, as heard, and heardFrom the frame to read on
+	// from; scope holds the watched track's sound.
+	levels    audioui.Levels
+	heardFrom int64
+	heardBuf  []float32
+	lastTick  time.Time
+	scope     []float32
+	// patternSel is where the pattern editor's choice goes after a change.
+	patternTrack  string
+	patternSel    string
+	patternSelGen int
+	// editor is the editor the window is asked to show.
+	editor, editorTrack string
+	editorGen           int
 }
 
 // newStudio returns the studio, playing through mix, with the song
 // named songName open, or the first.
 func newStudio(c gunim.Client, mix *audio.Mixer, songName string) (*studio, error) {
 	s := &studio{c: c, mix: mix, volume: 0.8, drafts: map[string]string{}, errs: map[string]string{},
-		freqs: audioui.LogFreqs(spectrumPoints), seed: uint64(time.Now().UnixNano()), saved: make(chan string, 1)}
+		freqs: audioui.LogFreqs(spectrumPoints), seed: uint64(time.Now().UnixNano()), saved: make(chan string, 1), loads: make(chan loaded, 1),
+		levels: audioui.NewLevels(), scope: make([]float32, 1024)}
 	s.an = audio.NewAnalyzer(s.mix, 16)
 	for _, name := range music.Songs() {
 		song, err := music.Song(name)
@@ -267,6 +290,96 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		s.voice.SetVolume(v.Volume, anim.Spring{Response: 0.15, Damping: 1})
 	case Saved:
 		go s.save(ctx, s.song.Clone())
+	case SetValue:
+		var x any = v.Num
+		if v.IsStr {
+			x = v.Str
+		}
+		var perr error
+		err := s.edit(func(song *synth.Song) { perr = setPath(song, v.Path, x) })
+		if perr != nil {
+			err = perr
+		}
+		if err != nil {
+			s.status = plain(err)
+		}
+	case AddItem:
+		if err := s.edit(func(song *synth.Song) { _ = addItem(song, v.Path) }); err != nil {
+			s.status = plain(err)
+		}
+	case RemoveItem:
+		if err := s.edit(func(song *synth.Song) { _ = removeItem(song, v.Path, v.Index) }); err != nil {
+			s.status = plain(err)
+		}
+	case PatchNew:
+		name := s.freeName(v.Kind)
+		p := newPatch(v.Kind)
+		if err := s.edit(func(song *synth.Song) { song.Patches[name] = p }); err != nil {
+			s.status = plain(err)
+			break
+		}
+		s.status = "Made the patch " + name
+		s.gen++
+	case PatchCopy:
+		src, ok := s.song.Patches[v.Name]
+		if !ok {
+			break
+		}
+		name := s.freeName(v.Name)
+		cp := s.song.Clone().Patches[v.Name]
+		_ = src
+		if err := s.edit(func(song *synth.Song) { song.Patches[name] = cp }); err == nil {
+			s.status = "Copied " + v.Name + " to " + name
+			s.gen++
+		}
+	case PatchSave:
+		if p, ok := s.song.Patches[v.Name]; ok {
+			go s.savePatch(ctx, v.Name, s.song.Clone().Patches[v.Name])
+			_ = p
+		}
+	case PatchLoad:
+		go s.loadPatch(ctx, v.Name)
+	case TrackPatch:
+		if err := s.edit(func(song *synth.Song) {
+			if t := track(song, v.Track); t != nil {
+				t.Pattern = adaptPattern(t.Pattern, song.Patches[t.Patch], song.Patches[v.Patch])
+				t.Patch = v.Patch
+			}
+		}); err != nil {
+			s.status = plain(err)
+		} else {
+			s.gen++
+		}
+	case Audition:
+		if v.Drum != "" {
+			s.p.AuditionDrum(v.Patch, v.Drum, 0.95)
+		} else {
+			s.p.Audition(v.Patch, v.Pitch, 0.9, 0.45)
+		}
+	case PatternOp:
+		t := track(s.song, v.Track)
+		if t == nil {
+			break
+		}
+		src := t.Pattern
+		if d, ok := s.drafts[v.Track]; ok {
+			src = d
+		}
+		out, at, err := applyOp(src, v)
+		if err != nil {
+			s.status = plain(err)
+			break
+		}
+		s.handle(ctx, PatternEdited{Track: v.Track, Text: out})
+		s.patternTrack, s.patternSel = v.Track, at
+		s.patternSelGen++
+		s.gen++
+	case OpenEditor:
+		s.editor, s.editorTrack = v.Editor, v.Track
+		s.editorGen++
+	case Focus:
+		s.focus = v
+		s.p.WatchTrack(v.Track)
 	}
 }
 
@@ -379,7 +492,7 @@ func (s *studio) state() Studio {
 		if !ok {
 			i = -1
 		}
-		st.Notes = append(st.Notes, NoteDot{Frame: n.Frame, Len: n.Len, Track: i, Pitch: n.Pitch, Vel: n.Vel, Drum: n.Drum != ""})
+		st.Notes = append(st.Notes, NoteDot{Frame: n.Frame, Len: n.Len, Track: i, Pitch: n.Pitch, Vel: n.Vel, Drum: n.Drum != "", DrumName: n.Drum})
 	}
 	// A chord written by numeral shows its name too, as V · B.
 	for i, c := range st.Chords {
@@ -388,6 +501,30 @@ func (s *studio) state() Studio {
 		}
 	}
 	st.Spans = spans(look, song, heard)
+	st.Doc = song
+	st.Editor, st.EditorTrack, st.EditorGen = s.editor, s.editorTrack, s.editorGen
+	st.PatternTrack, st.PatternSel, st.PatternSelGen = s.patternTrack, s.patternSel, s.patternSelGen
+	for i := range st.Tracks {
+		lt := look.Tracks[i]
+		st.Tracks[i].Meter = Meter{Peak: lt.Peak, RMS: lt.RMS}
+		st.Tracks[i].Mute, st.Tracks[i].Solo = lt.Mute, lt.Solo
+		if tr := track(song, lt.Name); tr != nil {
+			st.Tracks[i].Patch = tr.Patch
+		}
+	}
+	s.previews()
+	st.Preview, st.DrumPreview = s.preview, s.drum
+	st.ScopeTrack = s.focus.Track
+	if st.ScopeTrack != "" {
+		st.Scope = slices.Clone(s.p.Scope(s.scope))
+	}
+	s.meter()
+	for ch := range 2 {
+		st.Master.Peak[ch] = float32(dbLinear(s.levels.Peak[ch]))
+		st.Master.RMS[ch] = float32(dbLinear(s.levels.RMS[ch]))
+	}
+	st.LUFS, _ = s.levels.ShortTerm()
+	st.Reduction = s.p.Reduction()
 	st.Spectrum = make([]float32, len(s.freqs))
 	s.an.Spectrum(s.freqs, st.Spectrum, nil)
 	return st
@@ -460,6 +597,8 @@ func (s *studio) serve(ctx context.Context) error {
 			if msg != "" {
 				s.status = msg
 			}
+		case l := <-s.loads:
+			s.adopt(l)
 		case ev, ok := <-s.c.Intents():
 			if !ok {
 				return s.c.Err()
@@ -468,4 +607,200 @@ func (s *studio) serve(ctx context.Context) error {
 		}
 		_ = s.c.Update("studio", s.state())
 	}
+}
+
+// dbLinear is a level in decibels as a gain, 1 at full scale.
+func dbLinear(db float32) float64 { return math.Pow(10, float64(db)/20) }
+
+// meter takes the mix heard since the last tick into the master's
+// levels.
+func (s *studio) meter() {
+	now := time.Now()
+	dt := now.Sub(s.lastTick)
+	if s.lastTick.IsZero() || dt > time.Second {
+		dt = time.Second / 30
+	}
+	s.lastTick = now
+	var frames []float32
+	frames, s.heardFrom = s.an.Heard(s.heardBuf[:0], s.heardFrom)
+	s.heardBuf = frames
+	if len(frames) == 0 {
+		s.levels.Quiet(dt)
+		return
+	}
+	s.levels.Take(frames, audio.SampleRate, dt)
+}
+
+// previews renders the patch and the drum the editors show, where they
+// have changed since they were last rendered.
+func (s *studio) previews() {
+	if p, ok := s.song.Patches[s.focus.Patch]; ok && p.Kind != "drums" {
+		b, _ := json.Marshal(p)
+		if key := s.focus.Patch + string(b); key != s.previewOf {
+			s.previewOf = key
+			s.preview = Preview{Patch: s.focus.Patch}
+			if wave, err := synth.PreviewPatch(p, 60, 0.9, 1.6); err == nil {
+				s.preview.Wave = overview(wave, 360)
+				// A few cycles of C4, once the attack is past.
+				at := min(len(wave)-1, int(0.3*audio.SampleRate))
+				s.preview.Cycle = resample(wave[at:min(len(wave), at+3*184)], 256)
+			}
+		}
+	}
+	if p, ok := s.song.Patches[s.focus.Kit]; ok && p.Kind == "drums" && s.focus.Drum != "" {
+		b, _ := json.Marshal(p)
+		if key := s.focus.Kit + "/" + s.focus.Drum + string(b); key != s.drumOf {
+			s.drumOf = key
+			s.drum = Preview{Patch: s.focus.Kit, Drum: s.focus.Drum}
+			if wave, err := synth.PreviewDrum(p, s.focus.Drum, 1.2); err == nil {
+				s.drum.Wave = overview(wave, 360)
+				s.drum.Cycle = resample(wave[:min(len(wave), 2400)], 256)
+			}
+		}
+	}
+}
+
+// overview returns x as the low and the high of each of n columns.
+func overview(x []float32, n int) []float32 {
+	out := make([]float32, 2*n)
+	for c := range n {
+		lo, hi := float32(0), float32(0)
+		for _, v := range x[c*len(x)/n : (c+1)*len(x)/n] {
+			lo, hi = min(lo, v), max(hi, v)
+		}
+		out[2*c], out[2*c+1] = lo, hi
+	}
+	return out
+}
+
+// resample returns x as n points, read between its samples.
+func resample(x []float32, n int) []float32 {
+	out := make([]float32, n)
+	if len(x) < 2 {
+		return out
+	}
+	for i := range out {
+		pos := float64(i) / float64(n-1) * float64(len(x)-1)
+		j := int(pos)
+		f := float32(pos - float64(j))
+		if j+1 < len(x) {
+			out[i] = x[j] + (x[j+1]-x[j])*f
+		} else {
+			out[i] = x[j]
+		}
+	}
+	return out
+}
+
+// freeName returns a name for a new patch, from base, that no patch of
+// the song has.
+func (s *studio) freeName(base string) string {
+	for i := 2; ; i++ {
+		name := fmt.Sprintf("%s %d", base, i)
+		if _, ok := s.song.Patches[name]; !ok {
+			return name
+		}
+	}
+}
+
+// newPatch returns a patch of kind to start from: a synth of two saws
+// through a filter, a plucked string, or a kit.
+func newPatch(kind string) *synth.Patch {
+	switch kind {
+	case "drums":
+		return &synth.Patch{Kind: "drums"}
+	case "pluck":
+		return &synth.Patch{Kind: "pluck", Pluck: synth.Pluck{Decay: 0.8, Bright: 0.6, Body: 0.3},
+			Filter: synth.Filter{Type: "lp", Cutoff: 3000, Res: 0.1}, Amp: synth.Env{Attack: 0.001, Decay: 1, Sustain: 1, Release: 0.2},
+			Poly: 8}
+	}
+	return &synth.Patch{
+		Osc:       []synth.Osc{{Wave: "saw", Level: 0.7}, {Wave: "saw", Detune: 9, Level: 0.5}},
+		Filter:    synth.Filter{Type: "lp", Cutoff: 1400, Res: 0.2, Env: 1.5},
+		Amp:       synth.Env{Attack: 0.01, Decay: 0.3, Sustain: 0.7, Release: 0.25},
+		FilterEnv: synth.Env{Attack: 0.005, Decay: 0.3, Sustain: 0.3, Release: 0.2},
+		Poly:      8, Gain: 0.5,
+	}
+}
+
+// adaptPattern keeps a track's pattern where its new patch plays it as
+// the old one did, and gives it one to start from where the new patch
+// plays drums and the old notes, or the other way round.
+func adaptPattern(pattern string, from, to *synth.Patch) string {
+	drums := func(p *synth.Patch) bool { return p != nil && p.Kind == "drums" }
+	switch {
+	case drums(from) == drums(to):
+		return pattern
+	case drums(to):
+		return "bd ~ sn ~"
+	}
+	return "c0 c1 c2 c1"
+}
+
+// patchFiles are the files a patch saves as.
+var patchFiles = []driver.FileFilter{{Name: "Patches", Patterns: []string{"*.patch.json", "*.json"}}}
+
+// savePatch asks where to save p, named name, and saves it there.
+func (s *studio) savePatch(ctx context.Context, name string, p *synth.Patch) {
+	path, err := s.c.SaveFile(ctx, driver.SaveOptions{Title: "Save the patch " + name, Name: name + ".patch.json", Filters: patchFiles})
+	if err != nil || path == "" {
+		s.saved <- ""
+		return
+	}
+	b, err := json.MarshalIndent(p, "", "\t")
+	if err == nil {
+		err = os.WriteFile(path, append(b, '\n'), 0o644)
+	}
+	if err != nil {
+		s.saved <- "Could not save: " + err.Error()
+		return
+	}
+	s.saved <- "Saved " + filepath.Base(path)
+}
+
+// loaded is a patch read from a file, handed back to the serve loop.
+type loaded struct {
+	name, file string
+	p          *synth.Patch
+}
+
+// loadPatch asks for a patch's file, and hands it back to put in place
+// of the patch named name, or as a new one where name is empty.
+func (s *studio) loadPatch(ctx context.Context, name string) {
+	paths, err := s.c.ChooseFiles(ctx, driver.ChooseOptions{Title: "Load a patch", Filters: patchFiles})
+	if err != nil || len(paths) == 0 {
+		return
+	}
+	b, err := os.ReadFile(paths[0])
+	p := new(synth.Patch)
+	if err == nil {
+		err = json.Unmarshal(b, p)
+	}
+	if err != nil {
+		s.saved <- "Could not load: " + err.Error()
+		return
+	}
+	s.loads <- loaded{name: name, file: paths[0], p: p}
+}
+
+// adopt puts a patch loaded in the song.
+func (s *studio) adopt(l loaded) {
+	name := l.name
+	if name == "" {
+		base := strings.TrimSuffix(strings.TrimSuffix(filepath.Base(l.file), ".json"), ".patch")
+		name = base
+		if _, ok := s.song.Patches[name]; ok {
+			name = s.freeName(base)
+		}
+	}
+	if old, ok := s.song.Patches[name]; ok && (old.Kind == "drums") != (l.p.Kind == "drums") {
+		s.status = "A kit loads in place of a kit, and a synth in place of a synth"
+		return
+	}
+	if err := s.edit(func(song *synth.Song) { song.Patches[name] = l.p }); err != nil {
+		s.status = plain(err)
+		return
+	}
+	s.status = "Loaded " + filepath.Base(l.file) + " as " + name
+	s.gen++
 }

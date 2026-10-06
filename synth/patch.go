@@ -222,6 +222,8 @@ const (
 
 type drum struct {
 	Drum
+	// name is the drum's name in its kit, as bd.
+	name string
 	kind int
 	gain float32
 }
@@ -342,7 +344,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 	if c.kind == kindDrums {
 		c.kit = map[string]drum{}
 		for n, t := range drumNames {
-			c.kit[n] = drum{Drum: Drum{Type: t, Tune: tomTune[n]}, kind: drumTypes[t], gain: 1}
+			c.kit[n] = drum{Drum: Drum{Type: t, Tune: tomTune[n]}, name: n, kind: drumTypes[t], gain: 1}
 		}
 		for n, d := range p.Kit {
 			t := d.Type
@@ -357,7 +359,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 				d.Tune = tomTune[n]
 			}
 			d.Type = t
-			cd := drum{Drum: d, kind: k, gain: 1}
+			cd := drum{Drum: d, name: n, kind: k, gain: 1}
 			if d.Gain != 0 {
 				cd.gain = float32(d.Gain)
 			}

@@ -53,8 +53,10 @@ type pnode struct {
 	weight float64
 	// n is how many times faster or slower, for pFast and pSlow.
 	n int
-	// hits are a pEuclid's steps, true where its node plays.
-	hits []bool
+	// hits are a pEuclid's steps, true where its node plays, from
+	// euclid, its hits, steps and rotation as written.
+	hits   []bool
+	euclid [3]int
 	// chance is how often a pDegrade drops an event, and salt seeds it.
 	chance float64
 	salt   uint32
@@ -67,8 +69,8 @@ type pev struct {
 	atom    int
 }
 
-// parsePattern reads src.
-func parsePattern(src string) (*pattern, error) {
+// readPattern reads src.
+func readPattern(src string) (*pattern, error) {
 	p := &parser{src: src, pat: &pattern{src: src}}
 	root, err := p.list(0)
 	if err != nil {
@@ -81,9 +83,9 @@ func parsePattern(src string) (*pattern, error) {
 	return p.pat, nil
 }
 
-// mustPattern is parsePattern for patterns known to be good.
+// mustPattern is readPattern for patterns known to be good.
 func mustPattern(src string) *pattern {
-	p, err := parsePattern(src)
+	p, err := readPattern(src)
 	if err != nil {
 		panic(err)
 	}
@@ -274,7 +276,11 @@ func (p *parser) step() ([]*pnode, error) {
 				r := ((args[2] % len(hits)) + len(hits)) % len(hits)
 				hits = append(hits[r:], hits[:r]...)
 			}
-			n = &pnode{kind: pEuclid, hits: hits, kids: []*pnode{n}, weight: n.weight}
+			e := [3]int{args[0], args[1], 0}
+			if len(args) == 3 {
+				e[2] = args[2]
+			}
+			n = &pnode{kind: pEuclid, hits: hits, euclid: e, kids: []*pnode{n}, weight: n.weight}
 		default:
 			return repeat(n, reps), nil
 		}

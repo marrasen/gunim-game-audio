@@ -44,7 +44,7 @@ func TestPattern(t *testing.T) {
 		{"[a b]/2", 1, "b@0"},
 		{"c0 c1' 4# -1", 0, "c0@0 c1'@4 4#@8 -1@12"},
 	} {
-		p, err := parsePattern(c.src)
+		p, err := readPattern(c.src)
 		if err != nil {
 			t.Errorf("%q: %v", c.src, err)
 			continue
@@ -68,7 +68,7 @@ func TestPatternDegrade(t *testing.T) {
 
 func TestPatternErrors(t *testing.T) {
 	for _, src := range []string{"[a b", "<a", "a(3)", "a*", "_ a", "a )"} {
-		if _, err := parsePattern(src); err == nil {
+		if _, err := readPattern(src); err == nil {
 			t.Errorf("%q parsed", src)
 		}
 	}
@@ -192,5 +192,27 @@ func TestSpelled(t *testing.T) {
 		if err != nil || c.Spelled() != want {
 			t.Errorf("%s: spelled %q, %v; want %q", name, c.Spelled(), err, want)
 		}
+	}
+}
+
+func TestStepsWriteBackAsTheyRead(t *testing.T) {
+	for _, src := range []string{
+		"bd ~ sn ~", "[c0 c1]*2 c2", "<0 2 4>", "bd(3,8)", "bd(3,8,2)", "hh*16?", "hh*8?0.3",
+		"0 2@2 4", "[bd, hh*4]", "<[a b] c>/2", "[sh*8, ~ cp ~ cp, ~ ~ ~ ~ ~ ~ ~ [~ rim]]",
+	} {
+		s, err := ParsePattern(src)
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		back := s.String()
+		for c := range 4 {
+			want := show(mustPattern(src), c)
+			if got := show(mustPattern(back), c); got != want {
+				t.Errorf("%q wrote back as %q, which plays %q in cycle %d, not %q", src, back, got, c, want)
+			}
+		}
+	}
+	if got := PatternCycles("<a b c> <d e>"); got != 6 {
+		t.Errorf("<a b c> <d e> comes round in %d cycles, want 6", got)
 	}
 }
