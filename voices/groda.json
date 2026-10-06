@@ -8,9 +8,9 @@
 				{
 					"Model": "ribbit",
 					"Params": {
-						"pitch": 330,
-						"bright": 0.85,
-						"throat": 2,
+						"pitch": 280,
+						"bright": 0.6,
+						"throat": 1.2,
 						"sac": 1300,
 						"size": 1.7,
 						"ribbits": 1,
@@ -26,9 +26,9 @@
 				{
 					"Model": "ribbit",
 					"Params": {
-						"pitch": 330,
-						"bright": 0.9,
-						"throat": 2,
+						"pitch": 280,
+						"bright": 0.65,
+						"throat": 1.2,
 						"sac": 1450,
 						"size": 1.7,
 						"ribbits": 2,
@@ -47,12 +47,12 @@
 				{
 					"Model": "blub",
 					"Params": {
-						"vpitch": 520,
+						"vpitch": 380,
 						"vfall": 6,
-						"pitch": 1800,
+						"pitch": 1300,
 						"level": 1.0,
 						"size": 1.8,
-						"bright": 0.8
+						"bright": 0.55
 					}
 				}
 			],

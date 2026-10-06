@@ -139,7 +139,7 @@ func TestAKnobTurnedChangesTheCallAndPlaysItAsItIsLetGo(t *testing.T) {
 	h.w.Input(input.PointerDown{Pos: c, Clicks: 1, Time: time.Now()})
 	h.w.Input(input.PointerMove{Pos: c.Add(geom.Pt(0, -30)), Time: time.Now()})
 	got, ok := h.intent().(ParamSet)
-	if !ok || got.Layer != 0 || got.Name != "pitch" || got.Value <= 1100 || got.Done {
+	if !ok || got.Layer != 0 || got.Name != "pitch" || got.Value <= h.l.current().Layers[0].Get("pitch") || got.Done {
 		t.Fatalf("a drag up the pitch knob sent %#v", got)
 	}
 	h.w.Input(input.PointerUp{Pos: c.Add(geom.Pt(0, -30)), Time: time.Now()})

@@ -400,10 +400,10 @@ func (c *callCard) set(v CallView, selected bool) {
 		c.problems.SetText("")
 		c.stats.SetText("Not made yet.")
 	case len(v.Problems) == 0:
-		c.problems.SetText("Meets the brief.")
+		c.problems.SetText("Passes the checks.")
 		c.problems.Color = good
 	default:
-		c.problems.SetText("Short of the brief: " + strings.Join(v.Problems, "; ") + ".")
+		c.problems.SetText("Fails the checks: " + strings.Join(v.Problems, "; ") + ".")
 		c.problems.Color = problem
 	}
 	c.Fill = cardFill

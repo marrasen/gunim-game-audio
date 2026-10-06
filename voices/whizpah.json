@@ -43,15 +43,15 @@
 						"vibrato": 0,
 						"breath": 0.3,
 						"size": 1.5,
-						"ring": 1.2,
-						"bright": 0.7
+						"ring": 0.48,
+						"bright": 0.45
 					},
 					"At": 0.16
 				}
 			],
 			"Vary": 0.6,
 			"Room": 0.15,
-			"Presence": 3
+			"Presence": 0.9
 		},
 		"cheer": {
 			"Layers": [
@@ -72,8 +72,8 @@
 						"vibrato": 0,
 						"breath": 0.35,
 						"size": 1.4,
-						"ring": 1.2,
-						"bright": 0.7
+						"ring": 0.48,
+						"bright": 0.45
 					}
 				},
 				{
@@ -94,8 +94,8 @@
 						"vibrato": 1.2,
 						"breath": 0.3,
 						"size": 1.9,
-						"ring": 1.0,
-						"bright": 0.75
+						"ring": 0.4,
+						"bright": 0.5
 					},
 					"At": 0.42
 				},
@@ -130,7 +130,7 @@
 			],
 			"Vary": 0.6,
 			"Room": 0.2,
-			"Presence": 4,
+			"Presence": 1.2,
 			"Cut": 1.18
 		},
 		"oops": {
@@ -152,8 +152,8 @@
 						"vibrato": 0,
 						"breath": 0.5,
 						"size": 1.6,
-						"ring": 1.0,
-						"bright": 0.65
+						"ring": 0.4,
+						"bright": 0.4
 					}
 				},
 				{
@@ -166,14 +166,15 @@
 						"question": 9,
 						"open": 0.4,
 						"rough": 0,
-						"breath": 0.4
+						"breath": 0.4,
+						"bright": 0.4
 					},
 					"At": 0.36
 				}
 			],
 			"Vary": 0.6,
 			"Room": 0.15,
-			"Presence": 5,
+			"Presence": 1.5,
 			"Cut": 0.68
 		}
 	}

@@ -3,7 +3,6 @@ package calls
 import (
 	"bytes"
 	"encoding/binary"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -174,7 +173,10 @@ func TestTheTruePeakIsAsGunimsMeterFindsIt(t *testing.T) {
 				}
 				m.Write(st)
 				theirs, ours := toDB(m.Peak()), truePeak(tk.Samples)
-				if math.Abs(theirs-ours) > 0.05 {
+				// Ours may read a little high, which only turns a call
+				// down a hair more than it needs; never low, which would
+				// let it pass the ceiling.
+				if theirs-ours > 0.05 || ours-theirs > 0.15 {
 					t.Errorf("%s %s: gunim %.3f, ours %.3f", id, k, theirs, ours)
 				}
 			}

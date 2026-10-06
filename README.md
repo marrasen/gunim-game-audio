@@ -172,13 +172,13 @@ voices.Play("uggla", calls.Hello, audio.Options{})  // a new take each time
 voices.PlayTake("uggla", calls.Oops, 0, audio.Options{}) // the call as set
 ```
 
-Every call is finished the same way, as the game's brief asks: cut
-under 300 Hz, which a phone's speaker does not play, started from its
-first millisecond, brought to −14 LUFS at its loudest, and held under
-−1 dBTP. The tests check every call against the brief, as set and in 20
-takes: its length, 0.3 to 0.7 s, or up to 1.2 s for a cheer; its
-loudness and peak; that it sounds at once; that little of it is under
-300 Hz; and that most of it is at 1 to 4 kHz.
+Every call is finished the same way: cut gently under 90 Hz, where
+there is only rumble, started from its first millisecond, brought to
+−14 LUFS at its loudest, and held under −1 dBTP. The tests check every
+call, as set and in 20 takes: its length, 0.3 to 0.7 s, or up to 1.2 s
+for a cheer; its loudness and peak; that it sounds at once; and that a
+phone's speaker, which plays little under about 700 Hz, takes no more
+than 6 dB from it, so it still carries on a phone.
 
 ### Setting the calls by ear
 

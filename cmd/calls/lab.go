@@ -64,11 +64,10 @@ func newLab(c gunim.Client, mix *audio.Mixer, dir string) (*lab, error) {
 	l.lib = lib
 	l.songs = music.Songs()
 	l.open(lib.Companions[0].ID)
+	abs, _ := filepath.Abs(dir)
 	if l.embedded {
-		abs, _ := filepath.Abs(dir)
 		l.status = "Read the calls built into the program. Save writes them to " + abs + "."
 	} else {
-		abs, _ := filepath.Abs(dir)
 		l.status = "Read the calls from " + abs + "."
 	}
 	return l, nil
@@ -136,7 +135,7 @@ func (l *lab) play(i int) {
 	}
 	o := audio.Options{}
 	if l.phone {
-		o.Insert = newPhone()
+		o.Insert = calls.NewPhone()
 	}
 	l.voice = l.mix.Play(t.Clip().Source(), o)
 	l.call = i
@@ -414,8 +413,12 @@ func (l *lab) state() Lab {
 			cv.Wave = spans(t.Samples, 220)
 			cv.Spectrum = calls.Spectrum(t.Samples, 64)
 			st := t.Stats
-			cv.Stats = fmt.Sprintf("%.2f s · %.1f LUFS · peak %.1f dBTP\n1–4 kHz %.0f%% · under 300 Hz %.0f%% · limited %.1f dB",
-				st.Length, st.Loudness, st.Peak, st.Presence*100, st.Lows*100, st.Limited)
+			phone := fmt.Sprintf("%.1f dB quieter on a phone", st.Phone)
+			if st.Phone < 0 {
+				phone = fmt.Sprintf("%.1f dB louder on a phone", -st.Phone)
+			}
+			cv.Stats = fmt.Sprintf("%.2f s · %.1f LUFS · peak %.1f dBTP · limited %.1f dB\n%s · 1–4 kHz %.0f%% · under 300 Hz %.0f%%",
+				st.Length, st.Loudness, st.Peak, st.Limited, phone, st.Presence*100, st.Lows*100)
 			cv.Problems = st.Problems(kind, m)
 			cv.Take = "As set"
 			if t.Seed != 0 {
