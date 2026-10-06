@@ -59,6 +59,21 @@ const (
 	// E major, for a mascot to dance to: its tracks come and go by
 	// themselves, and a topline it writes itself changes as it goes.
 	MascotDance = "mascot-dance"
+	// BubbleBounce is a bouncy chip tune in the manner of Bubble Bobble,
+	// made in code for a Commodore 64's sound, at 150 BPM in F major, in
+	// four tiers: a hopping bass and arpeggiated chords; a counter melody
+	// and drums; the lead; and its echo and a fuller beat.
+	BubbleBounce = "bubble-bounce"
+	// SisterDreams is a bittersweet chip tune in the manner of the Giana
+	// Sisters' intro, made in code at 132 BPM in D minor: an arpeggio
+	// through a sweeping SID filter and a squelching bass always, and a
+	// lead, its echo, a pad, drums and wind coming and going.
+	SisterDreams = "sister-dreams"
+	// GraveyardGallop is a dark, driving chip tune in the manner of
+	// Ghosts'n Goblins, made in code at 148 BPM in E minor, in four tiers:
+	// a galloping bass and eerie chord stabs; a march; the lead; and its
+	// harmony, toms and ringing bells. A stage-clear sting resumes it.
+	GraveyardGallop = "graveyard-gallop"
 )
 
 // files holds the songs: a folder each, named for the song, with its

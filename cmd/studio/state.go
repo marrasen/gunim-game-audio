@@ -183,6 +183,13 @@ type (
 		Patch, Drum string
 		Pitch       int
 	}
+	// ArpSet turns Patch's chip arpeggio on or off, and says whether it
+	// plays chords; ArpSteps sets its steps, as 0 4 7.
+	ArpSet struct {
+		Patch     string
+		On, Chord bool
+	}
+	ArpSteps struct{ Patch, Steps string }
 	// OpenEditor shows the editor named Editor, by its tab's title, on
 	// Track.
 	OpenEditor struct{ Editor, Track string }
@@ -257,6 +264,8 @@ func init() {
 	gunim.RegisterType[Audition]("studio.audition")
 	gunim.RegisterType[Focus]("studio.focus")
 	gunim.RegisterType[OpenEditor]("studio.open")
+	gunim.RegisterType[ArpSet]("studio.arp")
+	gunim.RegisterType[ArpSteps]("studio.arp.steps")
 }
 
 // styles are the progression styles Generate offers, in order.

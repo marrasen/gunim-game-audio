@@ -10,6 +10,9 @@ game's music. Each song plays without end, and changes as it goes.
 | A round song | `a-round-song` | Eight parts made in Reason at 110 BPM, in four tiers that grow with a game's combo: a pad and bass always; light percussion; three melodies; drums and a solo that loops twice, leaves and comes round again. 8-bar phrases. |
 | Keypad Round | `keypad-round` | A round song made in code, at 118 BPM in C major, in four tiers: a pad and bass always; claps and a plucked arpeggio; the lead's hook; full drums, a sparkle and a vocal chop. A riser marks each climb. The digit keys play the C major pentatonic over it. |
 | Boss Entrance | `boss-entrance` | A cartoon villain's entrance, made in code, at 146 BPM in D minor, in four tiers that rise as the boss's health falls: pizzicato and a tuba; brass stabs and a timpani march; the villain's theme and a choir; drums and string runs. A victory sting of 6 bars ends it. |
+| Bubble Bounce | `bubble-bounce` | A bouncy chip tune in the manner of Bubble Bobble, made in code for the Commodore 64's sound, at 150 BPM in F major, in four tiers: a hopping bass and arpeggiated chords; a counter melody and drums; the lead; and its echo and a fuller beat. |
+| Sister Dreams | `sister-dreams` | A bittersweet chip tune in the manner of the Giana Sisters' intro, at 132 BPM in D minor: an arpeggio through a sweeping SID filter and a squelching bass always, and a lead, its echo, a pad, drums and wind coming and going. |
+| Graveyard Gallop | `graveyard-gallop` | A dark, driving chip tune in the manner of Ghosts'n Goblins, at 148 BPM in E minor, in four tiers: a galloping bass and eerie chord stabs; a march; the lead; and its harmony, toms and ringing bells. A stage-clear sting plays and the song resumes. |
 | Mascot Dance | `mascot-dance` | A bright dance groove, made in code, at 124 BPM in E major, for a mascot to dance to. Its tracks come and go by themselves around a kick, a bass and hats that always play, and a topline it writes itself changes every two phrases. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -291,6 +294,20 @@ by name, as `C4`. Each `'` after a note lifts it an octave. A drums
 patch plays drums by name: `bd`, `sn`, `cp`, `hh`, `oh`, `rim`, `lt`,
 `mt`, `ht`, `cr`, `rd`, `sh`, `snap`, `tim`, a timpani tuned to the
 chord, and the effects `boom`, `riser` and `down`.
+
+The SID patches sound like a Commodore 64. An oscillator's `Wave` may be
+`noise`, pitched by the note as the SID's noise is, or a combined wave,
+`sawtri`, `pulsetri` or `pulsesaw`, two waves ANDed as the chip makes
+them; `Sync` restarts an oscillator with the cycles of the one before it,
+and `Ring` turns it over with that one's half cycles. A filter of type
+`sidlp`, `sidbp`, `sidhp` or `sidnotch` is the SID's: 12 dB an octave,
+driven, its resonance rough. A patch's `Arpeggio` plays a chord as one
+voice, its notes in turn 50 times a second, as C64 tunes do: `{"Chord":
+true}` plays a track's `ch` so, and `Steps` step through semitones. The
+drums `sbd`, `ssn`, `scp`, `shh`, `soh`, `stom` and `szap` are the SID's,
+built a frame at a time, a burst of noise and a falling tone, and a kit
+may give any name one of their types: `sidkick`, `sidsnare`, `sidclap`,
+`sidhat`, `sidohat`, `sidtom` or `sidzap`.
 
 A track's `Params` change each note, as TidalCycles' controls do: `vel`,
 `pan`, `cutoff`, `res`, `legato`, `octave`, `vowel` and `tune`, each a

@@ -1,0 +1,123 @@
+{
+	"Kind": "synth",
+	"Title": "Bubble Bounce",
+	"Artist": "Marcus Johansson",
+	"BPM": 150,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "F",
+	"Scale": "major",
+	"Chords": ["F", "Dm", "Bb", "C", "F", "Dm", "Gm C", "F"],
+	"ChordBars": 1,
+	"Mode": "tiers",
+	"Patches": {
+		"lead": {
+			"Osc": [{"Wave": "pulse", "Width": 0.3}],
+			"Filter": {"Type": "sidlp", "Cutoff": 5000, "Res": 0.2},
+			"Amp": {"Attack": 0.002, "Decay": 0.18, "Sustain": 0.65, "Release": 0.08},
+			"LFO": [
+				{"To": "width", "Wave": "tri", "Hz": 0.7, "Depth": 0.18},
+				{"To": "pitch", "Wave": "sine", "Hz": 6, "Depth": 0.18, "Delay": 0.18}
+			],
+			"Poly": 1,
+			"Glide": 0.01,
+			"Gain": 0.5
+		},
+		"echo": {
+			"Osc": [{"Wave": "pulse", "Width": 0.15}],
+			"Amp": {"Attack": 0.002, "Decay": 0.12, "Sustain": 0.5, "Release": 0.06},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 6, "Depth": 0.15, "Delay": 0.15}],
+			"Poly": 1,
+			"Gain": 0.35
+		},
+		"bass": {
+			"Osc": [{"Wave": "saw"}, {"Wave": "pulse", "Width": 0.5, "Octave": -1, "Level": 0.4}],
+			"Filter": {"Type": "sidlp", "Cutoff": 500, "Res": 0.45, "Env": 2.2},
+			"Amp": {"Attack": 0.002, "Decay": 0.15, "Sustain": 0.55, "Release": 0.05},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.12, "Sustain": 0.1, "Release": 0.05},
+			"Poly": 1,
+			"Gain": 0.65
+		},
+		"chip": {
+			"Osc": [{"Wave": "pulse", "Width": 0.25}],
+			"Filter": {"Type": "sidlp", "Cutoff": 2600, "Res": 0.3},
+			"Amp": {"Attack": 0.002, "Decay": 0.3, "Sustain": 0.4, "Release": 0.1},
+			"Arpeggio": {"Chord": true, "Hz": 50},
+			"Poly": 2,
+			"Gain": 0.4
+		},
+		"tri": {
+			"Osc": [{"Wave": "tri"}],
+			"Amp": {"Attack": 0.003, "Decay": 0.2, "Sustain": 0.6, "Release": 0.1},
+			"Poly": 1,
+			"Gain": 0.6
+		},
+		"sid": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {"Type": "sidkick"},
+				"sn": {"Type": "sidsnare", "Gain": 0.8},
+				"hh": {"Type": "sidhat", "Gain": 0.5},
+				"oh": {"Type": "sidohat", "Gain": 0.4},
+				"zap": {"Type": "sidzap", "Gain": 0.6},
+				"lt": {"Type": "sidtom", "Tune": -5},
+				"ht": {"Type": "sidtom", "Tune": 4}
+			}
+		},
+		"fx": {
+			"Kind": "drums",
+			"Kit": {
+				"riser": {"Tone": 0.8, "Gain": 0.35},
+				"down": {"Gain": 0.3},
+				"boom": {"Type": "sidkick", "Decay": 2.5, "Gain": 0.8},
+				"cr": {"Type": "sidohat", "Decay": 3, "Gain": 0.5}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "bass", "Tier": 1, "Patch": "bass", "Color": "#3fd0c9",
+			"Pattern": "b ~ b' ~ c2 ~ b' ~", "Octave": 2, "Legato": 0.7,
+			"Params": {"vel": "1 0.7 0.85 0.7"},
+			"Gain": 1.8
+		},
+		{
+			"Name": "chords", "Tier": 1, "Patch": "chip", "Color": "#7c8cff",
+			"Pattern": "ch _ _ ch _ _ ch _", "Octave": 4, "Legato": 0.85,
+			"Gain": -4, "Pan": -0.2
+		},
+		{
+			"Name": "counter", "Tier": 2, "Patch": "tri", "Color": "#5ce1a8",
+			"Pattern": "c0 ~ c1 c2 ~ c1 c2 c1", "Octave": 4, "Legato": 0.6,
+			"Gain": -6, "Pan": 0.2
+		},
+		{
+			"Name": "drums", "Tier": 2, "Patch": "sid", "Color": "#ff8a4c",
+			"Pattern": "[bd ~ ~ ~ sn ~ ~ ~, ~ hh ~ hh ~ hh ~ hh]",
+			"Gain": -7
+		},
+		{
+			"Name": "lead", "Tier": 3, "Patch": "lead", "Color": "#ff6b9d",
+			"Pattern": "[4 ~ 4 2 4 ~ 7 ~] [5 ~ 4 2 0 ~ 2 ~] [3 ~ 3 2 3 ~ 5 ~] [4 _ 6 _ 4 ~ ~ ~] [4 ~ 4 2 4 ~ 7 ~] [8 ~ 7 5 4 ~ 2 ~] [1 3 5 3 4 _ 6 _] [7 _ _ ~ ~ ~ ~ ~]",
+			"Bars": 8, "Octave": 5, "Legato": 0.85,
+			"Gain": -2.4, "Delay": 0.05
+		},
+		{
+			"Name": "echo", "Tier": 4, "Patch": "echo", "Color": "#e9f27a",
+			"Pattern": "[~ 4 ~ 4 2 4 ~ 7] [~ 5 ~ 4 2 0 ~ 2] [~ 3 ~ 3 2 3 ~ 5] [~ 4 _ 6 _ 4 ~ ~] [~ 4 ~ 4 2 4 ~ 7] [~ 8 ~ 7 5 4 ~ 2] [~ 1 3 5 3 4 _ 6] [~ 7 _ _ ~ ~ ~ ~]",
+			"Bars": 8, "Octave": 6, "Legato": 0.8,
+			"Gain": -7, "Pan": 0.35
+		},
+		{
+			"Name": "beat", "Tier": 4, "Patch": "sid", "Color": "#ff5c5c",
+			"Pattern": "[[~ ~ bd ~ ~ ~ ~ bd], [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ oh ~]] [[~ ~ bd ~ ~ ~ ~ bd], [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ht ht lt zap]]",
+			"Bars": 2,
+			"Gain": -12.5
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 0.5, "Decay": 0.8, "Tone": 0.6},
+		"Delay": {"Beats": 0.75, "Feedback": 0.3, "Tone": 0.5},
+		"Transitions": {"Patch": "fx", "Lift": 1, "Gain": -6}
+	}
+}

@@ -116,40 +116,6 @@ func abs(x float32) float32 {
 	return x
 }
 
-// oscShape returns a cycle of o's wave, as its readout draws it.
-func oscShape(o synth.Osc, n int) []float32 {
-	out := make([]float32, n)
-	width := o.Width
-	if width == 0 {
-		width = 0.5
-	}
-	ratio, index := o.Ratio, o.Index
-	if ratio == 0 {
-		ratio = 1
-	}
-	for i := range out {
-		t := float64(i) / float64(n-1)
-		var v float64
-		switch o.Wave {
-		case "square", "pulse":
-			v = -1
-			if t < width {
-				v = 1
-			}
-		case "tri", "triangle":
-			v = 1 - 4*math.Abs(t-0.5)
-		case "sine":
-			v = math.Sin(2 * math.Pi * t)
-		case "fm":
-			v = math.Sin(2*math.Pi*t + index*math.Sin(2*math.Pi*ratio*t))
-		default:
-			v = 2*t - 1
-		}
-		out[i] = float32(v * 0.9)
-	}
-	return out
-}
-
 // envelope is a readout of an envelope's shape: its attack, decay,
 // sustain held a while, and release.
 type envelope struct {
@@ -243,14 +209,16 @@ func (fr *response) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ guni
 		den := complex(1-w*w, k*w)
 		var h complex128
 		switch typ {
-		case "hp":
+		case "sidnotch":
+			h = complex(1-w*w, 0) / den
+		case "hp", "sidhp":
 			h = complex(-w*w, 0) / den
-		case "bp":
+		case "bp", "sidbp":
 			h = complex(0, k*w) / den
 		case "lp24":
 			k2 := 2 - 1.96*min(max(res*0.5, 0), 1)
 			h = 1 / den / complex(1-w*w, k2*w)
-		case "lp":
+		case "lp", "sidlp":
 			h = 1 / den
 		default:
 			h = 1

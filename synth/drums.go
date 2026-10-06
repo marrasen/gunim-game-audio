@@ -37,6 +37,9 @@ type hit struct {
 	// fade falls from 1 once the hit is choked, as an open hat is by a
 	// closed one.
 	fade, choke float32
+	// sid is a SID drum's noise, and sidVol its level.
+	sid    lfsr
+	sidVol float32
 }
 
 // decay starts envelope i falling from 1 to 1/e over tau seconds.
@@ -124,6 +127,11 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 		h.end = secs(6 * decay)
 	case drRiser, drDown:
 		h.end = dur + secs(0.03)
+	default:
+		if isSID(d.kind) {
+			h.sid.reset()
+			h.end = int64(float32(len(sidDrums[d.kind]))*decay*rate/50) + secs(0.05)
+		}
 	}
 	for i := range h.ph {
 		h.ph[i] = float32(h.noise.float())
@@ -217,6 +225,14 @@ func (h *hit) render(l, r []float32) {
 			s = softClip(s * 1.4)
 		case drRiser, drDown:
 			s = h.sweep(tone)
+		default:
+			if isSID(d.kind) {
+				dec := float32(d.Decay)
+				if dec <= 0 {
+					dec = 1
+				}
+				s = h.sidDrum(tune, max(dec, 0.1), tone)
+			}
 		}
 		for k := range e {
 			e[k] *= h.mul[k]
@@ -247,7 +263,7 @@ func (h *hit) render(l, r []float32) {
 // silent reports whether every envelope of the hit has fallen past
 // hearing, -54 dB, so it can end before its time.
 func (h *hit) silent() bool {
-	if h.d.kind == drRiser || h.d.kind == drDown || h.t < 4*clapGap {
+	if h.d.kind == drRiser || h.d.kind == drDown || isSID(h.d.kind) || h.t < 4*clapGap {
 		return false
 	}
 	for k := range h.env {
