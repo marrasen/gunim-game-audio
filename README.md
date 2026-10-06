@@ -136,13 +136,19 @@ how the sounds are made:
 | `ribbit` | a frog's "rib-bit", rolled by its throat, its throat sac ringing | the frog |
 | `blub` | a gulp: a lip's pop, a falling "blub", and rising bubbles | the frog |
 | `mew` | a kitten's "m-i-a-u", its pitch arching, rolled into a trill if asked | the unicorn cat |
-| `sing` | a sung phrase: a syllable, "la", "oh", "yeah", "hey", "ooh", "na" or "ah", on each of up to four notes, with vibrato | the two K-pop singers, the football star's "hey!" |
+| `sing` | a sung phrase: a syllable, "la", "oh", "yeah", "hey", "ooh", "na", "ah" or "ha", on each of up to four notes, with vibrato | the two K-pop singers, the wizard, the football star's "hey!", Whizpah's laugh |
 | `beeps`, `whirr`, `glitch` | a robot's beeps, a servo's whirr, and a stuttering, falling "bwoo" | the robot ninja |
 | `sparkle`, `chime` | small bells climbing a pentatonic scale, and notes struck on a celesta, as a "ta-da" | the wizard, the unicorn cat |
 | `whoosh`, `puff`, `fizzle` | air rushing past, a burst of smoke or flame, and crackles thinning over a hiss | the wizard, the dragon, the fox |
 | `roar` | a small creature's rough "rawr", ending in a squeak if asked | the baby dragon |
 | `yip` | a fox's short, bright yip, rising at its end as a question if asked | the fox, the dragon's hiccup |
 | `whistle`, `crowd`, `bonk` | a referee's pea whistle, a small crowd's "yay" or "ooh" with claps, and a ball's hollow knock | the football star |
+
+An eleventh companion hides at the end of the list: Whizpah, a giggling
+gremlin named for the one who made the wizard old, who laughs at
+everything on the sung "ha". Its hello flies in with a "whizz-pHA!", its
+cheer is a cackle that runs down and then up an octave into a squeaky
+"HAAA", and its oops is a nervous "heh-heh-heh… huh?".
 
 The voices are made as a throat makes them: a buzz of every harmonic
 of a pitch, and breath, shaped by the mouth's resonances into a vowel

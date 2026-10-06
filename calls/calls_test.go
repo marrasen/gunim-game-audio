@@ -24,8 +24,13 @@ func library(t testing.TB) *Library {
 
 func TestEveryCallMeetsTheBriefInEveryTake(t *testing.T) {
 	lib := library(t)
-	if len(lib.Companions) != 10 {
-		t.Fatalf("the library holds %d companions, not 10", len(lib.Companions))
+	// The game's ten, as its brief names them; the library may hold
+	// more, as Whizpah, who must meet the brief too.
+	for _, id := range []string{"groda", "uggla", "enhorningskatt", "kpop-tjej", "kpop-kille",
+		"robo-ninja", "trollkarlen", "drakungen", "fotbollsstjarnan", "raven"} {
+		if lib.Companion(id) == nil {
+			t.Errorf("the library holds no %s", id)
+		}
 	}
 	for _, c := range lib.Companions {
 		t.Run(c.ID, func(t *testing.T) {

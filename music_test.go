@@ -188,10 +188,8 @@ func TestTheCompanionsCallsLoadFromTheLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lib.Companions) != 10 {
-		t.Fatalf("the library holds %d companions, not 10", len(lib.Companions))
-	}
-	for _, id := range []string{"groda", "uggla"} {
+	for _, id := range []string{"groda", "uggla", "enhorningskatt", "kpop-tjej", "kpop-kille",
+		"robo-ninja", "trollkarlen", "drakungen", "fotbollsstjarnan", "raven", "whizpah"} {
 		c := lib.Companion(id)
 		if c == nil || len(c.Calls) != 3 {
 			t.Errorf("%s makes %v", id, c)

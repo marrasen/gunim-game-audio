@@ -104,7 +104,7 @@ func (h *harness) centre(n gunim.Node) geom.Point {
 func TestTheLabShowsEachCompanionsCallsMeasured(t *testing.T) {
 	h := newHarness(t)
 	s := h.l.state()
-	if len(s.Companions) != 10 || s.Companions[0].ID != "groda" || !s.Companions[0].Open {
+	if len(s.Companions) != len(h.l.lib.Order) || s.Companions[0].ID != "groda" || !s.Companions[0].Open {
 		t.Fatalf("the list shows %+v", s.Companions)
 	}
 	for _, c := range s.Calls {
