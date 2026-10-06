@@ -85,7 +85,7 @@ func run(dir, companion, call, shot string, after time.Duration) error {
 		if companion != "" {
 			l.open(companion)
 		}
-		if i := slices.Index(calls.Kinds, call); i >= 0 {
+		if i := slices.Index(l.kinds(), call); i >= 0 {
 			l.sel = i
 		}
 		if shot != "" {

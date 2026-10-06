@@ -250,3 +250,18 @@ func TestTheTopKnobStepsThroughTheOddHarmonicsByTheWheel(t *testing.T) {
 		t.Errorf("the wheel stepped the top through %v, not 1, 3, 5", got)
 	}
 }
+
+func TestABossShowsItsSevenCallsAndACompanionItsThree(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "boss-stor"})
+	if h.v.cards.n != len(calls.BossKinds) {
+		t.Fatalf("a boss shows %d calls, want %d", h.v.cards.n, len(calls.BossKinds))
+	}
+	if got := h.v.cards.cards[6].title.Text; got != "Whimper" {
+		t.Errorf("the boss's seventh card is %q, want Whimper", got)
+	}
+	h.do(CompanionChosen{ID: "uggla"})
+	if h.v.cards.n != len(calls.Kinds) {
+		t.Fatalf("a companion shows %d calls, want %d", h.v.cards.n, len(calls.Kinds))
+	}
+}

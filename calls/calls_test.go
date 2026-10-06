@@ -32,10 +32,16 @@ func TestEveryCallMeetsTheBriefInEveryTake(t *testing.T) {
 			t.Errorf("the library holds no %s", id)
 		}
 	}
+	// The game's bosses, a voice for its early, middle and late tables.
+	for _, id := range []string{"boss-liten", "boss-mellan", "boss-stor"} {
+		if c := lib.Companion(id); c == nil || c.Role != Boss {
+			t.Errorf("the library holds no boss %s", id)
+		}
+	}
 	for _, c := range lib.Companions {
 		t.Run(c.ID, func(t *testing.T) {
 			t.Parallel()
-			for _, kind := range Kinds {
+			for _, kind := range c.Kinds() {
 				if _, ok := c.Calls[kind]; !ok {
 					t.Errorf("%s makes no %s", c.ID, kind)
 					continue
@@ -173,5 +179,27 @@ func TestTheTruePeakIsAsGunimsMeterFindsIt(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestABossMakesItsOwnCallsAndACompanionItsOwn(t *testing.T) {
+	boss, comp := &Companion{Role: Boss}, &Companion{}
+	if !slices.Equal(boss.Kinds(), BossKinds) || !slices.Equal(comp.Kinds(), Kinds) {
+		t.Fatalf("a boss makes %v and a companion %v", boss.Kinds(), comp.Kinds())
+	}
+	for _, kind := range BossKinds {
+		if lo, hi := Lengths(kind); lo <= 0 || hi <= lo {
+			t.Errorf("a boss's %s may last %v–%v s", kind, lo, hi)
+		}
+	}
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "library.json"), []byte(`{"Order":["x"]}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "x.json"), []byte(`{"Name":"X","Calls":{"roar":{"Layers":[]}}}`), 0o644)
+	if _, err := LoadDir(dir); err == nil {
+		t.Error("a companion roaring was read without complaint")
+	}
+	os.WriteFile(filepath.Join(dir, "x.json"), []byte(`{"Name":"X","Role":"boss","Calls":{"roar":{"Layers":[]}}}`), 0o644)
+	if _, err := LoadDir(dir); err != nil {
+		t.Errorf("a boss roaring was refused: %v", err)
 	}
 }

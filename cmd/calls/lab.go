@@ -29,8 +29,8 @@ type lab struct {
 	embedded bool
 	comp     *calls.Companion
 	sel      int
-	takes    [3]*calls.Take
-	seeds    [3]uint64
+	takes    []*calls.Take
+	seeds    []uint64
 	// voice plays a call, call is which, and queue is the calls still
 	// to play after it.
 	voice *audio.Voice
@@ -81,9 +81,10 @@ func (l *lab) open(id string) {
 		return
 	}
 	l.comp = c
-	l.seeds = [3]uint64{}
+	l.seeds = make([]uint64, len(c.Kinds()))
+	l.takes = make([]*calls.Take, len(c.Kinds()))
 	l.sel = 0
-	for i, kind := range calls.Kinds {
+	for i, kind := range l.kinds() {
 		if _, ok := c.Calls[kind]; ok {
 			l.sel = i
 			break
@@ -93,10 +94,19 @@ func (l *lab) open(id string) {
 	l.gen++
 }
 
+// kinds are the calls the companion open makes: a boss's or a
+// companion's.
+func (l *lab) kinds() []string {
+	if l.comp == nil {
+		return calls.Kinds
+	}
+	return l.comp.Kinds()
+}
+
 // remake makes call i's take afresh, from its seed.
 func (l *lab) remake(i int) {
 	l.takes[i] = nil
-	call, ok := l.comp.Calls[calls.Kinds[i]]
+	call, ok := l.comp.Calls[l.kinds()[i]]
 	if !ok {
 		return
 	}
@@ -104,7 +114,7 @@ func (l *lab) remake(i int) {
 }
 
 func (l *lab) remakeAll() {
-	for i := range calls.Kinds {
+	for i := range l.kinds() {
 		l.remake(i)
 	}
 }
@@ -164,7 +174,7 @@ func (l *lab) tick() {
 
 // current returns the call the editor shows, or nil where it is not
 // made yet.
-func (l *lab) current() *calls.Call { return l.comp.Calls[calls.Kinds[l.sel]] }
+func (l *lab) current() *calls.Call { return l.comp.Calls[l.kinds()[l.sel]] }
 
 // changed marks the companion changed, and remakes call i.
 func (l *lab) changed(i int) {
@@ -179,7 +189,7 @@ func (l *lab) handle(in gunim.Intent) {
 		l.queue = nil
 		l.open(v.ID)
 	case CallChosen:
-		if v.Call >= 0 && v.Call < len(calls.Kinds) {
+		if v.Call >= 0 && v.Call < len(l.kinds()) {
 			l.sel = v.Call
 			l.gen++
 		}
@@ -198,7 +208,7 @@ func (l *lab) handle(in gunim.Intent) {
 		l.play(v.Call)
 	case PlayAll:
 		l.queue = nil
-		for i := range calls.Kinds {
+		for i := range l.kinds() {
 			if l.takes[i] != nil {
 				l.queue = append(l.queue, i)
 			}
@@ -214,7 +224,7 @@ func (l *lab) handle(in gunim.Intent) {
 		call := l.current()
 		if call == nil {
 			call = &calls.Call{Vary: 0.5, Room: 0.15}
-			l.comp.Calls[calls.Kinds[l.sel]] = call
+			l.comp.Calls[l.kinds()[l.sel]] = call
 		}
 		call.Layers = append(call.Layers, &calls.Layer{Model: v.Model, Params: map[string]float64{}})
 		l.changed(l.sel)
@@ -226,7 +236,7 @@ func (l *lab) handle(in gunim.Intent) {
 		}
 		call.Layers = append(call.Layers[:v.Layer], call.Layers[v.Layer+1:]...)
 		if len(call.Layers) == 0 {
-			delete(l.comp.Calls, calls.Kinds[l.sel])
+			delete(l.comp.Calls, l.kinds()[l.sel])
 		}
 		l.changed(l.sel)
 		l.gen++
@@ -383,7 +393,7 @@ func (l *lab) state() Lab {
 		}
 	}
 	at, head := l.playing()
-	for i, kind := range calls.Kinds {
+	for i, kind := range l.kinds() {
 		cv := CallView{Kind: kind, Playhead: -1}
 		if t := l.takes[i]; t != nil {
 			cv.Made = true
@@ -409,7 +419,7 @@ func (l *lab) state() Lab {
 
 // editor returns the selected call's settings.
 func (l *lab) editor() Editor {
-	e := Editor{Kind: calls.Kinds[l.sel], Models: calls.ModelNames()}
+	e := Editor{Kind: l.kinds()[l.sel], Models: calls.ModelNames()}
 	call := l.current()
 	if call == nil {
 		return e

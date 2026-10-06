@@ -87,7 +87,7 @@ type (
 	PlayCall struct{ Call int }
 	NewTake  struct{ Call int }
 	AsSet    struct{ Call int }
-	// PlayAll plays the companion's three calls, one after another.
+	// PlayAll plays the companion's calls, one after another.
 	PlayAll struct{}
 	// ParamSet sets a number: of layer Layer, or with Layer -1 of the
 	// call, Vary, Room, Cut or Presence, or with Layer -2 of the master. Done says the

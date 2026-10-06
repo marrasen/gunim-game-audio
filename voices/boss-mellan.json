@@ -1,0 +1,216 @@
+{
+	"Name": "Bossen, mellan",
+	"Style": "Boss",
+	"Character": "the middle tables' boss: a bigger candy monster, a show-off",
+	"Role": "boss",
+	"Calls": {
+		"taunt": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 198,
+						"notes": 3,
+						"syllable": 5,
+						"lastsyl": 7,
+						"length": 0.11,
+						"last": 1.6,
+						"size": 1.2,
+						"n2": -2,
+						"n3": 5,
+						"gap": 0.03,
+						"scoop": 1,
+						"fall": 3,
+						"vibrato": 0.3,
+						"ring": 1.5,
+						"bright": 0.65,
+						"breath": 0.25
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 7
+		},
+		"roar": {
+			"Layers": [
+				{
+					"Model": "roar",
+					"Params": {
+						"pitch": 242,
+						"length": 0.6,
+						"arch": 3,
+						"growl": 0.8,
+						"growlhz": 30,
+						"open": 0.9,
+						"size": 1.4,
+						"bright": 0.9,
+						"breath": 0.4
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 7
+		},
+		"hurt": {
+			"Layers": [
+				{
+					"Model": "bonk",
+					"Params": {
+						"pitch": 1144,
+						"drop": 4,
+						"decay": 0.05,
+						"hollow": 0.3,
+						"click": 0.5
+					},
+					"Gain": -4
+				},
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 286,
+						"notes": 1,
+						"syllable": 1,
+						"lastsyl": 1,
+						"length": 0.18,
+						"last": 1,
+						"size": 1.2,
+						"scoop": 0,
+						"fall": 7,
+						"vibrato": 0,
+						"ring": 1.9,
+						"bright": 0.7,
+						"breath": 0.4
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 10
+		},
+		"laugh": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 242,
+						"notes": 4,
+						"syllable": 7,
+						"lastsyl": 7,
+						"length": 0.1,
+						"last": 1.4,
+						"size": 1.2,
+						"n2": -1,
+						"n3": -2,
+						"n4": -4,
+						"gap": 0.05,
+						"vibrato": 0.2,
+						"ring": 1.5,
+						"bright": 0.65,
+						"breath": 0.35
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 7
+		},
+		"worried": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 220,
+						"notes": 2,
+						"syllable": 4,
+						"lastsyl": 4,
+						"length": 0.16,
+						"last": 1.8,
+						"size": 1.2,
+						"n2": -3,
+						"fall": 2,
+						"vibrato": 0.8,
+						"ring": 1.8,
+						"bright": 0.7,
+						"breath": 0.5
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 9
+		},
+		"defeat": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 286,
+						"notes": 2,
+						"syllable": 1,
+						"lastsyl": 4,
+						"length": 0.2,
+						"last": 3.5,
+						"size": 1.2,
+						"n2": -5,
+						"fall": 12,
+						"vibrato": 1.0,
+						"ring": 1.6,
+						"bright": 0.65,
+						"breath": 0.45
+					}
+				},
+				{
+					"Model": "puff",
+					"Params": {
+						"pitch": 1200,
+						"drop": 10,
+						"length": 0.3
+					},
+					"At": 0.8,
+					"Gain": -4
+				},
+				{
+					"Model": "fizzle",
+					"Params": {
+						"length": 0.3
+					},
+					"At": 0.9,
+					"Gain": -8
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 8
+		},
+		"whimper": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 436,
+						"notes": 3,
+						"syllable": 1,
+						"lastsyl": 4,
+						"length": 0.14,
+						"last": 1.8,
+						"size": 1.2,
+						"n2": 1,
+						"n3": -2,
+						"gap": 0.04,
+						"scoop": 2,
+						"fall": 3,
+						"vibrato": 0.9,
+						"ring": 2.0,
+						"bright": 0.8,
+						"breath": 0.6
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 12
+		}
+	}
+}

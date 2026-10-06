@@ -18,7 +18,7 @@ func render(lib *calls.Library, dir string, seed uint64) error {
 	}
 	var short int
 	for _, c := range lib.Companions {
-		for _, kind := range calls.Kinds {
+		for _, kind := range c.Kinds() {
 			if _, ok := c.Calls[kind]; !ok {
 				continue
 			}
