@@ -17,14 +17,15 @@
 						"length": 0.12,
 						"last": 1.5,
 						"size": 1.0,
-						"ring": 1.2,
-						"bright": 0.7
+						"ring": 0.48,
+						"bright": 0.45
 					}
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 5
+			"Presence": 1.5,
+			"Cut": 0.68
 		},
 		"cheer": {
 			"Layers": [
@@ -42,14 +43,14 @@
 						"vibrato": 0.1,
 						"breath": 0.4,
 						"size": 1.0,
-						"ring": 1.2,
-						"bright": 0.75
+						"ring": 0.48,
+						"bright": 0.5
 					}
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 6
+			"Presence": 1.8
 		},
 		"oops": {
 			"Layers": [
@@ -66,14 +67,14 @@
 						"scoop": 0.5,
 						"vibrato": 0.2,
 						"size": 1.0,
-						"ring": 1.2,
-						"bright": 0.75
+						"ring": 0.48,
+						"bright": 0.5
 					}
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 6
+			"Presence": 1.8
 		}
 	}
 }

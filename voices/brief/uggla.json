@@ -8,10 +8,10 @@
 				{
 					"Model": "hoot",
 					"Params": {
-						"bright": 0.15,
-						"ring": 0.16,
+						"bright": 0.4,
+						"ring": 0.4,
 						"size": 1.6,
-						"pitch": 740,
+						"pitch": 1100,
 						"hoots": 2,
 						"length": 0.17,
 						"gap": 0.07,
@@ -20,18 +20,17 @@
 				}
 			],
 			"Vary": 0.5,
-			"Room": 0.25,
-			"Cut": 0.68
+			"Room": 0.25
 		},
 		"cheer": {
 			"Layers": [
 				{
 					"Model": "hoot",
 					"Params": {
-						"bright": 0.15,
-						"ring": 0.16,
+						"bright": 0.4,
+						"ring": 0.4,
 						"size": 1.6,
-						"pitch": 700,
+						"pitch": 1020,
 						"hoots": 3,
 						"length": 0.13,
 						"gap": 0.05,
@@ -52,10 +51,10 @@
 				{
 					"Model": "hoot",
 					"Params": {
-						"bright": 0.15,
-						"ring": 0.16,
+						"bright": 0.4,
+						"ring": 0.4,
 						"size": 1.6,
-						"pitch": 720,
+						"pitch": 1060,
 						"hoots": 1,
 						"length": 0.3,
 						"question": 5,

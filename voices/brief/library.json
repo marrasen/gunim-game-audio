@@ -1,10 +1,9 @@
 {
-	"Name": "Fuller",
+	"Name": "As the brief asked",
 	"Master": {
-		"HighPass": 90,
+		"HighPass": 300,
 		"Loudness": -14,
-		"Ceiling": -1,
-		"Slope": 12
+		"Ceiling": -1
 	},
 	"Order": [
 		"groda",

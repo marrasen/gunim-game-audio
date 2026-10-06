@@ -8,11 +8,10 @@
 				{
 					"Model": "mew",
 					"Params": {
-						"pitch": 860,
+						"pitch": 1050,
 						"length": 0.32,
 						"arch": 4,
-						"fall": 6,
-						"bright": 0.3
+						"fall": 6
 					}
 				},
 				{
@@ -31,7 +30,7 @@
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 1.8,
+			"Presence": 6,
 			"Cut": 0.66
 		},
 		"cheer": {
@@ -45,8 +44,7 @@
 						"fall": 2,
 						"trill": 0.7,
 						"trillhz": 26,
-						"open": 0.9,
-						"bright": 0.3
+						"open": 0.9
 					}
 				},
 				{
@@ -72,20 +70,19 @@
 				{
 					"Model": "mew",
 					"Params": {
-						"pitch": 820,
+						"pitch": 1000,
 						"length": 0.3,
 						"arch": 2,
 						"fall": 0,
 						"question": 5,
 						"open": 0.6,
-						"close": 0.4,
-						"bright": 0.3
+						"close": 0.4
 					}
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 1.8
+			"Presence": 6
 		}
 	}
 }

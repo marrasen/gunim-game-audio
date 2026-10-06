@@ -9,8 +9,7 @@
 					"Model": "yip",
 					"Params": {
 						"pitch": 1050,
-						"length": 0.18,
-						"bright": 0.4
+						"length": 0.18
 					}
 				}
 			],
@@ -25,8 +24,7 @@
 						"yips": 2,
 						"length": 0.1,
 						"gap": 0.06,
-						"rise": 2,
-						"bright": 0.4
+						"rise": 2
 					}
 				},
 				{
@@ -48,11 +46,10 @@
 				{
 					"Model": "yip",
 					"Params": {
-						"pitch": 1000,
+						"pitch": 1150,
 						"length": 0.2,
 						"question": 7,
-						"drop": 0,
-						"bright": 0.4
+						"drop": 0
 					}
 				}
 			],

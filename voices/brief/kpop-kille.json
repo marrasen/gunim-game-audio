@@ -1,14 +1,14 @@
 {
-	"Name": "K-pop-tjej",
+	"Name": "K-pop-kille",
 	"Style": "Cool",
-	"Character": "pop singer, high voice",
+	"Character": "pop singer, lower voice",
 	"Calls": {
 		"hello": {
 			"Layers": [
 				{
 					"Model": "sing",
 					"Params": {
-						"pitch": 784,
+						"pitch": 392,
 						"notes": 3,
 						"n2": -3,
 						"n3": 2,
@@ -16,45 +16,47 @@
 						"lastsyl": 0,
 						"length": 0.12,
 						"last": 1.5,
-						"ring": 0.6,
-						"bright": 0.3
+						"size": 1.0,
+						"ring": 1.2,
+						"bright": 0.7
 					}
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 1.5
+			"Presence": 5
 		},
 		"cheer": {
 			"Layers": [
 				{
 					"Model": "sing",
 					"Params": {
-						"pitch": 659,
-						"notes": 4,
-						"n2": 4,
-						"n3": 7,
-						"n4": 12,
-						"syllable": 5,
-						"lastsyl": 2,
-						"length": 0.09,
-						"last": 3.5,
-						"fall": 2,
-						"vibrato": 0.45,
-						"bright": 0.3,
-						"ring": 0.32
+						"pitch": 330,
+						"notes": 2,
+						"n2": 7,
+						"syllable": 3,
+						"lastsyl": 3,
+						"length": 0.13,
+						"last": 2.8,
+						"fall": 3,
+						"vibrato": 0.1,
+						"breath": 0.4,
+						"size": 1.0,
+						"ring": 1.2,
+						"bright": 0.75
 					}
 				}
 			],
 			"Vary": 0.5,
-			"Room": 0.15
+			"Room": 0.15,
+			"Presence": 6
 		},
 		"oops": {
 			"Layers": [
 				{
 					"Model": "sing",
 					"Params": {
-						"pitch": 784,
+						"pitch": 392,
 						"notes": 2,
 						"n2": -3,
 						"syllable": 1,
@@ -63,14 +65,15 @@
 						"last": 1.6,
 						"scoop": 0.5,
 						"vibrato": 0.2,
-						"ring": 0.64,
-						"bright": 0.5
+						"size": 1.0,
+						"ring": 1.2,
+						"bright": 0.75
 					}
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 1.8
+			"Presence": 6
 		}
 	}
 }

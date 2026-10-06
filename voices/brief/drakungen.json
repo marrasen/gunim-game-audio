@@ -10,23 +10,20 @@
 					"Params": {
 						"length": 0.42,
 						"squeak": 0.35,
-						"pitch": 360,
-						"bright": 0.5
+						"pitch": 440
 					}
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 1.5
+			"Presence": 5
 		},
 		"cheer": {
 			"Layers": [
 				{
 					"Model": "roar",
 					"Params": {
-						"length": 0.4,
-						"bright": 0.5,
-						"pitch": 340
+						"length": 0.4
 					}
 				},
 				{
@@ -49,19 +46,19 @@
 				{
 					"Model": "yip",
 					"Params": {
-						"pitch": 900,
+						"pitch": 1200,
 						"length": 0.07,
 						"leap": 8,
 						"drop": 0,
 						"open": 0.3,
 						"rough": 0.3,
-						"bright": 0.25
+						"bright": 0.5
 					}
 				},
 				{
 					"Model": "puff",
 					"Params": {
-						"pitch": 1500,
+						"pitch": 2000,
 						"drop": 5,
 						"length": 0.3,
 						"attack": 0.15
@@ -71,7 +68,7 @@
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 1.8
+			"Presence": 6
 		}
 	}
 }

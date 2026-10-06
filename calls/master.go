@@ -19,6 +19,9 @@ type Stats struct {
 	// Lows is the share of its energy below 300 Hz, and Presence the
 	// share from 1 to 4 kHz, where a phone's speaker carries it.
 	Lows, Presence float64
+	// Phone is how much quieter it is on a phone's speaker than in
+	// full, in decibels: what a phone, playing nothing low, takes away.
+	Phone float64
 	// Limited is the most the limiter turned it down, in decibels.
 	Limited float64
 	// Onset is how long it takes to come within 20 dB of its peak, in
@@ -28,9 +31,10 @@ type Stats struct {
 
 // What the game asks of a call.
 const (
-	maxOnset    = 0.02
-	maxLows     = 0.1
-	minPresence = 0.5
+	maxOnset = 0.02
+	// maxPhone is the most a phone's speaker may take from a call: a
+	// call quieter than that on a phone is lost under the game.
+	maxPhone = 6
 )
 
 // Lengths returns the shortest and longest a call of kind may be, in
@@ -63,11 +67,8 @@ func (s Stats) Problems(kind string, m Master) []string {
 	if s.Onset > maxOnset {
 		out = append(out, fmt.Sprintf("takes %.0f ms to sound", s.Onset*1000))
 	}
-	if s.Lows > maxLows {
-		out = append(out, fmt.Sprintf("%.0f%% of it is under 300 Hz", s.Lows*100))
-	}
-	if s.Presence < minPresence {
-		out = append(out, fmt.Sprintf("only %.0f%% of it is at 1–4 kHz", s.Presence*100))
+	if s.Phone > maxPhone {
+		out = append(out, fmt.Sprintf("is %.1f dB quieter on a phone", s.Phone))
 	}
 	if math.Abs(s.Loudness-m.Loudness) > 1 {
 		out = append(out, fmt.Sprintf("is %.1f LUFS, not %.0f", s.Loudness, m.Loudness))
@@ -100,10 +101,17 @@ func (l *Library) master(x []float64, call *Call) ([]float32, Stats) {
 			x[i] = v + roomAmt*0.6*rm.step(pre.step(v))
 		}
 	}
-	// A fourth-order Butterworth high pass, as two sections.
-	h1, h2 := highPass(m.HighPass, 0.5412), highPass(m.HighPass, 1.3066)
-	for i, v := range x {
-		x[i] = h2.step(h1.step(v))
+	if m.Slope == 12 {
+		h := highPass(m.HighPass, 0.7071)
+		for i, v := range x {
+			x[i] = h.step(v)
+		}
+	} else {
+		// A fourth-order Butterworth, as two sections.
+		h1, h2 := highPass(m.HighPass, 0.5412), highPass(m.HighPass, 1.3066)
+		for i, v := range x {
+			x[i] = h2.step(h1.step(v))
+		}
 	}
 	if cut > 0 {
 		// Fade over the 80 ms before the cut, from where the sound
@@ -319,6 +327,7 @@ func measure(x []float32, loud float64) Stats {
 		}
 	}
 	st.Lows, st.Presence = bands(xs)
+	st.Phone = phoneDrop(xs)
 	return st
 }
 

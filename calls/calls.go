@@ -59,6 +59,9 @@ const Boss = "boss"
 
 // A Library is the companions and how their calls are finished.
 type Library struct {
+	// Name names the library where there are others to compare it
+	// with, as a version of the calls.
+	Name   string `json:",omitempty"`
 	Master Master
 	// Companions are the companions in the order they are shown.
 	Companions []*Companion `json:"-"`
@@ -71,8 +74,10 @@ type Library struct {
 // below a pitch, as a phone's speaker plays nothing low, and brought to
 // one loudness under a ceiling.
 type Master struct {
-	// HighPass cuts below it, in hertz.
+	// HighPass cuts below it, in hertz, and Slope says how steeply: 12
+	// dB an octave, gently, or 24, the default, steeply.
 	HighPass float64
+	Slope    float64 `json:",omitempty"`
 	// Loudness is how loud each call is at its loudest, in LUFS over
 	// 400 ms, as BS.1770's momentary loudness.
 	Loudness float64

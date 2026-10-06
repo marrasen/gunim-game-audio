@@ -21,7 +21,7 @@
 			],
 			"Vary": 0.2,
 			"Room": 0,
-			"Presence": 0.6
+			"Presence": 2
 		},
 		"cheer": {
 			"Layers": [

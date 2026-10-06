@@ -15,7 +15,7 @@
 				{
 					"Model": "sing",
 					"Params": {
-						"pitch": 440,
+						"pitch": 520,
 						"notes": 1,
 						"syllable": 3,
 						"lastsyl": 3,
@@ -25,16 +25,14 @@
 						"vibrato": 0,
 						"breath": 0.45,
 						"scoop": 2,
-						"size": 1.25,
-						"bright": 0.3,
-						"ring": 0.32
+						"size": 1.25
 					},
 					"At": 0.25
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 0.9
+			"Presence": 3
 		},
 		"cheer": {
 			"Layers": [
@@ -53,23 +51,22 @@
 						"voices": 12,
 						"length": 0.6,
 						"claps": 10,
-						"size": 1.5,
-						"bright": 0.25
+						"size": 1.5
 					},
 					"At": 0.35
 				}
 			],
 			"Vary": 0.5,
 			"Room": 0.15,
-			"Presence": 0.9
+			"Presence": 3
 		},
 		"oops": {
 			"Layers": [
 				{
 					"Model": "bonk",
 					"Params": {
-						"pitch": 900,
-						"drop": 6,
+						"pitch": 1300,
+						"drop": 3,
 						"click": 0.2
 					}
 				},
@@ -79,10 +76,10 @@
 						"kind": 1,
 						"voices": 10,
 						"length": 0.45,
-						"size": 1.4,
-						"pitch": 420,
-						"bright": 0.65,
-						"breath": 0.5
+						"size": 1.8,
+						"pitch": 650,
+						"bright": 0.9,
+						"breath": 0.8
 					},
 					"At": 0.08
 				}
@@ -90,7 +87,7 @@
 			"Vary": 0.5,
 			"Room": 0.15,
 			"Cut": 0.68,
-			"Presence": 2.4
+			"Presence": 8
 		}
 	}
 }

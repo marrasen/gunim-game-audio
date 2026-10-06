@@ -22,15 +22,15 @@
 						"scoop": 1,
 						"fall": 3,
 						"vibrato": 0.3,
-						"ring": 0.6,
-						"bright": 0.4,
+						"ring": 1.5,
+						"bright": 0.65,
 						"breath": 0.25
 					}
 				}
 			],
 			"Vary": 0.4,
 			"Room": 0.15,
-			"Presence": 2.1
+			"Presence": 7
 		},
 		"roar": {
 			"Layers": [
@@ -79,15 +79,15 @@
 						"scoop": 0,
 						"fall": 7,
 						"vibrato": 0,
-						"ring": 0.76,
-						"bright": 0.45,
+						"ring": 1.9,
+						"bright": 0.7,
 						"breath": 0.4
 					}
 				}
 			],
 			"Vary": 0.4,
 			"Room": 0.15,
-			"Presence": 3.0
+			"Presence": 10
 		},
 		"laugh": {
 			"Layers": [
@@ -106,15 +106,15 @@
 						"n4": -4,
 						"gap": 0.05,
 						"vibrato": 0.2,
-						"ring": 0.6,
-						"bright": 0.4,
+						"ring": 1.5,
+						"bright": 0.65,
 						"breath": 0.35
 					}
 				}
 			],
 			"Vary": 0.4,
 			"Room": 0.15,
-			"Presence": 2.1
+			"Presence": 7
 		},
 		"worried": {
 			"Layers": [
@@ -131,15 +131,15 @@
 						"n2": -3,
 						"fall": 2,
 						"vibrato": 0.8,
-						"ring": 0.72,
-						"bright": 0.45,
+						"ring": 1.8,
+						"bright": 0.7,
 						"breath": 0.5
 					}
 				}
 			],
 			"Vary": 0.4,
 			"Room": 0.15,
-			"Presence": 2.7
+			"Presence": 9
 		},
 		"defeat": {
 			"Layers": [
@@ -156,8 +156,8 @@
 						"n2": -5,
 						"fall": 12,
 						"vibrato": 1.0,
-						"ring": 0.64,
-						"bright": 0.4,
+						"ring": 1.6,
+						"bright": 0.65,
 						"breath": 0.45
 					}
 				},
@@ -182,7 +182,7 @@
 			],
 			"Vary": 0.4,
 			"Room": 0.15,
-			"Presence": 2.4
+			"Presence": 8
 		},
 		"whimper": {
 			"Layers": [
@@ -202,15 +202,15 @@
 						"scoop": 2,
 						"fall": 3,
 						"vibrato": 0.9,
-						"ring": 0.8,
-						"bright": 0.55,
+						"ring": 2.0,
+						"bright": 0.8,
 						"breath": 0.6
 					}
 				}
 			],
 			"Vary": 0.4,
 			"Room": 0.15,
-			"Presence": 3.6
+			"Presence": 12
 		}
 	}
 }

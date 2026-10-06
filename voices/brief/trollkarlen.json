@@ -19,9 +19,9 @@
 						"scoop": 1.5,
 						"fall": 2,
 						"vibrato": 0.6,
-						"ring": 0.56,
+						"ring": 1.4,
 						"size": 1.0,
-						"bright": 0.35,
+						"bright": 0.6,
 						"breath": 0.45
 					}
 				},
@@ -42,7 +42,7 @@
 			],
 			"Vary": 0.4,
 			"Room": 0.2,
-			"Presence": 1.8,
+			"Presence": 6,
 			"Cut": 0.68
 		},
 		"cheer": {
@@ -61,9 +61,9 @@
 						"gap": 0.03,
 						"scoop": 1,
 						"vibrato": 0.7,
-						"ring": 0.64,
+						"ring": 1.6,
 						"size": 1.0,
-						"bright": 0.4,
+						"bright": 0.65,
 						"breath": 0.35
 					}
 				},
@@ -96,7 +96,7 @@
 			],
 			"Vary": 0.4,
 			"Room": 0.2,
-			"Presence": 2.2,
+			"Presence": 7.5,
 			"Cut": 1.15
 		},
 		"oops": {
@@ -115,9 +115,9 @@
 						"scoop": 0.5,
 						"fall": 3,
 						"vibrato": 0.5,
-						"ring": 0.76,
+						"ring": 1.9,
 						"size": 1.0,
-						"bright": 0.45,
+						"bright": 0.7,
 						"breath": 0.5
 					}
 				},
@@ -132,7 +132,7 @@
 			],
 			"Vary": 0.4,
 			"Room": 0.2,
-			"Presence": 2.7,
+			"Presence": 9,
 			"Cut": 0.68
 		}
 	}

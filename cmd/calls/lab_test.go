@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -36,9 +37,13 @@ func newHarness(t *testing.T) *harness {
 	if err != nil || len(src) == 0 {
 		t.Fatal("no recipes in voices/")
 	}
-	for _, f := range src {
+	// The versions to compare, each a folder of its own, come too.
+	more, _ := filepath.Glob("../../voices/*/*.json")
+	for _, f := range append(src, more...) {
+		rel, _ := filepath.Rel("../../voices", f)
 		b, _ := os.ReadFile(f)
-		if err := os.WriteFile(filepath.Join(dir, filepath.Base(f)), b, 0o644); err != nil {
+		_ = os.MkdirAll(filepath.Join(dir, filepath.Dir(rel)), 0o755)
+		if err := os.WriteFile(filepath.Join(dir, rel), b, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -139,7 +144,7 @@ func TestAKnobTurnedChangesTheCallAndPlaysItAsItIsLetGo(t *testing.T) {
 	h.w.Input(input.PointerDown{Pos: c, Clicks: 1, Time: time.Now()})
 	h.w.Input(input.PointerMove{Pos: c.Add(geom.Pt(0, -30)), Time: time.Now()})
 	got, ok := h.intent().(ParamSet)
-	if !ok || got.Layer != 0 || got.Name != "pitch" || got.Value <= 1100 || got.Done {
+	if !ok || got.Layer != 0 || got.Name != "pitch" || got.Value <= h.l.current().Layers[0].Get("pitch") || got.Done {
 		t.Fatalf("a drag up the pitch knob sent %#v", got)
 	}
 	h.w.Input(input.PointerUp{Pos: c.Add(geom.Pt(0, -30)), Time: time.Now()})
@@ -338,5 +343,41 @@ func TestKeysTypedInTheNotesPlayNothing(t *testing.T) {
 			}
 			return
 		}
+	}
+}
+
+func TestBHearsTheCallAgainInTheOtherVersion(t *testing.T) {
+	h := newHarness(t)
+	s := h.l.state()
+	if len(s.Versions) < 2 || s.Version != 0 {
+		t.Fatalf("the lab offers the versions %v, %d heard", s.Versions, s.Version)
+	}
+	h.do(CompanionChosen{ID: "uggla"}, CallChosen{Call: 2})
+	fuller := h.l.takes[2].Samples
+	h.w.Input(input.KeyPress{Key: input.KeyB, Char: 'b', Time: time.Now()})
+	in, ok := h.intent().(VersionChosen)
+	if !ok || in.Version != 1 {
+		t.Fatalf("B sent %#v", in)
+	}
+	h.do(in)
+	s = h.l.state()
+	if s.Version != 1 || h.l.comp.ID != "uggla" || s.Selected != 2 {
+		t.Fatalf("after B the lab hears version %d, %s's call %d", s.Version, h.l.comp.ID, s.Selected)
+	}
+	if i, _ := h.l.playing(); i != 2 {
+		t.Error("B did not play the oops again")
+	}
+	if slices.Equal(h.l.takes[2].Samples, fuller) {
+		t.Error("the owl's oops sounds the same in both versions")
+	}
+	// Saved, a version writes to its own folder.
+	h.do(NotesSet{Text: "the brief's"}, Saved{})
+	b, err := os.ReadFile(filepath.Join(h.l.versions[1].dir, "uggla.json"))
+	if err != nil || !strings.Contains(string(b), "the brief's") {
+		t.Errorf("the brief's version saved to %s: %v", h.l.versions[1].dir, err)
+	}
+	h.w.Input(input.KeyPress{Key: input.KeyB, Char: 'b', Time: time.Now()})
+	if in, ok := h.intent().(VersionChosen); !ok || in.Version != 0 {
+		t.Errorf("B again sent %#v", in)
 	}
 }
