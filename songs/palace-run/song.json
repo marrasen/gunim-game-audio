@@ -1,0 +1,254 @@
+{
+	"Kind": "synth",
+	"Title": "Palace Run",
+	"Artist": "Marcus Johansson",
+	"BPM": 160,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "A",
+	"Scale": "minor",
+	"Chords": [
+		"Am",
+		"F",
+		"G",
+		"Em",
+		"Am",
+		"F",
+		"Dm E",
+		"Am"
+	],
+	"Mode": "tiers",
+	"Patches": {
+		"lead": {
+			"Osc": [
+				{
+					"Wave": "nespulse",
+					"Width": 0.5
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.3,
+				"Sustain": 0.7,
+				"Release": 0.05
+			},
+			"LFO": [
+				{
+					"To": "pitch",
+					"Wave": "tri",
+					"Hz": 6,
+					"Depth": 0.18,
+					"Delay": 0.2
+				}
+			],
+			"Chip": {
+				"Levels": 16,
+				"Hz": 60
+			},
+			"Poly": 1,
+			"Gain": 0.55
+		},
+		"harm": {
+			"Osc": [
+				{
+					"Wave": "nespulse",
+					"Width": 0.125
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.25,
+				"Sustain": 0.6,
+				"Release": 0.05
+			},
+			"LFO": [
+				{
+					"To": "pitch",
+					"Wave": "tri",
+					"Hz": 6,
+					"Depth": 0.1,
+					"Delay": 0.2
+				}
+			],
+			"Chip": {
+				"Levels": 16,
+				"Hz": 60
+			},
+			"Poly": 1,
+			"Gain": 0.45
+		},
+		"arp": {
+			"Osc": [
+				{
+					"Wave": "nespulse",
+					"Width": 0.25
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0.1,
+				"Sustain": 0.25,
+				"Release": 0.04
+			},
+			"Chip": {
+				"Levels": 16,
+				"Hz": 60
+			},
+			"Poly": 2,
+			"Gain": 0.4
+		},
+		"tri": {
+			"Osc": [
+				{
+					"Wave": "nestri"
+				}
+			],
+			"Amp": {
+				"Attack": 0.001,
+				"Decay": 0,
+				"Sustain": 1,
+				"Release": 0.015
+			},
+			"Poly": 1,
+			"Gain": 0.75
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {
+					"Type": "neskick"
+				},
+				"sn": {
+					"Type": "nessnare",
+					"Gain": 0.7
+				},
+				"hh": {
+					"Type": "neshat",
+					"Gain": 0.45
+				},
+				"oh": {
+					"Type": "nesohat",
+					"Gain": 0.35
+				},
+				"lt": {
+					"Type": "nestom",
+					"Tune": -4
+				},
+				"ht": {
+					"Type": "nestom",
+					"Tune": 3
+				},
+				"clk": {
+					"Type": "nesmetal",
+					"Gain": 0.4
+				}
+			}
+		},
+		"fx": {
+			"Kind": "drums",
+			"Kit": {
+				"riser": {
+					"Tone": 0.9,
+					"Gain": 0.3
+				},
+				"down": {
+					"Gain": 0.28
+				},
+				"boom": {
+					"Type": "neskick",
+					"Decay": 2,
+					"Gain": 0.8
+				},
+				"cr": {
+					"Type": "nesohat",
+					"Decay": 2.5,
+					"Gain": 0.4
+				}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "bass",
+			"Patch": "tri",
+			"Color": "#3fd0c9",
+			"Pattern": "b b' b b' b b' b b'",
+			"Tier": 1,
+			"Octave": 2,
+			"Legato": 0.8,
+			"Gain": -9.4
+		},
+		{
+			"Name": "arp",
+			"Patch": "arp",
+			"Color": "#7c8cff",
+			"Pattern": "x*16",
+			"Tier": 1,
+			"Arp": "up",
+			"ArpOctaves": 1,
+			"Octave": 4,
+			"Legato": 0.6,
+			"Params": {
+				"vel": "[1 0.6 0.75 0.6]*4"
+			},
+			"Gain": 0.9,
+			"Pan": -0.25
+		},
+		{
+			"Name": "drums",
+			"Patch": "kit",
+			"Color": "#ff8a4c",
+			"Pattern": "[bd ~ bd ~ sn ~ bd bd, hh*8]",
+			"Tier": 2,
+			"Gain": -9.4
+		},
+		{
+			"Name": "lead",
+			"Patch": "lead",
+			"Color": "#ff6b9d",
+			"Pattern": "[7 _ 6 _ 4 _ 2 4] [5 _ 4 _ 2 _ 0 _] [6 _ 4 _ 1 _ 4 6] [4 _ _ _ _ _ ~ ~] [7 _ 6 _ 4 _ 2 4] [9 _ 7 _ 5 _ 7 9] [3 5 7 5 4 6# 8 6#] [7 _ _ _ ~ ~ ~ ~]",
+			"Tier": 3,
+			"Bars": 8,
+			"Octave": 5,
+			"Legato": 0.9,
+			"Gain": -9.8
+		},
+		{
+			"Name": "harmony",
+			"Patch": "harm",
+			"Color": "#ffcf5c",
+			"Pattern": "[4 _ 4 _ 2 _ 0 2] [2 _ 2 _ 0 _ -2 _] [4 _ 1 _ -1 _ 1 4] [1 _ _ _ _ _ ~ ~] [4 _ 4 _ 2 _ 0 2] [7 _ 5 _ 2 _ 5 7] [0 3 5 3 1 4 6# 4] [4 _ _ _ ~ ~ ~ ~]",
+			"Tier": 4,
+			"Bars": 8,
+			"Octave": 5,
+			"Legato": 0.9,
+			"Gain": -8.6,
+			"Pan": 0.35
+		},
+		{
+			"Name": "clank",
+			"Patch": "kit",
+			"Color": "#ff5c5c",
+			"Pattern": "[~ ~ clk ~]*4, ~ ~ ~ ~ ~ ~ ~ [~ ~ ~ ~ ~ ht ht lt]",
+			"Tier": 4,
+			"Gain": -9
+		}
+	],
+	"Mix": {
+		"Reverb": {
+			"Size": 0.4,
+			"Decay": 0.6,
+			"Tone": 0.6
+		},
+		"Delay": {
+			"Beats": 0.75,
+			"Feedback": 0.3,
+			"Tone": 0.5
+		},
+		"Transitions": {
+			"Patch": "fx",
+			"Lift": 1,
+			"Gain": -6
+		}
+	}
+}

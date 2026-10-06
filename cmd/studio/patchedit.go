@@ -20,7 +20,7 @@ import (
 
 // The choices the editors offer, as the song writes them.
 var (
-	waves      = []string{"saw", "pulse", "tri", "sine", "fm", "noise", "sawtri", "pulsetri", "pulsesaw"}
+	waves      = []string{"saw", "pulse", "tri", "sine", "fm", "noise", "sawtri", "pulsetri", "pulsesaw", "nespulse", "nestri", "nesnoise", "nesmetal", "gbwave"}
 	filters    = []string{"none", "lp", "lp24", "hp", "bp", "sidlp", "sidbp", "sidhp", "sidnotch"}
 	lfoTargets = []string{"pitch", "cutoff", "amp", "width", "pan"}
 	lfoWaves   = []string{"sine", "tri", "saw", "square", "random"}
@@ -60,6 +60,9 @@ type patchPane struct {
 	arpChrd *widget.Button
 	arpStep *widget.TextField
 	arpGen  int
+	chipOn  *widget.Button
+	chipKs  []*knob
+	bendKs  []*knob
 	resp    *response
 	fKnobs  []*knob
 	fenv    *envelope
@@ -187,6 +190,18 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pp.arpStep.OnChange = func(s string) gunim.Intent { return ArpSteps{Patch: pp.name, Steps: s} }
 	arp := panel("CHIP ARPEGGIO", widget.Row(pp.arpOn, pp.arpChrd), knobs(pp.arpKs...), pp.arpStep)
 	lfoRow = append(lfoRow, arp)
+	pp.chipOn = widget.NewButton("Stepped")
+	pp.chipOn.KeepFocus, pp.chipOn.Tooltip = true, "Step the level as a console does: in 16 steps, set 60 times a second"
+	pp.chipKs = []*knob{
+		newKnob("Levels", pb, "/Chip/Levels", 2, 32, 16).steps(1).unsetIs(16),
+		newKnob("Frames", pb, "/Chip/Hz", 25, 120, 60).steps(1).units("Hz").unsetIs(60),
+	}
+	pp.bendKs = []*knob{
+		newKnob("Bend", pb, "/Bend/Semis", -24, 24, 0).center().steps(1).units("st"),
+		newKnob("Slide", pb, "/Bend/Time", 0, 0.5, 0).units("s"),
+	}
+	chip := panel("CHIP · NES and Game Boy", pp.chipOn, knobs(pp.chipKs...), knobs(pp.bendKs...))
+	lfoRow = append(lfoRow, chip)
 	low := widget.Row(lfoRow...)
 	for _, n := range lfoRow {
 		low.Grow(n, 1)
@@ -287,6 +302,14 @@ func (pp *patchPane) update(st Studio) {
 	showKnobs(song, pp.aeKnobs...)
 	showKnobs(song, pp.vKnobs...)
 	showKnobs(song, pp.arpKs...)
+	showKnobs(song, pp.chipKs...)
+	showKnobs(song, pp.bendKs...)
+	pp.chipOn.Active = p.Chip != nil
+	if p.Chip != nil {
+		pp.chipOn.On = ClearValue{Path: pp.base + "/Chip"}
+	} else {
+		pp.chipOn.On = SetValue{Path: pp.base + "/Chip/Levels", Num: 16}
+	}
 	a := p.Arpeggio
 	pp.arpOn.Active = a != nil
 	pp.arpChrd.Active = a != nil && a.Chord
@@ -351,6 +374,8 @@ type oscSlot struct {
 	add    *widget.Button
 	sync   *widget.Button
 	ring   *widget.Button
+	table  *tableEdit
+	look   *switcher
 }
 
 func newOscSlot(pp *patchPane, i int) *oscSlot {
@@ -391,13 +416,17 @@ func newOscSlot(pp *patchPane, i int) *oscSlot {
 	head.Grow(head.Children()[2], 1)
 	head.Cross = widget.CrossCenter
 	links := widget.Row(o.sync, o.ring)
-	editor := panelWith(head, sized(o.shape, 0, 48), links, knobs(o.ks[:4]...), widget.Row(knobs(unison...), o.extra))
+	o.table = &tableEdit{}
+	o.table.set = func(steps []int) gunim.Intent { return SetInts{Path: o.base + "/Table", Values: steps} }
+	o.look = newSwitcher(o.shape, o.table)
+	editor := panelWith(head, sized(o.look, 0, 48), links, knobs(o.ks[:4]...), widget.Row(knobs(unison...), o.extra))
 	o.add = widget.NewButton("Add")
 	o.add.Tooltip = "Add an oscillator"
 	o.add.Icon, o.add.Ghost = icon.Plus, true
 	empty := widget.NewCard(widget.Column(small(fmt.Sprintf("OSC %d", i+1)), o.add))
 	empty.Fill = panelFill
-	o.sw = newSwitcher(editor, empty)
+	// Past the first empty slot, a slot shows nothing.
+	o.sw = newSwitcher(editor, empty, widget.NewSpacer())
 	return o
 }
 
@@ -409,9 +438,11 @@ func (o *oscSlot) update(song *synth.Song, p *synth.Patch) {
 	case o.i < len(p.Osc):
 		o.sw.which = 0
 	default:
-		o.sw.which = 1
 		// Only the first empty slot offers to add one.
-		o.add.Disabled = o.i > len(p.Osc)
+		o.sw.which = 1
+		if o.i > len(p.Osc) {
+			o.sw.which = 2
+		}
 		return
 	}
 	osc := p.Osc[o.i]
@@ -424,6 +455,11 @@ func (o *oscSlot) update(song *synth.Song, p *synth.Patch) {
 	}
 	o.wave.Selected = segmentedIndex(waves, w)
 	o.shape.data = synth.OscCycle(osc, 96)
+	o.look.which = 0
+	if osc.Wave == "gbwave" {
+		o.look.which = 1
+		o.table.show(osc.Table)
+	}
 	o.sync.Active, o.ring.Active = osc.Sync, osc.Ring
 	o.sync.On = SetValue{Path: o.base + "/Sync", Num: boolNum(!osc.Sync)}
 	o.ring.On = SetValue{Path: o.base + "/Ring", Num: boolNum(!osc.Ring)}

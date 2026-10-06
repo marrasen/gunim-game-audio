@@ -48,8 +48,11 @@ type voice struct {
 	lfoR   []float32
 	frames int64
 	form   formant
-	// noise are the oscillators' SID noise.
+	// noise2 are the oscillators' SID noise, and nesN their NES noise.
 	noise2 [maxOsc][maxUnison]lfsr
+	nesN   [maxOsc][maxUnison]nesNoise
+	// chipAmp is the level a chip patch holds until its next frame.
+	chipAmp float32
 	// vowel is the vowel the formant is aimed at, 0 for none yet.
 	vowel byte
 	noise *rng
@@ -223,6 +226,9 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 			}
 		}
 		v.pitch += (v.n.pitch - v.pitch) * v.glide
+		if b := p.src.Bend; b != nil && b.Time > 0 {
+			lPitch += float32(b.Semis * max(0, 1-float64(v.frames)/(b.Time*rate)))
+		}
 		if pitch := v.pitch + lPitch; pitch != v.pitchAt || v.hz == 0 {
 			v.pitchAt, v.hz = pitch, float32(noteHz(float64(pitch)))
 		}
@@ -315,7 +321,15 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 					v.fenv.release()
 				}
 			}
-			a := v.amp.step() * gain
+			a := v.amp.step()
+			if c := p.src.Chip; c != nil {
+				// A console sets its level once a frame, in steps.
+				if (v.frames+int64(i))%p.chipFrame == 0 {
+					v.chipAmp = float32(math.Round(float64(a)*float64(p.chipLevels))) / float32(p.chipLevels)
+				}
+				a = v.chipAmp
+			}
+			a *= gain
 			v.fenv.step()
 			outL[at+i] += bl[i] * a * pl
 			outR[at+i] += br[i] * a * pr
@@ -427,6 +441,19 @@ func (v *voice) renderOsc(l, r []float32, hz, lWidth float32) {
 					}
 				}
 				v.mphase[oi][u] = mp
+			case oscNESNoise:
+				n := &v.nesN[oi][u]
+				n.short = o.Wave == "nesmetal"
+				for i := range l {
+					s := n.at(ph)
+					l[i] += s * gl
+					r[i] += s * gr
+					ph += dt
+					if ph >= 1 {
+						ph--
+						n.step = -1
+					}
+				}
 			case oscNoise:
 				n := &v.noise2[oi][u]
 				for i := range l {
@@ -439,7 +466,7 @@ func (v *voice) renderOsc(l, r []float32, hz, lWidth float32) {
 						n.step = -1
 					}
 				}
-			case oscSawTri, oscPulseTri, oscPulseSaw:
+			case oscSawTri, oscPulseTri, oscPulseSaw, oscTable:
 				t := o.table
 				for i := range l {
 					s := t[int(ph*tableSize)&(tableSize-1)]
@@ -597,7 +624,11 @@ func (v *voice) waveAt(o *osc, oi, u int, ph, dt, width float32) float32 {
 		return 1 - 4*abs32(ph-0.5)
 	case oscNoise:
 		return v.noise2[oi][u].at(ph)
-	case oscSawTri, oscPulseTri, oscPulseSaw:
+	case oscNESNoise:
+		n := &v.nesN[oi][u]
+		n.short = o.Wave == "nesmetal"
+		return n.at(ph)
+	case oscSawTri, oscPulseTri, oscPulseSaw, oscTable:
 		return o.table[int(ph*tableSize)&(tableSize-1)]
 	case oscFM:
 		mp := v.mphase[oi][u]

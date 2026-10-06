@@ -160,6 +160,14 @@ type (
 		Str   string
 		IsStr bool
 	}
+	// ClearValue empties the value at Path, as a patch's Chip, which
+	// turns it off.
+	ClearValue struct{ Path string }
+	// SetInts sets the list of whole numbers at Path, as a wave table.
+	SetInts struct {
+		Path   string
+		Values []int
+	}
 	// AddItem appends an item, as an oscillator, to the list at Path.
 	AddItem struct{ Path string }
 	// RemoveItem takes item Index out of the list at Path.
@@ -255,6 +263,8 @@ func init() {
 	gunim.RegisterType[Saved]("studio.save")
 	gunim.RegisterType[SetValue]("studio.set")
 	gunim.RegisterType[AddItem]("studio.add")
+	gunim.RegisterType[ClearValue]("studio.clear")
+	gunim.RegisterType[SetInts]("studio.ints")
 	gunim.RegisterType[RemoveItem]("studio.remove")
 	gunim.RegisterType[PatchNew]("studio.patch.new")
 	gunim.RegisterType[PatchCopy]("studio.patch.copy")

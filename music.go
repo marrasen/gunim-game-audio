@@ -74,6 +74,31 @@ const (
 	// a galloping bass and eerie chord stabs; a march; the lead; and its
 	// harmony, toms and ringing bells. A stage-clear sting resumes it.
 	GraveyardGallop = "graveyard-gallop"
+	// PocketKingdom is a sunny chip tune in the manner of Super Mario
+	// Land, made in code for the Game Boy's sound, at 144 BPM in G major,
+	// in four tiers: a calypso bass on the wave channel and offbeat stabs;
+	// drums and a counter melody; the lead; and its echo.
+	PocketKingdom = "pocket-kingdom"
+	// MeadowHop is a swung, jazzy chip tune in the manner of Super Mario
+	// Bros. 3, made in code for the NES's sound, at 140 BPM in F major, in
+	// four tiers: a walking triangle bass and comping sevenths; drums; the
+	// lead; and its harmony and toms.
+	MeadowHop = "meadow-hop"
+	// HerosField is a heroic march in the manner of The Legend of Zelda,
+	// for the NES's sound, at 130 BPM in B flat major, in four tiers:
+	// triangle bass and triplet arpeggios; a march; the lead; its harmony
+	// and drums. A treasure fanfare sting resumes it.
+	HerosField = "heros-field"
+	// PalaceRun is a driving chip tune in the manner of Zelda II's
+	// palaces, for the NES's sound, at 160 BPM in A minor, in four tiers:
+	// a pumping octave bass and racing arpeggios; drums; the lead; and its
+	// harmony and a metallic clank.
+	PalaceRun = "palace-run"
+	// UnderworldAscent is a quirky chip tune in the manner of Kid Icarus,
+	// for the NES's sound, at 150 BPM in G minor: a bouncing triangle bass
+	// and chirps always, and a lead, its harmony, chords and drums coming
+	// and going.
+	UnderworldAscent = "underworld-ascent"
 )
 
 // files holds the songs: a folder each, named for the song, with its
