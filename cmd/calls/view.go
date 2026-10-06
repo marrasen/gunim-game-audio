@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"slices"
 	"strings"
@@ -49,6 +50,7 @@ func small(s string) *widget.Label {
 // view is the window, with handles on what updates change.
 type view struct {
 	*widget.Pad
+	keys    *widget.Label
 	phone   *widget.Switch
 	songs   *widget.Dropdown
 	save    *widget.Button
@@ -146,9 +148,8 @@ func buildView(s Lab) *root {
 	addRow := widget.Row(v.add)
 	editor := widget.Column(append([]gunim.Node{v.editing, knobsRow}, append(layerNodes, addRow, notesPanel)...)...)
 	editor.Cross = widget.CrossStretch
-	keys := small("Keys: Space plays the call open · N makes a new take · 1, 2, 3 open and play hello, cheer, oops · A plays all three. " +
-		"Drag a knob up or down, Shift for fine steps; a double click sets it back. The call plays as you let go.")
-	right := widget.Column(head, v.cards, editor, keys)
+	v.keys = small("")
+	right := widget.Column(head, v.cards, editor, v.keys)
 	right.Cross = widget.CrossStretch
 	scroll := widget.NewScroll(widget.NewPad(right))
 	body := widget.Row(left, scroll).Grow(scroll, 1)
@@ -184,6 +185,7 @@ func (v *view) update(s Lab, u *gunim.UI) {
 	v.about.SetText(s.About)
 	v.sel = s.Selected
 	v.cards.set(s.Calls, s.Selected)
+	v.keys.SetText(keysHint(s.Calls))
 	e := s.Editor
 	v.editing.SetText("Editing " + strings.ToLower(kindNames[e.Kind]))
 	made := len(e.Layers) > 0
@@ -219,8 +221,9 @@ func (v *view) update(s Lab, u *gunim.UI) {
 	u.Invalidate()
 }
 
-// Handle plays the calls by key.
-func (r *root) Handle(e input.Event, u *gunim.UI) bool {
+// CatchKey plays the calls by key, wherever the keyboard is, but for
+// keys something focused took, as the notes' typing.
+func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 	p, ok := e.(input.KeyPress)
 	if !ok || p.Mods != 0 {
 		return false
@@ -232,14 +235,32 @@ func (r *root) Handle(e input.Event, u *gunim.UI) bool {
 		u.Send(r, NewTake{Call: r.sel})
 	case 'a', 'A':
 		u.Send(r, PlayAll{})
-	case '1', '2', '3':
+	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		i := int(p.Char - '1')
+		if i >= r.cards.n {
+			return false
+		}
 		u.Send(r, CallChosen{Call: i})
 		u.Send(r, PlayCall{Call: i})
 	default:
 		return false
 	}
 	return true
+}
+
+// keysHint says which keys play what, for the calls shown.
+func keysHint(cs []CallView) string {
+	names := make([]string, len(cs))
+	for i, c := range cs {
+		names[i] = strings.ToLower(kindNames[c.Kind])
+	}
+	digits := "1"
+	if n := len(cs); n > 1 {
+		digits = fmt.Sprintf("1 to %d", n)
+	}
+	return "Keys: Space plays the call open · N makes a new take · " + digits + " open and play " +
+		strings.Join(names, ", ") + " · A plays them all. " +
+		"Drag a knob up or down, Shift for fine steps; a double click sets it back. The call plays as you let go."
 }
 
 // companionRow is a companion in the list.

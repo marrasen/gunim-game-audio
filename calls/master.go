@@ -41,7 +41,7 @@ func Lengths(kind string) (lo, hi float64) {
 		return 0.3, 1.2
 	case Hurt:
 		return 0.2, 0.6
-	case Taunt, Roar, Laugh, Whimper:
+	case Taunt, Roar, Laugh, Worried, Whimper:
 		return 0.4, 1.3
 	case Defeat:
 		return 0.6, 1.8

@@ -35,7 +35,7 @@ var Kinds = []string{Hello, Cheer, Oops}
 // The calls a boss makes, the candy monster at the end of each of the
 // game's tables: menacing as a cartoon villain is, never frightening.
 const (
-	// Taunt calls out from the map, and in the fight, at her.
+	// Taunt calls out at the child, from the map and in the fight.
 	Taunt = "taunt"
 	// Roar plays as the boss comes into its fight.
 	Roar = "roar"

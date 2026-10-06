@@ -103,6 +103,9 @@ func (l *lab) kinds() []string {
 	return l.comp.Kinds()
 }
 
+// has says whether the character open makes a call i.
+func (l *lab) has(i int) bool { return i >= 0 && i < len(l.takes) }
+
 // remake makes call i's take afresh, from its seed.
 func (l *lab) remake(i int) {
 	l.takes[i] = nil
@@ -121,6 +124,9 @@ func (l *lab) remakeAll() {
 
 // play plays call i's take, stopping any call playing.
 func (l *lab) play(i int) {
+	if !l.has(i) {
+		return
+	}
 	t := l.takes[i]
 	if t == nil || len(t.Samples) == 0 {
 		return
@@ -189,7 +195,7 @@ func (l *lab) handle(in gunim.Intent) {
 		l.queue = nil
 		l.open(v.ID)
 	case CallChosen:
-		if v.Call >= 0 && v.Call < len(l.kinds()) {
+		if l.has(v.Call) {
 			l.sel = v.Call
 			l.gen++
 		}
@@ -197,11 +203,19 @@ func (l *lab) handle(in gunim.Intent) {
 		l.queue = nil
 		l.play(v.Call)
 	case NewTake:
+		// The window may ask for a call of the character open before;
+		// a boss's seventh, say, after a companion was picked.
+		if !l.has(v.Call) {
+			return
+		}
 		l.queue = nil
 		l.seeds[v.Call] = rand.Uint64() | 1
 		l.remake(v.Call)
 		l.play(v.Call)
 	case AsSet:
+		if !l.has(v.Call) {
+			return
+		}
 		l.queue = nil
 		l.seeds[v.Call] = 0
 		l.remake(v.Call)
