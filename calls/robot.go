@@ -6,6 +6,7 @@ import "math"
 
 func init() {
 	waveParam := Param{Name: "wave", Label: "Wave", Lo: 0, Hi: 1, Def: 0.35, Vary: 0.02, About: "The tone's shape: 0 a pure sine, 1 a buzzing square"}
+	topParam := Param{Name: "top", Label: "Top", Lo: 0, Hi: 15, Def: 0, Step: 1, About: "The highest odd harmonic the tone keeps, as 5 keeps the 3rd and the 5th: rounder than the whole square; 0 keeps every one up to 12 kHz"}
 	register(&Model{
 		Name:  "beeps",
 		About: "A robot's beeps: tones in a run, each a step from the last, sliding if asked",
@@ -20,6 +21,7 @@ func init() {
 			{Name: "slide", Label: "Slide", Unit: "st", Lo: -12, Hi: 12, Def: 0, Vary: 0.03, About: "How far each beep slides through its length"},
 			{Name: "warble", Label: "Warble", Unit: "st", Lo: 0, Hi: 3, Def: 0, About: "How far a fast warble shakes each beep"},
 			waveParam,
+			topParam,
 		},
 		render: beeps,
 	})
@@ -48,14 +50,16 @@ func init() {
 			{Name: "wobble", Label: "Wobble", Unit: "st", Lo: 0, Hi: 4, Def: 1, Vary: 0.04, About: "How far it wobbles as it falls"},
 			{Name: "crush", Label: "Crush", Lo: 0, Hi: 1, Def: 0.35, Vary: 0.03, About: "How coarse its samples are, as an old chip's"},
 			waveParam,
+			topParam,
 		},
 		render: glitch,
 	})
 }
 
 // tone returns a tone sliding through hz(u) over dur seconds, at
-// level(u): a sine, and odd harmonics as wave asks, toward a square.
-func tone(dur, wave float64, hz, level func(u float64) float64) []float64 {
+// level(u): a sine, and odd harmonics as wave asks, toward a square,
+// up to harmonic top where it is over 0.
+func tone(dur, wave, top float64, hz, level func(u float64) float64) []float64 {
 	n := int(dur * rate)
 	out := make([]float64, n)
 	var ph float64
@@ -68,7 +72,7 @@ func tone(dur, wave float64, hz, level func(u float64) float64) []float64 {
 		}
 		v := math.Sin(ph)
 		if wave > 0 {
-			for k := 3; float64(k)*f < 12000; k += 2 {
+			for k := 3; float64(k)*f < 12000 && (top <= 0 || float64(k) <= top); k += 2 {
 				v += wave * math.Sin(float64(k)*ph) / float64(k)
 			}
 		}
@@ -90,7 +94,7 @@ func beeps(p params, r *rng) []float64 {
 		}
 		base := p["pitch"] * semis(st)
 		war := p["warble"]
-		x := tone(dur, p["wave"],
+		x := tone(dur, p["wave"], p["top"],
 			func(u float64) float64 {
 				return base * semis(p["slide"]*u+war*math.Sin(2*math.Pi*28*u*dur))
 			},
@@ -147,7 +151,7 @@ func whirr(p params, r *rng) []float64 {
 func glitch(p params, r *rng) []float64 {
 	dur := p["length"]
 	wob := p["wobble"]
-	x := tone(dur, p["wave"],
+	x := tone(dur, p["wave"], p["top"],
 		func(u float64) float64 {
 			return p["pitch"] * semis(-p["fall"]*math.Pow(u, 0.7)+wob*math.Sin(2*math.Pi*14*u*dur)*smooth(u/0.3))
 		},
