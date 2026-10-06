@@ -68,16 +68,24 @@ func (s Stats) Problems(kind string, m Master) []string {
 	return out
 }
 
-// master finishes a call: in its room, cut below the master's pitch,
+// master finishes a call: lifted where a phone carries it, in its room,
+// ended by its cut where set, cut below the master's pitch,
 // trimmed to start at once and end with its tail, brought to the
 // master's loudness and held under its ceiling.
-func (l *Library) master(x []float64, roomAmt float64) ([]float32, Stats) {
+func (l *Library) master(x []float64, call *Call) ([]float32, Stats) {
+	roomAmt, cut := call.Room, call.Cut
 	m := l.Master
 	if len(x) == 0 {
 		return nil, Stats{}
 	}
 	// Room for the tail.
 	x = append(x, make([]float64, int(0.3*rate))...)
+	if call.Presence != 0 {
+		eq := peaking(2200, 0.6, call.Presence)
+		for i, v := range x {
+			x[i] = eq.step(v)
+		}
+	}
 	if roomAmt > 0 {
 		rm := newRoom(0.35)
 		pre := highPass(400, 0.7)
@@ -89,6 +97,20 @@ func (l *Library) master(x []float64, roomAmt float64) ([]float32, Stats) {
 	h1, h2 := highPass(m.HighPass, 0.5412), highPass(m.HighPass, 1.3066)
 	for i, v := range x {
 		x[i] = h2.step(h1.step(v))
+	}
+	if cut > 0 {
+		// Fade over the 80 ms before the cut, from where the sound
+		// starts, so the call ends by then.
+		start := 0
+		for start < len(x) && x[start] == 0 {
+			start++
+		}
+		end := min(start+int(cut*rate), len(x))
+		fade := int(0.08 * rate)
+		for i := max(end-fade, 0); i < end; i++ {
+			x[i] *= smooth(float64(end-i) / float64(fade))
+		}
+		x = x[:end]
 	}
 	x = trim(x)
 	if len(x) == 0 {

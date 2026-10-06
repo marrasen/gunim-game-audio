@@ -57,6 +57,8 @@ type (
 		Kind       string
 		Layers     []LayerView
 		Vary, Room float64
+		Cut        float64
+		Presence   float64
 		Notes      string
 		Models     []string
 	}
@@ -70,6 +72,7 @@ type (
 		Name, Label, Unit, About string
 		Lo, Hi, Def, Value, Step float64
 		Log                      bool
+		Choices                  []string
 	}
 
 	// CompanionChosen travels when a companion is picked.
@@ -84,7 +87,7 @@ type (
 	// PlayAll plays the companion's three calls, one after another.
 	PlayAll struct{}
 	// ParamSet sets a number: of layer Layer, or with Layer -1 of the
-	// call, Vary or Room, or with Layer -2 of the master. Done says the
+	// call, Vary, Room, Cut or Presence, or with Layer -2 of the master. Done says the
 	// knob was let go, and the call plays.
 	ParamSet struct {
 		Layer int

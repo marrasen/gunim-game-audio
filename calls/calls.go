@@ -78,6 +78,12 @@ type Call struct {
 	Vary float64
 	// Room is how much of a small room is heard round the call, 0 to 1.
 	Room float64
+	// Presence lifts the call about 2.2 kHz, where a phone's speaker
+	// carries it, by that many decibels.
+	Presence float64 `json:",omitempty"`
+	// Cut, where set, fades the call out to end by then, in seconds, as
+	// a bell's ring is stopped short.
+	Cut float64 `json:",omitempty"`
 	// Notes is what the listener asks to change, for the call's next
 	// round.
 	Notes string `json:",omitempty"`
@@ -254,7 +260,7 @@ func (l *Library) Make(call *Call, seed uint64) *Take {
 			mix[at+i] += v * g
 		}
 	}
-	samples, st := l.master(mix, call.Room)
+	samples, st := l.master(mix, call)
 	return &Take{Samples: samples, Stats: st, Seed: seed}
 }
 
@@ -269,6 +275,9 @@ type Param struct {
 	Lo, Hi, Def float64
 	Log         bool
 	Step        float64
+	// Choices, where set, names the values 0, 1, 2 and on, as a
+	// syllable's; the parameter steps through them.
+	Choices []string `json:",omitempty"`
 	// Vary is how far a take strays from the value, at a call's Vary 1:
 	// a deviation of that fraction of the range, or for a Log
 	// parameter of the value.
@@ -307,7 +316,14 @@ type Model struct {
 
 var models = map[string]*Model{}
 
-func register(m *Model) { models[m.Name] = m }
+func register(m *Model) {
+	for i, p := range m.Params {
+		if len(p.Choices) > 0 {
+			m.Params[i].Lo, m.Params[i].Hi, m.Params[i].Step = 0, float64(len(p.Choices)-1), 1
+		}
+	}
+	models[m.Name] = m
+}
 
 // Models returns the models by name.
 func Models() map[string]*Model { return models }

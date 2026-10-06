@@ -11,6 +11,34 @@ var vowels = map[byte][3]float64{
 	'i': {300, 2250, 3000},
 	'o': {480, 850, 2500},
 	'u': {320, 780, 2300},
+	// The consonants a voice holds a moment: an "l", an "n" and an
+	// "m", their mouths nearly closed.
+	'l': {360, 1300, 2700},
+	'n': {280, 1700, 2600},
+	'm': {280, 1000, 2300},
+}
+
+// A mark is a vowel at a point of a syllable, from 0 to 1.
+type mark struct {
+	u float64
+	v byte
+}
+
+// glide returns a mouth moving through marks, easing from each to the
+// next.
+func glide(marks ...mark) func(u float64) [3]float64 {
+	return func(u float64) [3]float64 {
+		if u <= marks[0].u {
+			return vowels[marks[0].v]
+		}
+		for i := 1; i < len(marks); i++ {
+			if u <= marks[i].u {
+				t := (u - marks[i-1].u) / max(marks[i].u-marks[i-1].u, 1e-9)
+				return vowel(marks[i-1].v, marks[i].v, smooth(t))
+			}
+		}
+		return vowels[marks[len(marks)-1].v]
+	}
 }
 
 // vowel returns the formants t of the way from vowel a to vowel b,
@@ -59,6 +87,9 @@ type syllable struct {
 	body *resonance
 	// wander is how far the pitch wanders, as a fraction.
 	wander float64
+	// top is the highest harmonic's pitch, 14 kHz where unset: a
+	// lower top makes a voice quicker to make, as in a crowd.
+	top float64
 }
 
 // block is how many samples a syllable's contours hold for, the
@@ -91,6 +122,9 @@ func sing(out *[]float64, s syllable, r *rng) {
 	// loudness so a vowel's change shapes the sound without swelling it.
 	levels := func(dst []float64, u, hz float64) []float64 {
 		top := min(14000.0, 0.45*rate)
+		if s.top > 0 {
+			top = min(top, s.top)
+		}
 		k := min(max(int(top/hz), 1), len(phases))
 		dst = dst[:0]
 		f := s.mouth(u)

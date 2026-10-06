@@ -2,5 +2,72 @@
 	"Name": "K-pop-tjej",
 	"Style": "Cool",
 	"Character": "pop singer, high voice",
-	"Calls": {}
+	"Calls": {
+		"hello": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 784,
+						"notes": 3,
+						"n2": -3,
+						"n3": 2,
+						"syllable": 0,
+						"lastsyl": 0,
+						"length": 0.12,
+						"last": 1.5,
+						"ring": 1.5
+					}
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Presence": 5
+		},
+		"cheer": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 659,
+						"notes": 4,
+						"n2": 4,
+						"n3": 7,
+						"n4": 12,
+						"syllable": 5,
+						"lastsyl": 2,
+						"length": 0.09,
+						"last": 3.5,
+						"fall": 2,
+						"vibrato": 0.45
+					}
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15
+		},
+		"oops": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 784,
+						"notes": 2,
+						"n2": -3,
+						"syllable": 1,
+						"lastsyl": 1,
+						"length": 0.16,
+						"last": 1.6,
+						"scoop": 0.5,
+						"vibrato": 0.2,
+						"ring": 1.6,
+						"bright": 0.75
+					}
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Presence": 6
+		}
+	}
 }

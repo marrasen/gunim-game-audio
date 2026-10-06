@@ -309,6 +309,10 @@ func (l *lab) set(v ParamSet) {
 			call.Vary = v.Value
 		case "room":
 			call.Room = v.Value
+		case "cut":
+			call.Cut = v.Value
+		case "presence":
+			call.Presence = v.Value
 		}
 		l.changed(l.sel)
 	default:
@@ -410,13 +414,13 @@ func (l *lab) editor() Editor {
 	if call == nil {
 		return e
 	}
-	e.Vary, e.Room, e.Notes = call.Vary, call.Room, call.Notes
+	e.Vary, e.Room, e.Cut, e.Presence, e.Notes = call.Vary, call.Room, call.Cut, call.Presence, call.Notes
 	for _, ly := range call.Layers {
 		m := calls.Models()[ly.Model]
 		lv := LayerView{Model: ly.Model, About: m.About}
 		for _, p := range m.Params {
 			lv.Params = append(lv.Params, ParamView{Name: p.Name, Label: p.Label, Unit: p.Unit, About: p.About,
-				Lo: p.Lo, Hi: p.Hi, Def: p.Def, Value: ly.Get(p.Name), Step: p.Step, Log: p.Log})
+				Lo: p.Lo, Hi: p.Hi, Def: p.Def, Value: ly.Get(p.Name), Step: p.Step, Log: p.Log, Choices: p.Choices})
 		}
 		lv.Params = append(lv.Params,
 			ParamView{Name: "@at", Label: "Starts", Unit: "s", About: "When the layer starts in the call", Lo: 0, Hi: 1, Value: ly.At},

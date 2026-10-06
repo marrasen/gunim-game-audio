@@ -2,5 +2,59 @@
 	"Name": "Räven (fox who runs)",
 	"Style": "Sportig",
 	"Character": "quick, playful",
-	"Calls": {}
+	"Calls": {
+		"hello": {
+			"Layers": [
+				{
+					"Model": "yip",
+					"Params": {
+						"pitch": 1050,
+						"length": 0.18
+					}
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.3
+		},
+		"cheer": {
+			"Layers": [
+				{
+					"Model": "yip",
+					"Params": {
+						"yips": 2,
+						"length": 0.1,
+						"gap": 0.06,
+						"rise": 2
+					}
+				},
+				{
+					"Model": "whoosh",
+					"Params": {
+						"from": 600,
+						"to": 2500,
+						"length": 0.45,
+						"patter": 6
+					},
+					"At": 0.25
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15
+		},
+		"oops": {
+			"Layers": [
+				{
+					"Model": "yip",
+					"Params": {
+						"pitch": 1150,
+						"length": 0.2,
+						"question": 7,
+						"drop": 0
+					}
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.3
+		}
+	}
 }

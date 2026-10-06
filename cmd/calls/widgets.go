@@ -133,6 +133,12 @@ func (k *knob) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 // format writes the knob's value, as short as reads well.
 func (k *knob) format() string {
 	v := k.v
+	if i := int(math.Round(v)); len(k.p.Choices) > 0 && i >= 0 && i < len(k.p.Choices) {
+		return k.p.Choices[i]
+	}
+	if k.p.Name == "cut" && v == 0 {
+		return "rings out"
+	}
 	var s string
 	switch {
 	case k.p.Step >= 1:

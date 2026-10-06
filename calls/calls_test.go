@@ -24,29 +24,31 @@ func library(t testing.TB) *Library {
 
 func TestEveryCallMeetsTheBriefInEveryTake(t *testing.T) {
 	lib := library(t)
-	made := 0
-	for _, c := range lib.Companions {
-		for _, kind := range Kinds {
-			if _, ok := c.Calls[kind]; !ok {
-				continue
-			}
-			made++
-			for seed := range uint64(20) {
-				tk, err := lib.Take(c.ID, kind, seed)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if p := tk.Stats.Problems(kind, lib.Master); len(p) > 0 {
-					t.Errorf("%s's %s, take %d: %v", c.ID, kind, seed, p)
-				}
-				if v := tk.Samples[0]; v != 0 {
-					t.Errorf("%s's %s, take %d, starts at %v, not from silence", c.ID, kind, seed, v)
-				}
-			}
-		}
+	if len(lib.Companions) != 10 {
+		t.Fatalf("the library holds %d companions, not 10", len(lib.Companions))
 	}
-	if made < 6 {
-		t.Errorf("the library makes %d calls, not the owl's and the frog's six", made)
+	for _, c := range lib.Companions {
+		t.Run(c.ID, func(t *testing.T) {
+			t.Parallel()
+			for _, kind := range Kinds {
+				if _, ok := c.Calls[kind]; !ok {
+					t.Errorf("%s makes no %s", c.ID, kind)
+					continue
+				}
+				for seed := range uint64(20) {
+					tk, err := lib.Take(c.ID, kind, seed)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if p := tk.Stats.Problems(kind, lib.Master); len(p) > 0 {
+						t.Errorf("%s's %s, take %d: %v", c.ID, kind, seed, p)
+					}
+					if v := tk.Samples[0]; v != 0 {
+						t.Errorf("%s's %s, take %d, starts at %v, not from silence", c.ID, kind, seed, v)
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -118,8 +120,8 @@ func TestAPlayerPlaysANewTakeEachTime(t *testing.T) {
 	if lens[0] == lens[3] {
 		t.Errorf("four takes all last %v", lens[0])
 	}
-	if _, err := p.Play("raven", Hello, audio.Options{}); err == nil {
-		t.Error("the fox's hello played before it is made")
+	if _, err := p.Play("nobody", Hello, audio.Options{}); err == nil {
+		t.Error("a companion the library does not hold played")
 	}
 }
 

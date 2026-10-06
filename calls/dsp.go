@@ -80,6 +80,16 @@ func lowPass(hz, q float64) biquad {
 	return biquad{b0: (1 - cw) / 2 / a0, b1: (1 - cw) / a0, b2: (1 - cw) / 2 / a0, a1: -2 * cw / a0, a2: (1 - al) / a0}
 }
 
+// peaking returns a filter lifting a band about hz by db, its sharpness
+// q, as RBJ's cookbook gives it.
+func peaking(hz, q, db float64) biquad {
+	w := 2 * math.Pi * hz / rate
+	a := math.Pow(10, db/40)
+	cw, al := math.Cos(w), math.Sin(w)/(2*q)
+	a0 := 1 + al/a
+	return biquad{b0: (1 + al*a) / a0, b1: -2 * cw / a0, b2: (1 - al*a) / a0, a1: -2 * cw / a0, a2: (1 - al/a) / a0}
+}
+
 // bandPass sets f to pass a band about hz, bw wide, its peak at 1,
 // keeping what it holds, so the band glides as a voice's resonances do.
 func (f *biquad) bandPass(hz, bw float64) {

@@ -113,7 +113,7 @@ func buildView(s Lab) *root {
 
 	v.editing = widget.NewLabel("")
 	v.editing.Size = widget.HeadingSize
-	v.callKs = []*knob{{}, {}}
+	v.callKs = []*knob{{}, {}, {}, {}}
 	v.master = []*knob{{}, {}, {}}
 	var setKnobs []gunim.Node
 	for _, k := range v.callKs {
@@ -191,6 +191,10 @@ func (v *view) update(s Lab, u *gunim.UI) {
 		About: "How far each take strays from the call as set"})
 	v.callKs[1].show(-1, ParamView{Name: "room", Label: "Room", Lo: 0, Hi: 1, Def: 0.15, Value: e.Room,
 		About: "How much of a small room is heard round the call"})
+	v.callKs[2].show(-1, ParamView{Name: "cut", Label: "Ends by", Unit: "s", Lo: 0, Hi: 1.5, Def: 0, Value: e.Cut,
+		About: "Fades the call out to end by then; 0 lets it ring out"})
+	v.callKs[3].show(-1, ParamView{Name: "presence", Label: "Presence", Unit: "dB", Lo: -6, Hi: 12, Def: 0, Value: e.Presence,
+		About: "Lifts the call about 2.2 kHz, where a phone's speaker carries it"})
 	v.master[0].show(-2, ParamView{Name: "highpass", Label: "Low cut", Unit: "Hz", Lo: 100, Hi: 600, Def: 300, Value: s.HighPass, Log: true})
 	v.master[1].show(-2, ParamView{Name: "loudness", Label: "Loudness", Unit: "", Lo: -24, Hi: -8, Def: -14, Value: s.Loudness})
 	v.master[2].show(-2, ParamView{Name: "ceiling", Label: "Ceiling", Unit: "", Lo: -6, Hi: 0, Def: -1, Value: s.Ceiling})

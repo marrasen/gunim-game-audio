@@ -2,5 +2,89 @@
 	"Name": "Trollkarlen (young wizard)",
 	"Style": "Mystisk",
 	"Character": "curious apprentice",
-	"Calls": {}
+	"Calls": {
+		"hello": {
+			"Layers": [
+				{
+					"Model": "sparkle",
+					"Params": {
+						"bells": 7,
+						"length": 0.22,
+						"low": 2800,
+						"high": 6000,
+						"decay": 0.1,
+						"climb": 0.3,
+						"shimmer": 8
+					}
+				},
+				{
+					"Model": "chime",
+					"Params": {
+						"pitch": 1047,
+						"notes": 2,
+						"n2": 5,
+						"length": 0.1,
+						"decay": 0.3
+					},
+					"At": 0.14
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Cut": 0.68
+		},
+		"cheer": {
+			"Layers": [
+				{
+					"Model": "whoosh",
+					"Params": {
+						"from": 500,
+						"to": 3500,
+						"length": 0.35,
+						"peak": 0.8,
+						"start": 0.6
+					}
+				},
+				{
+					"Model": "sparkle",
+					"Params": {
+						"bells": 14,
+						"length": 0.3,
+						"low": 2000,
+						"high": 7000,
+						"climb": 0,
+						"decay": 0.15,
+						"fade": 0.4
+					},
+					"At": 0.3,
+					"Gain": -3
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Cut": 1.1
+		},
+		"oops": {
+			"Layers": [
+				{
+					"Model": "fizzle",
+					"Params": {
+						"length": 0.35
+					}
+				},
+				{
+					"Model": "puff",
+					"Params": {
+						"pitch": 1400,
+						"drop": 8,
+						"length": 0.25
+					},
+					"At": 0.3
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Cut": 0.68
+		}
+	}
 }

@@ -113,12 +113,16 @@ func TestTheLabShowsEachCompanionsCallsMeasured(t *testing.T) {
 		}
 	}
 	h.do(CompanionChosen{ID: "raven"})
-	s = h.l.state()
-	if s.Name != "Räven (fox who runs)" || s.Calls[0].Made || len(s.Editor.Layers) != 0 {
-		t.Errorf("the fox shows %q, its hello made %v", s.Name, s.Calls[0].Made)
+	if s = h.l.state(); s.Name != "Räven (fox who runs)" || !s.Calls[0].Made {
+		t.Fatalf("the fox shows %q, its hello made %v", s.Name, s.Calls[0].Made)
 	}
-	// A layer added makes a call where there was none.
-	h.do(LayerAdded{Model: "hoot"})
+	// The last layer taken away unmakes the call, and a layer added
+	// makes it again.
+	h.do(LayerRemoved{Layer: 0})
+	if s = h.l.state(); s.Calls[0].Made || len(s.Editor.Layers) != 0 {
+		t.Error("the fox's hello is still made with no layer")
+	}
+	h.do(LayerAdded{Model: "yip"})
 	if s = h.l.state(); !s.Calls[0].Made || len(s.Editor.Layers) != 1 {
 		t.Error("a layer added made no hello")
 	}

@@ -2,5 +2,92 @@
 	"Name": "Fotbollsstjärnan (football star)",
 	"Style": "Sportig",
 	"Character": "energetic team player",
-	"Calls": {}
+	"Calls": {
+		"hello": {
+			"Layers": [
+				{
+					"Model": "whistle",
+					"Params": {
+						"toots": 1,
+						"length": 0.18
+					}
+				},
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 520,
+						"notes": 1,
+						"syllable": 3,
+						"lastsyl": 3,
+						"length": 0.25,
+						"last": 1,
+						"fall": 3,
+						"vibrato": 0,
+						"breath": 0.45,
+						"scoop": 2,
+						"size": 1.25
+					},
+					"At": 0.25
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Presence": 3
+		},
+		"cheer": {
+			"Layers": [
+				{
+					"Model": "whistle",
+					"Params": {
+						"toots": 2,
+						"length": 0.12,
+						"last": 2.2
+					}
+				},
+				{
+					"Model": "crowd",
+					"Params": {
+						"kind": 0,
+						"voices": 12,
+						"length": 0.6,
+						"claps": 10,
+						"size": 1.5
+					},
+					"At": 0.35
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Presence": 3
+		},
+		"oops": {
+			"Layers": [
+				{
+					"Model": "bonk",
+					"Params": {
+						"pitch": 1300,
+						"drop": 3,
+						"click": 0.2
+					}
+				},
+				{
+					"Model": "crowd",
+					"Params": {
+						"kind": 1,
+						"voices": 10,
+						"length": 0.45,
+						"size": 1.8,
+						"pitch": 650,
+						"bright": 0.9,
+						"breath": 0.8
+					},
+					"At": 0.08
+				}
+			],
+			"Vary": 0.5,
+			"Room": 0.15,
+			"Cut": 0.68,
+			"Presence": 8
+		}
+	}
 }

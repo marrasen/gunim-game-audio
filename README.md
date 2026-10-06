@@ -128,11 +128,27 @@ CPU, about 28 times faster than it plays.
 The library also holds the calls of Läxkompis's ten companions: a
 hello when a child taps one, a cheer for a level done, and an oops for a
 wrong answer. They are made in code, by package `calls`, from models of
-how the sounds are made: a voice as a throat makes it, a buzz shaped by
-the mouth's resonances into a vowel, with breath; a frog's croak rolled
-into pulses by its throat, with its throat sac ringing; and a bubble's
-rising tone, as Minnaert worked it out. The owl's and the frog's are
-made; the other eight come later.
+how the sounds are made:
+
+| Model | What it makes | Who uses it |
+|---|---|---|
+| `hoot` | an owl's breathy "hoo", sliding up into each hoot | the owl |
+| `ribbit` | a frog's "rib-bit", rolled by its throat, its throat sac ringing | the frog |
+| `blub` | a gulp: a lip's pop, a falling "blub", and rising bubbles | the frog |
+| `mew` | a kitten's "m-i-a-u", its pitch arching, rolled into a trill if asked | the unicorn cat |
+| `sing` | a sung phrase: a syllable, "la", "oh", "yeah", "hey", "ooh", "na" or "ah", on each of up to four notes, with vibrato | the two K-pop singers, the football star's "hey!" |
+| `beeps`, `whirr`, `glitch` | a robot's beeps, a servo's whirr, and a stuttering, falling "bwoo" | the robot ninja |
+| `sparkle`, `chime` | small bells climbing a pentatonic scale, and notes struck on a celesta, as a "ta-da" | the wizard, the unicorn cat |
+| `whoosh`, `puff`, `fizzle` | air rushing past, a burst of smoke or flame, and crackles thinning over a hiss | the wizard, the dragon, the fox |
+| `roar` | a small creature's rough "rawr", ending in a squeak if asked | the baby dragon |
+| `yip` | a fox's short, bright yip, rising at its end as a question if asked | the fox, the dragon's hiccup |
+| `whistle`, `crowd`, `bonk` | a referee's pea whistle, a small crowd's "yay" or "ooh" with claps, and a ball's hollow knock | the football star |
+
+The voices are made as a throat makes them: a buzz of every harmonic
+of a pitch, and breath, shaped by the mouth's resonances into a vowel
+that moves through the call. A call layers models, each at a time and
+a level of its own: the unicorn cat's hello is a mew with a sparkle
+after it.
 
 Each call is made anew each time it plays, a take of its own, so a
 child tapping a companion again and again never hears the same sound
@@ -173,7 +189,9 @@ go run ./cmd/calls
 A call plays as a knob is let go. New take plays another take, as the
 game makes one each time; As set plays the call as its knobs set it.
 Vary sets how far the takes stray, and Room how much of a small room is
-heard round the call. Phone speaker plays the calls as a phone's speaker
+heard round the call. Presence lifts a call about 2.2 kHz, where a
+phone's speaker carries it, and Ends by fades out a call whose bells
+would ring past the length the brief allows. Phone speaker plays the calls as a phone's speaker
 does, and a song can play under them, as in the game. A call can have
 more than one layer, each a model, at a time and a level of its own.
 
