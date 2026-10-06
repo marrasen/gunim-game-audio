@@ -555,7 +555,7 @@ func chordList(names []string, k key) ([]Chord, error) {
 				out = append(out, out[len(out)-1])
 				continue
 			}
-			ch, err := parseChord(w, k)
+			ch, err := readChord(w, k)
 			if err != nil {
 				return nil, err
 			}

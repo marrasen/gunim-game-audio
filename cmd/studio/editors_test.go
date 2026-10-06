@@ -286,3 +286,35 @@ func TestTheStepGridDrawsAndKeepsItsRows(t *testing.T) {
 		t.Errorf("after adding a row, the rows are %v", g.rows)
 	}
 }
+
+func TestTheGridShowsWhatChordTonesPlay(t *testing.T) {
+	am7, err := synth.ParseChord("Am7", "C", "major")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &stepGrid{oct: 2}
+	for atom, want := range map[string]string{"c0": "A2", "c1": "C3", "c2'": "E4", "c3": "G3", "c4": "A3", "b": "A2", "ch": "Am7", "4": ""} {
+		if got := g.resolve(atom, am7); got != want {
+			t.Errorf("%s over Am7 plays %q, want %q", atom, got, want)
+		}
+	}
+	c, _ := synth.ParseChord("C", "C", "major")
+	f, _ := synth.ParseChord("F", "C", "major")
+	g = &stepGrid{oct: 4, perBar: 16, chordBars: 1, chords: []synth.Chord{c, f}}
+	if ch, _ := g.chordAtCol(20); ch.Spelled() != "F" {
+		t.Errorf("column 20, in the second bar, plays over %s, want F", ch.Spelled())
+	}
+	g.cycleBar = 1
+	if ch, _ := g.chordAtCol(0); ch.Spelled() != "F" {
+		t.Errorf("a cycle from bar 1 starts over %s, want F", ch.Spelled())
+	}
+	h := newHarness(t, music.KeypadRound)
+	h.play(time.Second)
+	h.do(OpenEditor{Editor: "Pattern", Track: "bass"})
+	h.settle()
+	grid := h.v.pattern.grid
+	i := slices.Index(grid.rows, "c0")
+	if !strings.HasPrefix(grid.labels[i], "c0 · ") || strings.HasPrefix(grid.labels[slices.Index(grid.rows, "ch")], "ch · chord") {
+		t.Errorf("the chord's rows say %q and %q while the song plays", grid.labels[i], grid.labels[slices.Index(grid.rows, "ch")])
+	}
+}

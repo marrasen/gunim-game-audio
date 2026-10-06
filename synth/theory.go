@@ -187,11 +187,11 @@ var romans = []struct {
 	d int
 }{{"VII", 6}, {"III", 2}, {"VI", 5}, {"IV", 3}, {"II", 1}, {"V", 4}, {"I", 0}}
 
-// parseChord reads a chord by name, as Am7, F#m, Cmaj7 or G/B, or by its
+// readChord reads a chord by name, as Am7, F#m, Cmaj7 or G/B, or by its
 // numeral in k, as vi, IV, V7, bVII or ii7. A numeral counts degrees of
 // k's scale: in A minor VI is F. Upper case is a major chord and lower
 // case a minor one, unless a suffix says otherwise.
-func parseChord(s string, k key) (Chord, error) {
+func readChord(s string, k key) (Chord, error) {
 	c := Chord{Name: s, names: k.names()}
 	body, bass, slash := strings.Cut(s, "/")
 	if r, rest, ok := parseRoman(body, k); ok {
@@ -272,10 +272,10 @@ func parseRoman(s string, k key) (roman, string, bool) {
 	return roman{}, s, false
 }
 
-// tone returns chord tone i of c, from the root at its pitch class in
+// Tone returns chord tone i of c, from the root at its pitch class in
 // octave oct up: 0 is the root, 1 the next tone, and past the last they
 // go on an octave up; below 0 they go down.
-func (c Chord) tone(i, oct int) int {
+func (c Chord) Tone(i, oct int) int {
 	l := len(c.Tones)
 	return c.Root + 12*(oct+1) + c.Tones[mod(i, l)] + 12*floorDiv(i, l)
 }
@@ -290,7 +290,7 @@ func (c Chord) voice(centre int, prev []int) []int {
 		for oct := -2; oct <= 1; oct++ {
 			v := make([]int, n)
 			for i := range n {
-				v[i] = c.tone(inv+i, 4+oct) - 12*(centre/12-5)
+				v[i] = c.Tone(inv+i, 4+oct) - 12*(centre/12-5)
 			}
 			var cost float64
 			if len(prev) == n {
@@ -530,4 +530,14 @@ func KeyNote(root, scale string, d, oct int) (int, error) {
 		return 0, err
 	}
 	return k.degree(d, oct), nil
+}
+
+// ParseChord reads a chord, by name as Am7 or by numeral as vi, in the
+// key root and scale, for a tool to show what it plays.
+func ParseChord(name, root, scale string) (Chord, error) {
+	k, err := parseKey(root, scale)
+	if err != nil {
+		return Chord{}, err
+	}
+	return readChord(name, k)
 }

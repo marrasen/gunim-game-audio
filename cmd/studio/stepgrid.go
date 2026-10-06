@@ -57,6 +57,18 @@ type stepGrid struct {
 	drawing bool
 	moved   bool
 	hover   [2]int
+	// The chords the notes play over: the progression, each chord
+	// chordBars long, the track's octave, and the song's bar the cycle
+	// shown starts on, so a chord's tone shows its note in each bar.
+	chords    []synth.Chord
+	chordBars float64
+	oct       int
+	cycleBar  int
+	// now is the chord heard, and xNote the note the track's arpeggio
+	// plays now, for the rows' names.
+	now   int
+	xNote string
+	song  *synth.Song
 }
 
 // gridRowH is how tall a row is.
@@ -101,8 +113,8 @@ func (g *stepGrid) set(src string, cycles int, t *synth.Track, song *synth.Song,
 	}
 	// Where the song is in the track's cycle.
 	g.playing = -1
+	heard := heardAt(st.Clock, st.Clock.At)
 	if st.BarFrames > 0 {
-		heard := heardAt(st.Clock, st.Clock.At)
 		pos := float64(st.Bar) + (heard-float64(st.BarFrame))/st.BarFrames
 		if pos >= 0 {
 			cyc := pos / float64(bars)
@@ -110,6 +122,91 @@ func (g *stepGrid) set(src string, cycles int, t *synth.Track, song *synth.Song,
 			g.playing = cyc - math.Floor(cyc)
 		}
 	}
+	g.follow(song, t, st, ti, heard)
+}
+
+// follow takes the chords the notes play over, and names the rows for
+// what they play now: a chord's tone its note, the chord its name, and
+// the arpeggio the note it plays.
+func (g *stepGrid) follow(song *synth.Song, t *synth.Track, st Studio, ti int, heard float64) {
+	g.song = song
+	g.oct = t.Octave
+	if g.oct == 0 {
+		g.oct = 4
+	}
+	g.chords = g.chords[:0]
+	for _, name := range st.Chords {
+		// A chord by numeral shows as V · B: its name is before the dot.
+		name, _, _ = strings.Cut(name, " · ")
+		if c, err := synth.ParseChord(name, song.Key, song.Scale); err == nil {
+			g.chords = append(g.chords, c)
+		}
+	}
+	g.chordBars = song.ChordBars
+	if g.chordBars <= 0 || st.Sting != "" {
+		g.chordBars = 1
+	}
+	g.now = st.Chord
+	base := g.cycle
+	if g.playing >= 0 {
+		base = g.nowCycle - g.nowCycle%max(g.cycles, 1) + g.cycle
+	}
+	g.cycleBar = base * g.bars
+	g.xNote = ""
+	for _, n := range st.Notes {
+		if n.Track == ti && !n.Drum && float64(n.Frame) <= heard && heard < float64(n.Frame+n.Len) {
+			g.xNote = synth.NoteName(n.Pitch)
+		}
+	}
+	if len(g.labels) != len(g.rows) {
+		g.labels = make([]string, len(g.rows))
+	}
+	for i, r := range g.rows {
+		g.labels[i] = rowLabel(r, song, g.oct)
+		if len(g.chords) == 0 {
+			continue
+		}
+		cur := g.chords[((g.now%len(g.chords))+len(g.chords))%len(g.chords)]
+		switch r {
+		case "x":
+			if g.xNote != "" {
+				g.labels[i] = "x · " + g.xNote
+			}
+		default:
+			if n := g.resolve(r, cur); n != "" {
+				g.labels[i] = r + " · " + n
+			}
+		}
+	}
+}
+
+// resolve returns what atom plays over chord c, where it follows the
+// chord: a tone's note, as A3, the bass's, or the chord's name.
+func (g *stepGrid) resolve(atom string, c synth.Chord) string {
+	body := strings.TrimRight(atom, "'")
+	lift := len(atom) - len(body)
+	switch {
+	case body == "ch":
+		return c.Spelled()
+	case body == "b":
+		return synth.NoteName(c.Bass + 12*(g.oct+lift+1))
+	case len(body) > 1 && body[0] == 'c':
+		if k, err := strconv.Atoi(body[1:]); err == nil {
+			return synth.NoteName(c.Tone(k, g.oct+lift))
+		}
+	}
+	return ""
+}
+
+// chordAtCol returns the chord the note in column col of the cycle shown
+// plays over.
+func (g *stepGrid) chordAtCol(col int) (synth.Chord, bool) {
+	if len(g.chords) == 0 || g.perBar == 0 {
+		return synth.Chord{}, false
+	}
+	pos := float64(g.cycleBar) + float64(col)/float64(g.perBar)
+	i := int(math.Floor(pos/g.chordBars + 1e-9))
+	return g.chords[((i%len(g.chords))+len(g.chords))%len(g.chords)], true
 }
 
 // layRows lays out the rows: those shown already, those the pattern
@@ -355,6 +452,15 @@ func (g *stepGrid) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim
 			x1 := gridLabelW + float32(end)*cw
 			note := geom.Rc(x0+1, y+2, x1-x0-2, gridRowH-4)
 			p.ShadowRRect(note, 4, paint.Solid(withAlpha(g.color, 0.9)), paint.Shadow{Blur: 4, Color: withAlpha(g.color, 0.4)})
+			// A note that follows the chord says what it plays in its bar.
+			if c, ok := g.chordAtCol(col); ok {
+				if name := g.resolve(g.rows[i], c); name != "" {
+					run := audioui.Shaped(name, 10, true, false)
+					if run.Advance < note.Size().W-8 {
+						run.Paint(p, geom.Pt(note.Min.X+4, note.Min.Y+(note.Size().H-run.Height())/2), color.NRGBA{0x12, 0x14, 0x1c, 0xe0})
+					}
+				}
+			}
 			if x1-x0 > 8 {
 				p.RRect(geom.Rc(x1-5, y+5, 2, gridRowH-10), 1, paint.Solid(withAlpha(ink, 0.5)))
 			}
