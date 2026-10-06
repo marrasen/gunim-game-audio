@@ -951,6 +951,15 @@ func (p *Player) scheduleTrack(t *track, bar int, k key) {
 		case actChord:
 			v := chord.voice(12*(oct+1)+6, t.voicing)
 			t.voicing = append(t.voicing[:0], v...)
+			if ct.patch.arpChord {
+				// The chord as one voice's arpeggio, its notes in turn.
+				for i, pitch := range v[:min(len(v), len(n.chord))] {
+					n.chord[i] = int8(pitch - v[0])
+				}
+				n.nchord = min(len(v), len(n.chord))
+				p.queueNote(t, frame, n, v[0])
+				break
+			}
 			for _, pitch := range v {
 				p.queueNote(t, frame, n, pitch)
 			}

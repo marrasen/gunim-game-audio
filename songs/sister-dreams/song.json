@@ -1,0 +1,115 @@
+{
+	"Kind": "synth",
+	"Title": "Sister Dreams",
+	"Artist": "Marcus Johansson",
+	"BPM": 132,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "D",
+	"Scale": "minor",
+	"Chords": ["Dm", "Bb", "F", "C", "Dm", "Bb", "Gm", "A"],
+	"Mode": "wander",
+	"Patches": {
+		"arp": {
+			"Osc": [{"Wave": "pulse", "Width": 0.2}],
+			"Filter": {"Type": "sidlp", "Cutoff": 900, "Res": 0.65, "Env": 1},
+			"Amp": {"Attack": 0.001, "Decay": 0.12, "Sustain": 0.4, "Release": 0.05},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.1, "Sustain": 0.2, "Release": 0.05},
+			"LFO": [{"To": "cutoff", "Wave": "tri", "Beats": 32, "Depth": 2}],
+			"Poly": 1,
+			"Gain": 0.55
+		},
+		"bass": {
+			"Osc": [{"Wave": "saw"}, {"Wave": "pulsesaw", "Level": 0.4}],
+			"Filter": {"Type": "sidlp", "Cutoff": 350, "Res": 0.7, "Env": 2.6},
+			"Amp": {"Attack": 0.002, "Decay": 0.18, "Sustain": 0.5, "Release": 0.05},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.15, "Sustain": 0.1, "Release": 0.05},
+			"Poly": 1,
+			"Glide": 0.02,
+			"Gain": 0.6
+		},
+		"pad": {
+			"Osc": [{"Wave": "pulse", "Width": 0.4}, {"Wave": "pulse", "Width": 0.4, "Detune": 8, "Level": 0.6}],
+			"Filter": {"Type": "sidlp", "Cutoff": 1400, "Res": 0.25},
+			"Amp": {"Attack": 0.25, "Decay": 0.8, "Sustain": 0.8, "Release": 0.6},
+			"LFO": [{"To": "width", "Wave": "tri", "Hz": 0.4, "Depth": 0.3}],
+			"Poly": 8,
+			"Gain": 0.35
+		},
+		"lead": {
+			"Osc": [{"Wave": "pulse", "Width": 0.45}, {"Wave": "tri", "Octave": 1, "Level": 0.3}],
+			"Filter": {"Type": "sidlp", "Cutoff": 3500, "Res": 0.3},
+			"Amp": {"Attack": 0.004, "Decay": 0.3, "Sustain": 0.75, "Release": 0.15},
+			"LFO": [
+				{"To": "pitch", "Wave": "sine", "Hz": 5.5, "Depth": 0.2, "Delay": 0.22},
+				{"To": "width", "Wave": "tri", "Hz": 0.5, "Depth": 0.25}
+			],
+			"Poly": 1,
+			"Glide": 0.025,
+			"Gain": 0.5
+		},
+		"sid": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {"Type": "sidkick"},
+				"sn": {"Type": "sidsnare", "Gain": 0.75},
+				"hh": {"Type": "sidhat", "Gain": 0.45},
+				"oh": {"Type": "sidohat", "Gain": 0.35},
+				"zap": {"Type": "sidzap", "Gain": 0.5}
+			}
+		},
+		"wind": {
+			"Osc": [{"Wave": "noise"}],
+			"Filter": {"Type": "sidbp", "Cutoff": 1200, "Res": 0.75},
+			"Amp": {"Attack": 1.2, "Decay": 1, "Sustain": 0.8, "Release": 1.5},
+			"LFO": [{"To": "cutoff", "Wave": "sine", "Beats": 8, "Depth": 1.6}],
+			"Poly": 1,
+			"Gain": 0.25
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "arp", "Core": true, "Patch": "arp", "Color": "#5ce1a8",
+			"Pattern": "x*16", "Arp": "updown", "ArpOctaves": 2, "Octave": 4, "Legato": 0.7,
+			"Params": {"vel": "[1 0.6 0.8 0.6]*4"},
+			"Gain": 7, "Delay": 0.15
+		},
+		{
+			"Name": "bass", "Core": true, "Patch": "bass", "Color": "#3fd0c9",
+			"Pattern": "b ~ b b' ~ b ~ b'", "Octave": 2, "Legato": 0.75,
+			"Params": {"vel": "1 0.6 0.8 0.9 0.6 0.85 0.6 0.9"},
+			"Gain": 1
+		},
+		{
+			"Name": "pad", "Patch": "pad", "Color": "#7c8cff",
+			"Pattern": "ch", "Octave": 4, "Legato": 1,
+			"Gain": -14.2, "Reverb": 0.3, "HPF": 200
+		},
+		{
+			"Name": "lead", "Patch": "lead", "Color": "#ff6b9d",
+			"Pattern": "[4 _ _ 2 4 _ 5 4] [2 _ _ 0 2 _ 3 2] [2 _ _ 4 6 _ 4 _] [6 _ _ 4 1 _ ~ ~] [4 _ _ 2 4 _ 5 4] [7 _ 5 _ 4 _ 2 _] [3 _ 5 _ 7 _ 5 3] [4 _ 6# _ 8 _ _ _]",
+			"Bars": 8, "Octave": 5, "Legato": 0.92,
+			"Gain": -6.2, "Delay": 0.1
+		},
+		{
+			"Name": "echo", "Patch": "lead", "Color": "#e9f27a",
+			"Pattern": "[~ ~ 4 _ _ 2 4 _] [~ ~ 2 _ _ 0 2 _] [~ ~ 2 _ _ 4 6 _] [~ ~ 6 _ _ 4 1 _] [~ ~ 4 _ _ 2 4 _] [~ ~ 7 _ 5 _ 4 _] [~ ~ 3 _ 5 _ 7 _] [~ ~ 4 _ 6# _ 8 _]",
+			"Bars": 8, "Octave": 5, "Legato": 0.92,
+			"Gain": -13, "Pan": 0.4
+		},
+		{
+			"Name": "drums", "Patch": "sid", "Color": "#ff8a4c",
+			"Pattern": "[bd ~ ~ bd ~ ~ bd ~, ~ ~ sn ~ ~ ~ sn ~, hh*8]",
+			"Gain": -10.4
+		},
+		{
+			"Name": "wind", "Patch": "wind", "Color": "#9aa3b5",
+			"Pattern": "c0", "Bars": 8, "Octave": 5, "Legato": 1,
+			"Gain": -8, "Pan": -0.3
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 0.6, "Decay": 1.2, "Tone": 0.5},
+		"Delay": {"Beats": 0.75, "Feedback": 0.4, "Tone": 0.45}
+	}
+}

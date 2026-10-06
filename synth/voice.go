@@ -23,6 +23,10 @@ type note struct {
 	cutoff float32
 	res    float32
 	vowel  byte
+	// chord are the semitones over pitch a chord played as one voice's
+	// arpeggio steps through, nchord of them.
+	chord  [8]int8
+	nchord int
 }
 
 // voice plays a note of a synth or pluck patch.
@@ -44,6 +48,8 @@ type voice struct {
 	lfoR   []float32
 	frames int64
 	form   formant
+	// noise are the oscillators' SID noise.
+	noise2 [maxOsc][maxUnison]lfsr
 	// vowel is the vowel the formant is aimed at, 0 for none yet.
 	vowel byte
 	noise *rng
@@ -221,6 +227,9 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 			v.pitchAt, v.hz = pitch, float32(noteHz(float64(pitch)))
 		}
 		hz := v.hz
+		if step := v.arpStep(); step != 0 {
+			hz *= exp2(step / 12)
+		}
 		if p.filter != filterNone {
 			f := src.Filter
 			cut := float32(f.Cutoff)
@@ -320,9 +329,19 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 
 // renderOsc makes the oscillators' sound at hz into l and r.
 func (v *voice) renderOsc(l, r []float32, hz, lWidth float32) {
+	// The first copy of each oscillator's phase as the block started,
+	// and its step, for an oscillator synced or ringed to it.
+	var prevPh, prevDt float32
 	for oi := range v.p.osc {
 		o := &v.p.osc[oi]
 		base := hz * o.ratio / rate
+		startPh, startDt := v.phase[oi][0], base*o.detunes[0]
+		if o.Sync || o.Ring {
+			v.renderLinked(l, r, oi, base, prevPh, prevDt, lWidth)
+			prevPh, prevDt = startPh, startDt
+			continue
+		}
+		prevPh, prevDt = startPh, startDt
 		width := min(max(float32(o.Width)+lWidth, 0.05), 0.95)
 		var index float32
 		if o.wave == oscFM {
@@ -408,6 +427,29 @@ func (v *voice) renderOsc(l, r []float32, hz, lWidth float32) {
 					}
 				}
 				v.mphase[oi][u] = mp
+			case oscNoise:
+				n := &v.noise2[oi][u]
+				for i := range l {
+					s := n.at(ph)
+					l[i] += s * gl
+					r[i] += s * gr
+					ph += dt
+					if ph >= 1 {
+						ph--
+						n.step = -1
+					}
+				}
+			case oscSawTri, oscPulseTri, oscPulseSaw:
+				t := o.table
+				for i := range l {
+					s := t[int(ph*tableSize)&(tableSize-1)]
+					l[i] += s * gl
+					r[i] += s * gr
+					ph += dt
+					if ph >= 1 {
+						ph--
+					}
+				}
 			}
 			v.phase[oi][u] = ph
 		}
@@ -470,7 +512,99 @@ func (v *voice) filter(l, r []float32) {
 			_, l[i], _ = v.fl.step(l[i])
 			_, r[i], _ = v.fr.step(r[i])
 		}
+	case filterSIDLP, filterSIDBP, filterSIDHP, filterSIDNotch:
+		m := v.p.filter
+		for i := range l {
+			l[i] = sidStep(&v.fl, l[i], m)
+			r[i] = sidStep(&v.fr, r[i], m)
+		}
 	}
+}
+
+// arpStep returns the semitones the arpeggio is on now, over the note:
+// the chord's notes in turn where the note is a chord played as one
+// voice, else the patch's steps.
+func (v *voice) arpStep() float32 {
+	p := v.p
+	if p.arpHz <= 0 {
+		return 0
+	}
+	i := int(float64(v.frames) / rate * p.arpHz)
+	if v.n.nchord > 0 {
+		return float32(v.n.chord[i%v.n.nchord])
+	}
+	if len(p.arpSteps) > 0 {
+		return p.arpSteps[i%len(p.arpSteps)]
+	}
+	return 0
+}
+
+// renderLinked makes oscillator oi's sound where it is synced or ringed
+// to the one before it, sample by sample: the one before it is followed
+// from prevPh, stepping prevDt, so each cycle it starts restarts this
+// one, or each half of its cycle turns this one over.
+func (v *voice) renderLinked(l, r []float32, oi int, base, prevPh, prevDt, lWidth float32) {
+	o := &v.p.osc[oi]
+	width := min(max(float32(o.Width)+lWidth, 0.05), 0.95)
+	for u := range o.unison {
+		dt := base * o.detunes[u]
+		if dt >= 0.5 {
+			continue
+		}
+		gl, gr := o.gl[u], o.gr[u]
+		ph, pp := v.phase[oi][u], prevPh
+		for i := range l {
+			s := v.waveAt(o, oi, u, ph, dt, width)
+			if o.Ring && pp >= 0.5 {
+				s = -s
+			}
+			l[i] += s * gl
+			r[i] += s * gr
+			ph += dt
+			if ph >= 1 {
+				ph--
+				v.noise2[oi][u].step = -1
+			}
+			pp += prevDt
+			if pp >= 1 {
+				pp--
+				if o.Sync {
+					ph = pp * dt / max(prevDt, 1e-9)
+				}
+			}
+		}
+		v.phase[oi][u] = ph
+	}
+}
+
+// waveAt returns oscillator o's wave at phase ph, a sample at a time,
+// for an oscillator that follows another.
+func (v *voice) waveAt(o *osc, oi, u int, ph, dt, width float32) float32 {
+	switch o.wave {
+	case oscSaw:
+		return 2*ph - 1 - polyBLEP(ph, dt)
+	case oscSquare:
+		s := float32(-1)
+		if ph < width {
+			s = 1
+		}
+		t := ph - width
+		if t < 0 {
+			t++
+		}
+		return s + polyBLEP(ph, dt) - polyBLEP(t, dt)
+	case oscTri:
+		return 1 - 4*abs32(ph-0.5)
+	case oscNoise:
+		return v.noise2[oi][u].at(ph)
+	case oscSawTri, oscPulseTri, oscPulseSaw:
+		return o.table[int(ph*tableSize)&(tableSize-1)]
+	case oscFM:
+		mp := v.mphase[oi][u]
+		v.mphase[oi][u] = wrap(mp + dt*float32(o.Ratio))
+		return sin1(wrap(ph + float32(o.Index)*sin1(mp)))
+	}
+	return sin1(ph)
 }
 
 // voices are a track's voices, which its notes take in turn.

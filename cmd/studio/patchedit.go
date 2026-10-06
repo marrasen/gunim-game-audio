@@ -20,8 +20,8 @@ import (
 
 // The choices the editors offer, as the song writes them.
 var (
-	waves      = []string{"saw", "pulse", "tri", "sine", "fm"}
-	filters    = []string{"none", "lp", "lp24", "hp", "bp"}
+	waves      = []string{"saw", "pulse", "tri", "sine", "fm", "noise", "sawtri", "pulsetri", "pulsesaw"}
+	filters    = []string{"none", "lp", "lp24", "hp", "bp", "sidlp", "sidbp", "sidhp", "sidnotch"}
 	lfoTargets = []string{"pitch", "cutoff", "amp", "width", "pan"}
 	lfoWaves   = []string{"sine", "tri", "saw", "square", "random"}
 	vowels     = []string{"off", "a", "e", "i", "o", "u"}
@@ -54,7 +54,12 @@ type patchPane struct {
 	oscRow  *widget.Flex
 	lfos    [maxLFO]*lfoSlot
 	pluckKs []*knob
-	filter  *widget.Segmented
+	filter  *widget.Dropdown
+	arpKs   []*knob
+	arpOn   *widget.Button
+	arpChrd *widget.Button
+	arpStep *widget.TextField
+	arpGen  int
 	resp    *response
 	fKnobs  []*knob
 	fenv    *envelope
@@ -62,7 +67,7 @@ type patchPane struct {
 	feKnobs []*knob
 	aeKnobs []*knob
 	vKnobs  []*knob
-	vowel   *widget.Segmented
+	vowel   *widget.Dropdown
 	note    *wave
 	cycle   *wave
 	live    *wave
@@ -117,8 +122,8 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pluck := panel("STRING · plucked, as Karplus and Strong pluck one", knobs(pp.pluckKs...))
 	pp.body = newSwitcher(oscs, pluck)
 
-	pp.filter = widget.NewSegmented(filters...)
-	pp.filter.KeepFocus = true
+	pp.filter = widget.NewDropdown(filters...)
+	pp.filter.Label = "Filter"
 	pp.filter.OnChange = func(i int) gunim.Intent {
 		return SetValue{Path: pp.base + "/Filter/Type", Str: filters[i], IsStr: true}
 	}
@@ -160,8 +165,8 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		newKnob("Noise", pb, "/Noise", 0, 1, 0),
 		newKnob("Gain", pb, "/Gain", 0, 2, 1).unsetIs(1),
 	}
-	pp.vowel = widget.NewSegmented(vowels...)
-	pp.vowel.KeepFocus = true
+	pp.vowel = widget.NewDropdown(vowels...)
+	pp.vowel.Label = "Vowel"
 	pp.vowel.OnChange = func(i int) gunim.Intent {
 		v := vowels[i]
 		if v == "off" {
@@ -169,8 +174,19 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		}
 		return SetValue{Path: pp.base + "/Vowel", Str: v, IsStr: true}
 	}
-	voice := panel("VOICE · and the vowel it sings", pp.vowel, knobs(pp.vKnobs...))
+	voice := panelWith(titled("VOICE · sings", pp.vowel), knobs(pp.vKnobs...))
 	lfoRow = append(lfoRow, voice)
+	pp.arpOn = widget.NewButton("On")
+	pp.arpOn.KeepFocus, pp.arpOn.Tooltip = true, "Arpeggiate: steps through notes fast, as a Commodore 64 plays a chord on one voice"
+	pp.arpChrd = widget.NewButton("Chords")
+	pp.arpChrd.KeepFocus, pp.arpChrd.Tooltip = true, "Play a track's chords, ch, as the arpeggio"
+	pp.arpKs = []*knob{newKnob("Rate", pb, "/Arpeggio/Hz", 5, 100, 50).units("Hz").unsetIs(50).steps(1)}
+	pp.arpStep = widget.NewTextField()
+	pp.arpStep.Face = widget.MonoFont
+	pp.arpStep.Placeholder = "0 4 7"
+	pp.arpStep.OnChange = func(s string) gunim.Intent { return ArpSteps{Patch: pp.name, Steps: s} }
+	arp := panel("CHIP ARPEGGIO", widget.Row(pp.arpOn, pp.arpChrd), knobs(pp.arpKs...), pp.arpStep)
+	lfoRow = append(lfoRow, arp)
 	low := widget.Row(lfoRow...)
 	for _, n := range lfoRow {
 		low.Grow(n, 1)
@@ -202,7 +218,7 @@ func (pp *patchPane) choose(name string) {
 }
 
 // update shows st.
-func (pp *patchPane) update(st Studio, u *gunim.UI) {
+func (pp *patchPane) update(st Studio) {
 	song := st.Doc
 	if song == nil {
 		return
@@ -270,20 +286,33 @@ func (pp *patchPane) update(st Studio, u *gunim.UI) {
 	showKnobs(song, pp.feKnobs...)
 	showKnobs(song, pp.aeKnobs...)
 	showKnobs(song, pp.vKnobs...)
+	showKnobs(song, pp.arpKs...)
+	a := p.Arpeggio
+	pp.arpOn.Active = a != nil
+	pp.arpChrd.Active = a != nil && a.Chord
+	pp.arpOn.On = ArpSet{Patch: pp.name, On: a == nil}
+	pp.arpChrd.On = ArpSet{Patch: pp.name, On: true, Chord: a == nil || !a.Chord}
+	pp.arpChrd.Disabled = a == nil
+	if pp.arpGen != st.Gen {
+		pp.arpGen = st.Gen
+		var steps []string
+		if a != nil {
+			for _, s := range a.Steps {
+				steps = append(steps, strconv.Itoa(s))
+			}
+		}
+		pp.arpStep.SetText(strings.Join(steps, " "))
+	}
 	ft := p.Filter.Type
 	if ft == "" {
 		ft = "none"
 	}
-	if i := segmentedIndex(filters, ft); pp.filter.Selected() != i {
-		pp.filter.SetSelected(i, u)
-	}
+	pp.filter.Selected = segmentedIndex(filters, ft)
 	vw := p.Vowel
 	if vw == "" {
 		vw = "off"
 	}
-	if i := segmentedIndex(vowels, vw); pp.vowel.Selected() != i {
-		pp.vowel.SetSelected(i, u)
-	}
+	pp.vowel.Selected = segmentedIndex(vowels, vw)
 	pp.resp.song, pp.fenv.song, pp.aenv.song = song, song, song
 	if st.Preview.Patch == pp.name {
 		pp.note.data, pp.cycle.data = st.Preview.Wave, st.Preview.Cycle
@@ -320,6 +349,8 @@ type oscSlot struct {
 	fm     []*knob
 	remove *widget.IconButton
 	add    *widget.Button
+	sync   *widget.Button
+	ring   *widget.Button
 }
 
 func newOscSlot(pp *patchPane, i int) *oscSlot {
@@ -352,10 +383,15 @@ func newOscSlot(pp *patchPane, i int) *oscSlot {
 	}
 	o.ks = append(o.ks, unison...)
 	o.extra = newSwitcher(knobs(o.width...), knobs(o.fm...))
+	o.sync = widget.NewButton("Sync")
+	o.sync.KeepFocus, o.sync.Ghost, o.sync.Tooltip = true, true, "Restart with each cycle of the oscillator before, as the SID's hard sync"
+	o.ring = widget.NewButton("Ring")
+	o.ring.KeepFocus, o.ring.Ghost, o.ring.Tooltip = true, true, "Turn over with each half cycle of the oscillator before, as the SID's ring modulation"
 	head := widget.Row(small(fmt.Sprintf("OSC %d", i+1)), o.wave, widget.NewSpacer(), o.remove)
 	head.Grow(head.Children()[2], 1)
 	head.Cross = widget.CrossCenter
-	editor := panelWith(head, sized(o.shape, 0, 48), knobs(o.ks[:4]...), widget.Row(knobs(unison...), o.extra))
+	links := widget.Row(o.sync, o.ring)
+	editor := panelWith(head, sized(o.shape, 0, 48), links, knobs(o.ks[:4]...), widget.Row(knobs(unison...), o.extra))
 	o.add = widget.NewButton("Add")
 	o.add.Tooltip = "Add an oscillator"
 	o.add.Icon, o.add.Ghost = icon.Plus, true
@@ -387,7 +423,11 @@ func (o *oscSlot) update(song *synth.Song, p *synth.Patch) {
 		w = "saw"
 	}
 	o.wave.Selected = segmentedIndex(waves, w)
-	o.shape.data = oscShape(osc, 96)
+	o.shape.data = synth.OscCycle(osc, 96)
+	o.sync.Active, o.ring.Active = osc.Sync, osc.Ring
+	o.sync.On = SetValue{Path: o.base + "/Sync", Num: boolNum(!osc.Sync)}
+	o.ring.On = SetValue{Path: o.base + "/Ring", Num: boolNum(!osc.Ring)}
+	o.sync.Disabled, o.ring.Disabled = o.i == 0, o.i == 0
 	o.shape.label = w
 	if osc.Unison > 1 {
 		o.shape.label = fmt.Sprintf("%s ×%d", w, osc.Unison)

@@ -37,6 +37,9 @@ type Patch struct {
 	Vowel string
 	// Pluck is how a pluck patch's string sounds.
 	Pluck Pluck
+	// Arpeggio plays a chord as one voice, its notes in turn, fast, as a
+	// Commodore 64's tunes do.
+	Arpeggio *Arpeggio
 	// Kit is a drums patch's drums, by the names a pattern plays them
 	// by. A name the kit leaves out is a drum of the same name, as bd,
 	// sn, cp, hh, oh, rim, lt, mt, ht, cr, rd, sh, snap, tim, boom,
@@ -49,8 +52,15 @@ type Patch struct {
 // Osc is one of a synth patch's oscillators.
 type Osc struct {
 	// Wave is saw, square, pulse, tri, sine, or fm, a sine whose phase
-	// another sine moves, as a bell or an electric piano.
+	// another sine moves, as a bell or an electric piano. A Commodore
+	// 64's SID chip gives noise, pitched by the note as its noise is, and
+	// the waves it makes of two at once, sawtri, pulsetri and pulsesaw,
+	// thin and buzzing.
 	Wave string
+	// Sync restarts it each time the oscillator before it starts a
+	// cycle, and Ring turns it over each half cycle of that one, as the
+	// SID's hard sync and ring modulation do.
+	Sync, Ring bool
 	// Octave and Semi move it from the note, and Detune by cents.
 	Octave int
 	Semi   float64
@@ -70,10 +80,24 @@ type Osc struct {
 	Ratio, Index, Decay, Sustain float64
 }
 
+// Arpeggio is a patch's fast arpeggio, as a Commodore 64 plays a chord
+// on one voice.
+type Arpeggio struct {
+	// Steps are the semitones above the note it steps through, as 0 4 7.
+	Steps []int
+	// Chord plays a track's chords, ch, so, their notes for steps.
+	Chord bool
+	// Hz is how many steps a second, 50 by default, a PAL machine's
+	// frames.
+	Hz float64
+}
+
 // Filter is a synth patch's filter.
 type Filter struct {
 	// Type is lp, a lowpass of 12 dB an octave; lp24, of 24; hp; bp; or
-	// none.
+	// none. sidlp, sidbp, sidhp and sidnotch are the SID chip's filter,
+	// of 12 dB an octave, its resonance rough and its sound driven, as
+	// the 6581's is.
 	Type string
 	// Cutoff is where it cuts, in hertz, and Res its resonance, from 0
 	// to 1.
@@ -97,8 +121,10 @@ type Pluck struct {
 // Drum is a drum of a kit.
 type Drum struct {
 	// Type is what it is: kick, snare, clap, hat, ohat, rim, tom,
-	// crash, ride, shaker, snap, timpani, boom, riser or down. A drum
-	// named for its type needs no Type.
+	// crash, ride, shaker, snap, timpani, boom, riser or down; or the
+	// SID's, built a frame at a time as a Commodore 64's drums are:
+	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap. A
+	// drum named for its type needs no Type.
 	Type string
 	// Tune moves its pitch in semitones, Decay stretches how long it
 	// rings, 1 by default, and Tone brightens it, from 0 to 1.
@@ -125,6 +151,8 @@ var drumNames = map[string]string{
 	"boom":  "boom",
 	"riser": "riser",
 	"down":  "down",
+	"sbd":   "sidkick", "ssn": "sidsnare", "scp": "sidclap", "shh": "sidhat", "soh": "sidohat",
+	"stom": "sidtom", "szap": "sidzap",
 }
 
 // tomTune tunes the low and high toms either side of the middle one.
@@ -147,12 +175,21 @@ const (
 	drBoom
 	drRiser
 	drDown
+	drSIDKick
+	drSIDSnare
+	drSIDClap
+	drSIDHat
+	drSIDOHat
+	drSIDTom
+	drSIDZap
 )
 
 var drumTypes = map[string]int{
 	"kick": drKick, "snare": drSnare, "clap": drClap, "hat": drHat, "ohat": drOHat, "rim": drRim,
 	"tom": drTom, "crash": drCrash, "ride": drRide, "shaker": drShaker, "snap": drSnap,
 	"timpani": drTimpani, "boom": drBoom, "riser": drRiser, "down": drDown,
+	"sidkick": drSIDKick, "sidsnare": drSIDSnare, "sidclap": drSIDClap, "sidhat": drSIDHat, "sidohat": drSIDOHat,
+	"sidtom": drSIDTom, "sidzap": drSIDZap,
 }
 
 // The waves of an oscillator.
@@ -162,6 +199,10 @@ const (
 	oscTri
 	oscSine
 	oscFM
+	oscNoise
+	oscSawTri
+	oscPulseTri
+	oscPulseSaw
 )
 
 // The types of filter.
@@ -171,6 +212,10 @@ const (
 	filterLP24
 	filterHP
 	filterBP
+	filterSIDLP
+	filterSIDBP
+	filterSIDHP
+	filterSIDNotch
 )
 
 // The kinds of patch.
@@ -182,15 +227,21 @@ const (
 
 // patch is a Patch made ready to play: its names read into numbers.
 type patch struct {
-	src    *Patch
-	kind   int
-	osc    []osc
-	filter int
-	lfo    []lfo
-	vowel  byte
-	poly   int
-	kit    map[string]drum
-	gain   float32
+	src *Patch
+	// arpHz is how many notes a second an arpeggio steps through, its
+	// steps the semitones it steps through, and arpChord says it plays a
+	// track's chords so.
+	arpHz    float64
+	arpSteps []float32
+	arpChord bool
+	kind     int
+	osc      []osc
+	filter   int
+	lfo      []lfo
+	vowel    byte
+	poly     int
+	kit      map[string]drum
+	gain     float32
 }
 
 type osc struct {
@@ -200,6 +251,8 @@ type osc struct {
 	// ratio is the oscillator's frequency as a multiple of the note's.
 	ratio  float32
 	unison int
+	// table is a cycle of a combined wave.
+	table []float32
 	// detunes are each copy's frequency multiple, and gl and gr its
 	// gains in the left and right channels, its level and place in them.
 	detunes []float32
@@ -273,8 +326,19 @@ func (p *Patch) compile(name string) (*patch, error) {
 			if co.Ratio == 0 {
 				co.Ratio = 1
 			}
+		case "noise":
+			co.wave = oscNoise
+		case "sawtri", "pulsetri", "pulsesaw":
+			co.wave = map[string]int{"sawtri": oscSawTri, "pulsetri": oscPulseTri, "pulsesaw": oscPulseSaw}[o.Wave]
+			if co.Width == 0 {
+				co.Width = 0.5
+			}
+			co.table = combined(co.wave, co.Width)
 		default:
-			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, square, pulse, tri, sine or fm", name, i+1, o.Wave)
+			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri or pulsesaw", name, i+1, o.Wave)
+		}
+		if (o.Sync || o.Ring) && i == 0 {
+			return nil, fmt.Errorf("synth: patch %s syncs or rings its first oscillator, which has none before it", name)
 		}
 		co.ratio = exp2(float32(float64(o.Octave) + o.Semi/12 + o.Detune/1200))
 		for u := range co.unison {
@@ -314,8 +378,29 @@ func (p *Patch) compile(name string) (*patch, error) {
 		c.filter = filterHP
 	case "bp":
 		c.filter = filterBP
+	case "sidlp":
+		c.filter = filterSIDLP
+	case "sidbp":
+		c.filter = filterSIDBP
+	case "sidhp":
+		c.filter = filterSIDHP
+	case "sidnotch":
+		c.filter = filterSIDNotch
 	default:
-		return nil, fmt.Errorf("synth: patch %s has filter %q, not lp, lp24, hp, bp or none", name, p.Filter.Type)
+		return nil, fmt.Errorf("synth: patch %s has filter %q, not lp, lp24, hp, bp, sidlp, sidbp, sidhp, sidnotch or none", name, p.Filter.Type)
+	}
+	if a := p.Arpeggio; a != nil {
+		c.arpHz = a.Hz
+		if c.arpHz <= 0 {
+			c.arpHz = 50
+		}
+		c.arpChord = a.Chord
+		for _, s := range a.Steps {
+			c.arpSteps = append(c.arpSteps, float32(s))
+		}
+		if !a.Chord && len(c.arpSteps) == 0 {
+			return nil, fmt.Errorf("synth: patch %s arpeggiates neither its chords nor steps", name)
+		}
 	}
 	for _, l := range p.LFO {
 		cl := lfo{LFO: l, wave: lfoWave(l.Wave)}

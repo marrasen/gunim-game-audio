@@ -250,7 +250,7 @@ func (v *view) update(s Studio, u *gunim.UI) {
 	}
 	v.side.open = v.tabs.Selected() != tabMixer
 	v.mixer.update(s, u)
-	v.patch.update(s, u)
+	v.patch.update(s)
 	v.kit.update(s)
 	v.fx.update(s)
 	v.pattern.update(s, u)
@@ -510,6 +510,10 @@ func (v *view) open(s Studio, u *gunim.UI) {
 		case tabPattern:
 			v.pattern.track = t.Name
 			v.pattern.gen, v.pattern.sel = -1, ""
+		case tabKit:
+			if p := song.Patches[t.Patch]; p != nil && p.Kind == "drums" {
+				v.kit.choose(t.Patch)
+			}
 		case tabPatch:
 			if p := song.Patches[t.Patch]; p != nil && p.Kind == "drums" {
 				tab = tabKit

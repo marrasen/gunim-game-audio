@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -374,6 +375,44 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		s.patternTrack, s.patternSel = v.Track, at
 		s.patternSelGen++
 		s.gen++
+	case ArpSet:
+		if err := s.edit(func(song *synth.Song) {
+			p := song.Patches[v.Patch]
+			if p == nil {
+				return
+			}
+			switch {
+			case !v.On:
+				p.Arpeggio = nil
+			case p.Arpeggio == nil:
+				p.Arpeggio = &synth.Arpeggio{Chord: true, Hz: 50}
+			default:
+				p.Arpeggio.Chord = v.Chord
+				if !v.Chord && len(p.Arpeggio.Steps) == 0 {
+					p.Arpeggio.Steps = []int{0, 4, 7}
+				}
+			}
+		}); err != nil {
+			s.status = plain(err)
+		}
+		s.gen++
+	case ArpSteps:
+		var steps []int
+		for _, f := range strings.Fields(v.Steps) {
+			n, err := strconv.Atoi(f)
+			if err != nil {
+				s.status = "A step is a number of semitones, as 0 4 7"
+				return
+			}
+			steps = append(steps, n)
+		}
+		if err := s.edit(func(song *synth.Song) {
+			if p := song.Patches[v.Patch]; p != nil && p.Arpeggio != nil {
+				p.Arpeggio.Steps = steps
+			}
+		}); err != nil {
+			s.status = plain(err)
+		}
 	case OpenEditor:
 		s.editor, s.editorTrack = v.Editor, v.Track
 		s.editorGen++
