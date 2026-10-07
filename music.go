@@ -137,6 +137,11 @@ const (
 	// upright bass, strings and a hand drum always, and a wooden flute's
 	// tune, a glockenspiel and the sea's swell coming and going.
 	CompassRose = "compass-rose"
+	// SummerMeadow is a calm song of a summer meadow, made in code, at
+	// 88 BPM in G major, for a game's room and its map: a plucked harp,
+	// a soft pad, a round bass and a woody tick always, and an
+	// ocarina's tune, birdsong and a bumblebee's hum coming and going.
+	SummerMeadow = "summer-meadow"
 )
 
 // files holds the songs: a folder each, named for the song, with its

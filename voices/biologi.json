@@ -1,0 +1,228 @@
+{
+	"Name": "Biologi (the meadow)",
+	"Style": "Effekter",
+	"Character": "the biology room's sounds: a summer meadow",
+	"Role": "effects",
+	"Sounds": [
+		"vind",
+		"fagel",
+		"groda",
+		"bubbla",
+		"humla"
+	],
+	"Calls": {
+		"vind": {
+			"Layers": [
+				{
+					"Model": "whoosh",
+					"Params": {
+						"from": 350,
+						"to": 1400,
+						"length": 1.0,
+						"peak": 0.55,
+						"start": 0.4,
+						"width": 1.2,
+						"tone": 0.05
+					}
+				},
+				{
+					"Model": "whoosh",
+					"At": 0.7,
+					"Gain": -2,
+					"Params": {
+						"from": 1200,
+						"to": 500,
+						"length": 1.0,
+						"peak": 0.35,
+						"start": 0.6,
+						"width": 1.4,
+						"tone": 0.05
+					}
+				},
+				{
+					"Model": "beeps",
+					"At": 0.45,
+					"Gain": -6,
+					"Params": {
+						"pitch": 3200,
+						"beeps": 3,
+						"step": 4,
+						"zigzag": 1,
+						"length": 0.045,
+						"gap": 0.03,
+						"last": 1.2,
+						"slide": 7,
+						"warble": 1,
+						"wave": 0
+					}
+				},
+				{
+					"Model": "beeps",
+					"At": 1.15,
+					"Gain": -9,
+					"Params": {
+						"pitch": 2600,
+						"beeps": 2,
+						"step": -3,
+						"zigzag": 1,
+						"length": 0.045,
+						"gap": 0.03,
+						"last": 1.2,
+						"slide": 7,
+						"warble": 1,
+						"wave": 0
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.3
+		},
+		"fagel": {
+			"Layers": [
+				{
+					"Model": "beeps",
+					"Params": {
+						"pitch": 3000,
+						"beeps": 3,
+						"step": 4,
+						"zigzag": 1,
+						"length": 0.045,
+						"gap": 0.03,
+						"last": 1.2,
+						"slide": 7,
+						"warble": 1,
+						"wave": 0
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.25
+		},
+		"groda": {
+			"Layers": [
+				{
+					"Model": "ribbit",
+					"Params": {
+						"pitch": 230,
+						"ribbits": 2,
+						"rise": 2,
+						"length": 0.15,
+						"rr": 0.55,
+						"space": 0.08,
+						"throat": 1.2,
+						"sac": 1200,
+						"size": 1.5,
+						"bright": 0.6
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15
+		},
+		"bubbla": {
+			"Layers": [
+				{
+					"Model": "blub",
+					"Params": {
+						"voice": 0.8,
+						"vpitch": 380,
+						"vlen": 0.12,
+						"vfall": 7,
+						"pop": 0.7,
+						"pitch": 1400,
+						"bubbles": 5,
+						"level": 1.0,
+						"start": 0.06,
+						"spacing": 0.05,
+						"climb": 0.9,
+						"decay": 0.035,
+						"drop": -3,
+						"size": 1.4,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.18,
+					"Gain": -3,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1700,
+						"bubbles": 5,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.06,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": -2
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.42,
+					"Gain": -6,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1100,
+						"bubbles": 4,
+						"level": 0.9,
+						"start": 0.0,
+						"spacing": 0.08,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": -3
+					}
+				},
+				{
+					"Model": "puff",
+					"At": 0.05,
+					"Gain": -10,
+					"Params": {
+						"pitch": 1500,
+						"drop": 10,
+						"length": 0.25
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"humla": {
+			"Layers": [
+				{
+					"Model": "hum",
+					"Gain": -10,
+					"Params": {
+						"pitch": 220,
+						"length": 1.1,
+						"detune": 18,
+						"bright": 0.9,
+						"pulse": 12,
+						"depth": 0.2,
+						"wobble": 0.6,
+						"wobhz": 3,
+						"shimmer": 0,
+						"attack": 0.005
+					}
+				},
+				{
+					"Model": "whirr",
+					"Params": {
+						"from": 250,
+						"to": 195,
+						"length": 1.1,
+						"grit": 0.05,
+						"bright": 0.9,
+						"swell": 0.45
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 6,
+			"Cut": 1.1
+		}
+	}
+}
