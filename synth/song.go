@@ -48,6 +48,10 @@ type Song struct {
 	Swing float64
 	// Keypad plays notes for a program's keys; see Player.Key.
 	Keypad *Keypad
+	// Clap names the sound a dancer claps its hands to, so it claps in
+	// time with the song: a clap, or any track's notes, as a bell's;
+	// see Player.Claps.
+	Clap *ClapCue `json:",omitempty"`
 	// Patches are the instruments, by name.
 	Patches map[string]*Patch
 	Tracks  []*Track
@@ -55,6 +59,13 @@ type Song struct {
 	// Player.Sting.
 	Stings map[string]*Sting
 	Mix    Mix
+}
+
+// A ClapCue names the sound a dancer claps its hands to: the notes of
+// track Track, or where Drum is set, that drum's hits on it.
+type ClapCue struct {
+	Track string
+	Drum  string `json:",omitempty"`
 }
 
 // Generate writes a song's progression; see GenerateChords.
@@ -286,6 +297,10 @@ type compiled struct {
 	duck    int
 	trans   *ctrans
 	swing   float64
+	// clap is the track a dancer claps to, -1 for none, and clapDrum
+	// its drum, or "" for each of its notes.
+	clap     int
+	clapDrum string
 }
 
 // ctrack is a track made ready to play.
@@ -477,6 +492,17 @@ func compile(s *Song) (*compiled, error) {
 			return nil, fmt.Errorf("synth: the mix ducks to track %s, which there is none of", s.Mix.Duck)
 		}
 		c.duck = i
+	}
+	c.clap = -1
+	if cl := s.Clap; cl != nil {
+		i, ok := c.byName[cl.Track]
+		if !ok {
+			return nil, fmt.Errorf("synth: a dancer claps to track %s, which there is none of", cl.Track)
+		}
+		if c.tracks[i].mel != nil {
+			return nil, fmt.Errorf("synth: a dancer claps to track %s, a written melody; clap to a track of a pattern", cl.Track)
+		}
+		c.clap, c.clapDrum = i, cl.Drum
 	}
 	if s.Keypad != nil {
 		if err := c.compileKeypad(s.Keypad); err != nil {

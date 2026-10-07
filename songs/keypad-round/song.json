@@ -9,6 +9,7 @@
 	"Scale": "major",
 	"Chords": ["C", "Am7", "Fmaj7", "Gsus4", "C", "Em7", "Fmaj7", "G"],
 	"Mode": "tiers",
+	"Clap": {"Track": "claps", "Drum": "cp"},
 	"Start": 1,
 	"Swing": 0.06,
 	"Keypad": {"Patch": "marimba", "Gain": -3, "Reverb": 0.3, "Delay": 0.12},

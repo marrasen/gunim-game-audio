@@ -9,6 +9,7 @@
 	"Scale": "minor",
 	"Chords": ["Dm", "Dm", "Bb", "A", "Dm", "Gm", "Eb", "A7"],
 	"Mode": "tiers",
+	"Clap": {"Track": "claps", "Drum": "cp"},
 	"Start": 1,
 	"Patches": {
 		"pizz": {

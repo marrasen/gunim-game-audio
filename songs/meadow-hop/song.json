@@ -18,6 +18,7 @@
 		"F6"
 	],
 	"Mode": "tiers",
+	"Clap": {"Track": "claps", "Drum": "cp"},
 	"Swing": 0.14,
 	"Patches": {
 		"lead": {

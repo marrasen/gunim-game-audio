@@ -9,6 +9,7 @@
 	"Scale": "major",
 	"Chords": ["IVmaj7", "V", "iii7", "vi7", "IVmaj7", "V", "Isus4", "I"],
 	"Mode": "wander",
+	"Clap": {"Track": "clap", "Drum": "cp"},
 	"Swing": 0.08,
 	"Patches": {
 		"bass": {

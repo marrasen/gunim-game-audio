@@ -146,26 +146,65 @@ func (p *Player) Hits(dst []Hit, from, to int64) []Hit {
 	return dst
 }
 
+// Claps appends to dst the hits of the song's clap cue from frame from
+// up to frame to, as Hits does: the sound a dancer claps its hands to,
+// a clap or a bell, as the song's Clap names it, with a bar's warning
+// of each. A song of no cue has none.
+func (p *Player) Claps(dst []Hit, from, to int64) []Hit {
+	p.wmu.Lock()
+	defer p.wmu.Unlock()
+	if p.clapTrack == "" {
+		return dst
+	}
+	start := len(dst)
+	for i := max(0, p.nnotes-noteRing); i < p.nnotes; i++ {
+		n := p.notes[i%noteRing]
+		if n.Track != p.clapTrack || (p.clapDrum != "" && n.Drum != p.clapDrum) || n.Frame < from || n.Frame >= to || n.Frame >= p.aheadFrom {
+			continue
+		}
+		// A chord's notes are one clap.
+		if len(dst) > start && dst[len(dst)-1].Frame == n.Frame {
+			continue
+		}
+		dst = append(dst, Hit{Frame: n.Frame, Track: n.Track, Drum: n.Drum, Kind: n.Kind, Vel: n.Vel})
+	}
+	for _, h := range p.aheadClaps {
+		if h.Frame >= from && h.Frame < to {
+			dst = append(dst, h)
+		}
+	}
+	slices.SortStableFunc(dst[start:], func(a, b Hit) int {
+		switch {
+		case a.Frame < b.Frame:
+			return -1
+		case a.Frame > b.Frame:
+			return 1
+		}
+		return 0
+	})
+	return dst
+}
+
 // foresee returns the drum hits of the bar after song bar sb, the one
-// being laid out, as they will sound if the song goes on as it is: the
-// tracks playing now, or at a phrase's start those its tier asks for,
-// in a tiers song, and those the game turns on or off.
-func (p *Player) foresee(sb int) []Hit {
+// being laid out, and its clap cue's, as they will sound if the song
+// goes on as it is: the tracks playing now, or at a phrase's start
+// those its tier asks for, in a tiers song, and those the game turns on
+// or off.
+func (p *Player) foresee(sb int) (hits, claps []Hit) {
 	c := p.c
 	if p.stopped {
-		return nil
+		return nil, nil
 	}
-	var hits []Hit
 	if st := p.sting; st != nil {
 		bar := p.bar + 1 - st.start
 		if bar >= st.cs.s.Bars {
 			// The sting ends; what comes after it is not known yet.
-			return nil
+			return nil, nil
 		}
 		for _, t := range st.tracks {
-			hits = p.drumsIn(hits, t, bar)
+			hits = p.eventsIn(hits, t, bar, true, "")
 		}
-		return hits
+		return hits, nil
 	}
 	next := sb + 1
 	on := make([]bool, len(p.tracks))
@@ -193,19 +232,25 @@ func (p *Player) foresee(sb int) []Hit {
 		p.mu.Unlock()
 	}
 	for i, t := range p.tracks {
-		if on[i] {
-			hits = p.drumsIn(hits, t, next)
+		if !on[i] {
+			continue
+		}
+		hits = p.eventsIn(hits, t, next, true, "")
+		if i == c.clap {
+			claps = p.eventsIn(claps, t, next, false, c.clapDrum)
 		}
 	}
-	return hits
+	return hits, claps
 }
 
-// drumsIn appends to hits t's drum hits in bar, the bar after the one
-// laid out, as scheduleTrack lays them out but for a human's nudges.
-func (p *Player) drumsIn(hits []Hit, t *track, bar int) []Hit {
+// eventsIn appends to hits t's events in bar, the bar after the one
+// laid out, as scheduleTrack lays them out but for a human's nudges:
+// its drums' hits for drums, or all its notes, or where drum is set
+// that drum's hits alone.
+func (p *Player) eventsIn(hits []Hit, t *track, bar int, drums bool, drum string) []Hit {
 	ct := t.c
 	c := p.c
-	if ct.mel != nil || ct.patch.kind != kindDrums {
+	if ct.mel != nil || (drums && ct.patch.kind != kindDrums) {
 		return hits
 	}
 	bars := float64(ct.bars)
@@ -214,7 +259,13 @@ func (p *Player) drumsIn(hits []Hit, t *track, bar int) []Hit {
 	hi := lo + 1/bars
 	for _, e := range ct.pat.query(cycle, nil) {
 		act := ct.acts[e.atom]
-		if act.kind != actDrum || e.at < lo-1e-9 || e.at >= hi-1e-9 {
+		if e.at < lo-1e-9 || e.at >= hi-1e-9 {
+			continue
+		}
+		if (drums || drum != "") && act.kind != actDrum {
+			continue
+		}
+		if drum != "" && act.drum.name != drum {
 			continue
 		}
 		inBar := (e.at - lo) * bars
@@ -234,7 +285,11 @@ func (p *Player) drumsIn(hits []Hit, t *track, bar int) []Hit {
 				vel = float32(v)
 			}
 		}
-		hits = append(hits, Hit{Frame: frame, Track: t.name, Drum: act.drum.name, Kind: drumKind(act.drum.kind), Vel: vel, Foreseen: true})
+		h := Hit{Frame: frame, Track: t.name, Vel: vel, Foreseen: true}
+		if act.kind == actDrum {
+			h.Drum, h.Kind = act.drum.name, drumKind(act.drum.kind)
+		}
+		hits = append(hits, h)
 	}
 	return hits
 }

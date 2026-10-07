@@ -11,6 +11,15 @@ import (
 
 // sighting is a hit, and the frame the player had made when Hits first
 // told of it.
+
+// step is how many frames watch makes between asks: a hit on a bar's
+// first beat is told of a bar ahead, and seen up to a step late.
+const step = 480
+
+// late is how much short of a bar a hit may be told of: a step, and the
+// fraction of a frame a bar may last over a whole number.
+const late = step + 1
+
 type sighting struct {
 	h  synth.Hit
 	at int64
@@ -20,22 +29,27 @@ type sighting struct {
 // coming, and returns each hit as first told of, and the hits that
 // sounded. before, if set, runs before each 10 ms is made.
 func watch(p *synth.Player, bars int, before func(made int64)) (told []sighting, sounded []synth.Hit) {
+	return watchWith(p, p.Hits, bars, before)
+}
+
+// watchWith watches as watch does, asking ask: Hits, or Claps.
+func watchWith(p *synth.Player, ask func([]synth.Hit, int64, int64) []synth.Hit, bars int, before func(made int64)) (told []sighting, sounded []synth.Hit) {
 	bar := p.Look(0).BarFrames
 	end := int64(float64(bars) * bar)
-	buf := make([]float32, 2*480)
+	buf := make([]float32, 2*step)
 	for p.Played() < end {
 		if before != nil {
 			before(p.Played())
 		}
 		_, _ = p.Read(buf)
 		made := p.Played()
-		for _, h := range p.Hits(nil, made, made+int64(3*bar)) {
+		for _, h := range ask(nil, made, made+int64(3*bar)) {
 			if find(told, h) < 0 {
 				told = append(told, sighting{h, made})
 			}
 		}
 	}
-	for _, h := range p.Hits(nil, 0, end) {
+	for _, h := range ask(nil, 0, end) {
 		if !h.Foreseen {
 			sounded = append(sounded, h)
 		}
@@ -54,36 +68,73 @@ func find(told []sighting, h synth.Hit) int {
 	return -1
 }
 
-func TestEveryClapIsToldOfABarBeforeItSounds(t *testing.T) {
-	// Every song made in code claps, and tells of each clap in time.
+func TestEverySongsClapCueIsToldOfABarBeforeItSounds(t *testing.T) {
+	// Every song made in code names a sound to clap to, and tells of
+	// each of its hits in time for a dancer's hands to meet on it.
 	for name, song := range songs(t) {
+		if song.Clap == nil {
+			t.Errorf("%s names no sound to clap to", name)
+			continue
+		}
 		p := song.Play(1).(*synth.Player)
 		p.SetTier(4)
-		// A wander song's claps come and go; the game holds them in.
-		_ = p.SetPart("clap", band.PartOn)
-		_ = p.SetPart("claps", band.PartOn)
+		// A wander song's cue comes and goes; the game holds it in.
+		_ = p.SetPart(song.Clap.Track, band.PartOn)
 		l := p.Look(0)
-		told, sounded := watch(p, 2*l.PhraseBars, nil)
-		claps := 0
+		told, sounded := watchWith(p, p.Claps, 2*l.PhraseBars, nil)
+		n := 0
 		for _, h := range sounded {
-			bar := int(float64(h.Frame) / l.BarFrames)
-			if h.Kind != synth.Clap || bar == 0 || (l.Wander && bar%l.PhraseBars == 0) {
+			if h.Track != song.Clap.Track || (song.Clap.Drum != "" && h.Drum != song.Clap.Drum) {
+				t.Fatalf("%s: Claps told of %s's %q", name, h.Track, h.Drum)
+			}
+			if bar := int(float64(h.Frame) / l.BarFrames); bar == 0 || (l.Wander && bar%l.PhraseBars == 0) {
 				// The first bar is told of only as it starts, and a
 				// wander song's phrase chooses its parts as it starts.
 				continue
 			}
-			claps++
+			n++
 			i := find(told, h)
 			if i < 0 {
 				t.Fatalf("%s: the clap at %d was never told of", name, h.Frame)
 			}
-			if lead := float64(h.Frame - told[i].at); lead < l.BarFrames {
+			if lead := float64(h.Frame - told[i].at); lead < l.BarFrames-late {
 				t.Errorf("%s: the clap at %d was told of only %.0f ms before it sounded", name, h.Frame, lead/48)
 			}
 		}
-		if claps < 8 {
-			t.Errorf("%s: %d claps sounded in 2 phrases", name, claps)
+		if n < 8 {
+			t.Errorf("%s: %d claps sounded in 2 phrases", name, n)
 		}
+	}
+}
+
+func TestABellCanBeTheClapCue(t *testing.T) {
+	// A cue need not be a drum: here Keypad Round's bell, its sparkle.
+	s := songs(t)["keypad-round"].Clone()
+	s.Clap = &synth.ClapCue{Track: "sparkle"}
+	p := synth.NewPlayer(s, 1)
+	p.SetTier(4)
+	l := p.Look(0)
+	told, sounded := watchWith(p, p.Claps, 3, nil)
+	n := 0
+	for _, h := range sounded {
+		if h.Track != "sparkle" || h.Drum != "" {
+			t.Fatalf("Claps told of %s's %q", h.Track, h.Drum)
+		}
+		if h.Frame < int64(l.BarFrames) {
+			continue
+		}
+		n++
+		if i := find(told, h); i < 0 || float64(h.Frame-told[i].at) < l.BarFrames-late {
+			t.Errorf("the bell at %d was not told of a bar ahead", h.Frame)
+		}
+	}
+	// [x x x ~]*4 rings twelve times a bar.
+	if n != 24 {
+		t.Errorf("the bell rang %d times in bars 2 and 3, not 24", n)
+	}
+	s.Clap.Track = "nobody"
+	if err := s.Check(); err == nil {
+		t.Error("a song clapping to a track it has none of passed its check")
 	}
 }
 
@@ -137,7 +188,7 @@ func TestATierAskedForBeforeThePhrasesLastBarIsForeseen(t *testing.T) {
 	if bar := int(float64(h.Frame) / l.BarFrames); bar != l.PhraseBars {
 		t.Errorf("the first clap sounded in bar %d, not the phrase's start, %d", bar, l.PhraseBars)
 	}
-	if i := find(told, h); i < 0 || float64(h.Frame-told[i].at) < l.BarFrames {
+	if i := find(told, h); i < 0 || float64(h.Frame-told[i].at) < l.BarFrames-late {
 		t.Errorf("the first clap at the new tier was not told of a bar ahead")
 	}
 }
