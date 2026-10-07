@@ -7,262 +7,108 @@
 	"PhraseBars": 8,
 	"Key": "F",
 	"Scale": "major",
-	"Chords": [
-		"Fmaj7",
-		"Dm7",
-		"Gm7",
-		"C7",
-		"Fmaj7",
-		"Bbmaj7",
-		"Gm7 C7",
-		"F6"
-	],
+	"Chords": ["Fmaj7", "D7", "Gm7", "C7", "Am7 D7", "Gm7 C7", "F6 Bb7", "F6 C7"],
 	"Mode": "tiers",
 	"Clap": {"Track": "claps", "Drum": "cp"},
-	"Swing": 0.14,
 	"Patches": {
 		"lead": {
-			"Osc": [
-				{
-					"Wave": "nespulse",
-					"Width": 0.5
-				}
-			],
-			"Amp": {
-				"Attack": 0.001,
-				"Decay": 0.25,
-				"Sustain": 0.6,
-				"Release": 0.05
-			},
-			"LFO": [
-				{
-					"To": "pitch",
-					"Wave": "tri",
-					"Hz": 6,
-					"Depth": 0.18,
-					"Delay": 0.2
-				}
-			],
-			"Chip": {
-				"Levels": 16,
-				"Hz": 60
-			},
+			"Osc": [{"Wave": "nespulse", "Width": 0.25}],
+			"Amp": {"Attack": 0.001, "Decay": 0.3, "Sustain": 0.55, "Release": 0.05},
+			"LFO": [{"To": "pitch", "Wave": "tri", "Hz": 6, "Depth": 0.15, "Delay": 0.22}],
+			"Bend": {"Semis": -1, "Time": 0.03},
+			"Chip": {"Levels": 16, "Hz": 60},
 			"Poly": 1,
 			"Gain": 0.55
 		},
-		"harm": {
-			"Osc": [
-				{
-					"Wave": "nespulse",
-					"Width": 0.25
-				}
-			],
-			"Amp": {
-				"Attack": 0.001,
-				"Decay": 0.25,
-				"Sustain": 0.6,
-				"Release": 0.05
-			},
-			"LFO": [
-				{
-					"To": "pitch",
-					"Wave": "tri",
-					"Hz": 6,
-					"Depth": 0.12,
-					"Delay": 0.2
-				}
-			],
-			"Chip": {
-				"Levels": 16,
-				"Hz": 60
-			},
+		"counter": {
+			"Osc": [{"Wave": "nespulse", "Width": 0.125}],
+			"Amp": {"Attack": 0.001, "Decay": 0.6, "Sustain": 0.45, "Release": 0.08},
+			"LFO": [{"To": "pitch", "Wave": "tri", "Hz": 5.5, "Depth": 0.12, "Delay": 0.3}],
+			"Chip": {"Levels": 16, "Hz": 60},
 			"Poly": 1,
-			"Gain": 0.45
-		},
-		"comp": {
-			"Osc": [
-				{
-					"Wave": "nespulse",
-					"Width": 0.25
-				}
-			],
-			"Amp": {
-				"Attack": 0.001,
-				"Decay": 0.12,
-				"Sustain": 0.3,
-				"Release": 0.04
-			},
-			"Arpeggio": {
-				"Chord": true,
-				"Hz": 60
-			},
-			"Chip": {
-				"Levels": 16,
-				"Hz": 60
-			},
-			"Poly": 2,
 			"Gain": 0.42
 		},
+		"comp": {
+			"Osc": [{"Wave": "nespulse", "Width": 0.5}],
+			"Amp": {"Attack": 0.001, "Decay": 0.09, "Sustain": 0.25, "Release": 0.03},
+			"Chip": {"Levels": 16, "Hz": 60},
+			"Poly": 2,
+			"Gain": 0.4
+		},
 		"tri": {
-			"Osc": [
-				{
-					"Wave": "nestri"
-				}
-			],
-			"Amp": {
-				"Attack": 0.001,
-				"Decay": 0,
-				"Sustain": 1,
-				"Release": 0.015
-			},
+			"Osc": [{"Wave": "nestri"}],
+			"Amp": {"Attack": 0.001, "Decay": 0, "Sustain": 1, "Release": 0.015},
 			"Poly": 1,
 			"Gain": 0.75
 		},
 		"kit": {
 			"Kind": "drums",
 			"Kit": {
-				"bd": {
-					"Type": "neskick"
-				},
-				"sn": {
-					"Type": "nessnare",
-					"Gain": 0.7
-				},
-				"hh": {
-					"Type": "neshat",
-					"Gain": 0.45
-				},
-				"oh": {
-					"Type": "nesohat",
-					"Gain": 0.35
-				},
-				"lt": {
-					"Type": "nestom",
-					"Tune": -4
-				},
-				"ht": {
-					"Type": "nestom",
-					"Tune": 3
-				},
-				"clk": {
-					"Type": "nesmetal",
-					"Gain": 0.4
-				},
-				"cp": {
-					"Type": "nesclap"
-				}
+				"bd": {"Type": "neskick"},
+				"sn": {"Type": "nessnare", "Gain": 0.65},
+				"hh": {"Type": "neshat", "Gain": 0.4},
+				"oh": {"Type": "nesohat", "Gain": 0.3},
+				"lt": {"Type": "nestom", "Tune": -4},
+				"ht": {"Type": "nestom", "Tune": 3},
+				"cp": {"Type": "nesclap"}
 			}
 		},
 		"fx": {
 			"Kind": "drums",
 			"Kit": {
-				"riser": {
-					"Tone": 0.9,
-					"Gain": 0.3
-				},
-				"down": {
-					"Gain": 0.28
-				},
-				"boom": {
-					"Type": "neskick",
-					"Decay": 2,
-					"Gain": 0.8
-				},
-				"cr": {
-					"Type": "nesohat",
-					"Decay": 2.5,
-					"Gain": 0.4
-				}
+				"riser": {"Tone": 0.9, "Gain": 0.3},
+				"down": {"Gain": 0.28},
+				"boom": {"Type": "neskick", "Decay": 2, "Gain": 0.8},
+				"cr": {"Type": "nesohat", "Decay": 2.5, "Gain": 0.4}
 			}
 		}
 	},
 	"Tracks": [
 		{
-			"Name": "bass",
-			"Patch": "tri",
-			"Color": "#3fd0c9",
-			"Pattern": "c0 c1 c2 c3",
-			"Tier": 1,
-			"Octave": 3,
-			"Legato": 0.9,
-			"Gain": -10.7
+			"Name": "bass", "Tier": 1, "Patch": "tri", "Color": "#3fd0c9",
+			"Pattern": "[F2 A2 C3 C#3] [D3 C3 A2 F#2] [G2 Bb2 D3 Db3] [C3 E2 G2 G#2] [A2 C3 D3 F#2] [G2 Bb2 C3 E2] [F2 A2 Bb2 D3] [F2 C3 C2 E2]",
+			"Bars": 8, "Legato": 0.8,
+			"Params": {"vel": "1 0.75 0.9 0.75"},
+			"Gain": -9
 		},
 		{
-			"Name": "comp",
-			"Patch": "comp",
-			"Color": "#7c8cff",
-			"Pattern": "~ ch ~ ch",
-			"Tier": 1,
-			"Octave": 4,
-			"Legato": 0.55,
-			"Gain": 0.8,
-			"Pan": -0.3
+			"Name": "comp", "Tier": 1, "Patch": "comp", "Color": "#7c8cff",
+			"Pattern": "[~ ~ [c1, c3]]*4", "Octave": 3, "Legato": 0.5,
+			"Params": {"vel": "0.8 1 0.8 1"},
+			"Gain": 1.5, "Pan": -0.3
 		},
 		{
-			"Name": "drums",
-			"Patch": "kit",
-			"Color": "#ff8a4c",
-			"Pattern": "[bd ~ sn ~, [~ hh]*4]",
-			"Tier": 2,
-			"Gain": -6,
-			"Human": 0.2
+			"Name": "drums", "Tier": 2, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "[[bd ~ ~] [sn ~ ~] [bd ~ bd] [sn ~ ~], [hh ~ hh]*4]",
+			"Params": {"vel": "[1 0.6 0.9 0.6]"},
+			"Gain": -7, "Human": 0.2
 		},
 		{
-			"Name": "claps",
-			"Tier": 3,
-			"Patch": "kit",
-			"Color": "#ff8a4c",
-			"Pattern": "[~ cp ~ cp]",
-			"Gain": -16.5
+			"Name": "claps", "Tier": 3, "Patch": "kit", "Color": "#ffcf5c",
+			"Pattern": "<[~ cp ~ cp] [~ cp ~ [cp ~ cp]]>",
+			"Gain": -17
 		},
 		{
-			"Name": "lead",
-			"Patch": "lead",
-			"Color": "#ff6b9d",
-			"Pattern": "[2 ~ 4 ~ 6 4 ~ 2] [5 ~ 4 ~ 2 0 ~ ~] [1 ~ 3 ~ 5 3 ~ 1] [6 ~ 4 ~ 3 _ ~ ~] [2 ~ 4 ~ 6 4 ~ 2] [7 ~ 5 ~ 3 2 ~ ~] [1 3 5 7 6 4 3 1] [2 _ 5 _ 7 _ _ ~]",
-			"Tier": 3,
+			"Name": "lead", "Tier": 3, "Patch": "lead", "Color": "#ff6b9d",
+			"Pattern": "[[C5 ~ F5] [A5 ~ C6] [~ ~ A5] [C6 _ _]] [[D6 ~ C6] [A5 ~ F#5] [A5 _ _] ~] [[Bb5 ~ A5] [G5 ~ F5] [D5 ~ G5] [Bb5 _ _]] [[A5 ~ G5] [E5 ~ C5] [D5 ~ E5] [G5 _ ~]] [[C6 ~ A5] [E5 _ ~] [F#5 ~ A5] [D6 _ ~]] [[Bb5 ~ G5] [D5 _ ~] [E5 ~ G5] [Bb5 _ ~]] [[A5 ~ C6] [D6 ~ C6] [Ab5 ~ F5] [D5 _ ~]] [[F5 _ _] ~ [E5 ~ G5] [Bb5 ~ C6]]",
+			"Bars": 8, "Legato": 0.85,
+			"Gain": -6.5
+		},
+		{
+			"Name": "counter", "Tier": 4, "Patch": "counter", "Color": "#c58cff",
+			"Pattern": "[c1 _ c3 _]", "Octave": 4, "Legato": 0.95,
+			"Gain": -7.5, "Pan": 0.3, "Delay": 0.15
+		},
+		{
+			"Name": "toms", "Tier": 4, "Patch": "kit", "Color": "#ff5c5c",
+			"Pattern": "~ ~ ~ [~ ~ ~ oh] ~ ~ ~ [~ ~ [ht ~ ht] [lt ~ lt]]",
 			"Bars": 8,
-			"Octave": 5,
-			"Legato": 0.85,
-			"Gain": -6.4
-		},
-		{
-			"Name": "harmony",
-			"Patch": "harm",
-			"Color": "#ffcf5c",
-			"Pattern": "[0 ~ 2 ~ 4 2 ~ 0] [3 ~ 2 ~ 0 -2 ~ ~] [-1 ~ 1 ~ 3 1 ~ -1] [4 ~ 2 ~ 1 _ ~ ~] [0 ~ 2 ~ 4 2 ~ 0] [5 ~ 3 ~ 1 0 ~ ~] [-1 1 3 5 4 2 1 -1] [0 _ 3 _ 5 _ _ ~]",
-			"Tier": 4,
-			"Bars": 8,
-			"Octave": 5,
-			"Legato": 0.85,
-			"Gain": -8.4,
-			"Pan": 0.3
-		},
-		{
-			"Name": "toms",
-			"Patch": "kit",
-			"Color": "#ff5c5c",
-			"Pattern": "~ ~ ~ [~ ~ ~ ~ ~ ht ht lt]",
-			"Tier": 4,
-			"Bars": 2,
-			"Gain": -10.9
+			"Gain": -10
 		}
 	],
 	"Mix": {
-		"Reverb": {
-			"Size": 0.4,
-			"Decay": 0.6,
-			"Tone": 0.6
-		},
-		"Delay": {
-			"Beats": 0.75,
-			"Feedback": 0.3,
-			"Tone": 0.5
-		},
-		"Transitions": {
-			"Patch": "fx",
-			"Lift": 1,
-			"Gain": -6
-		}
+		"Reverb": {"Size": 0.4, "Decay": 0.6, "Tone": 0.6},
+		"Delay": {"Beats": 0.75, "Feedback": 0.3, "Tone": 0.5},
+		"Transitions": {"Patch": "fx", "Lift": 1, "Gain": -6}
 	}
 }

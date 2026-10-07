@@ -14,7 +14,7 @@ game's music. Each song plays without end, and changes as it goes.
 | Sister Dreams | `sister-dreams` | A bittersweet chip tune in the manner of the Giana Sisters' intro, at 132 BPM in D minor: an arpeggio through a sweeping SID filter and a squelching bass always, and a lead, its echo, a pad, drums and wind coming and going. |
 | Graveyard Gallop | `graveyard-gallop` | A dark, driving chip tune in the manner of Ghosts'n Goblins, at 148 BPM in E minor, in four tiers: a galloping bass and eerie chord stabs; a march; the lead; and its harmony, toms and ringing bells. A stage-clear sting plays and the song resumes. |
 | Pocket Kingdom | `pocket-kingdom` | A sunny chip tune in the manner of Super Mario Land, made in code for the Game Boy's sound, at 144 BPM in G major, in four tiers: a calypso bass on the wave channel and offbeat stabs; drums and a counter melody; the lead; and its echo. |
-| Meadow Hop | `meadow-hop` | A swung, jazzy chip tune in the manner of Super Mario Bros. 3, for the NES's sound, at 140 BPM in F major, in four tiers: a walking triangle bass and comping sevenths; drums; the lead; and its harmony and toms. |
+| Meadow Hop | `meadow-hop` | A shuffling, jazzy chip tune in the manner of Super Mario Bros. 3, for the NES's sound, at 140 BPM in F major, its eighths swung in triplets, in four tiers: a walking triangle bass and two pulses comping each chord's third and seventh; a shuffle beat; the lead's hook and claps; a counter line and fills. |
 | Hero's Field | `heros-field` | A heroic march in the manner of The Legend of Zelda, for the NES's sound, at 130 BPM in B flat major, in four tiers: triangle bass and triplet arpeggios; a march; the lead; and its harmony and drums. A treasure fanfare sting plays and the song resumes. |
 | Palace Run | `palace-run` | A driving chip tune in the manner of Zelda II's palaces, for the NES's sound, at 160 BPM in A minor, in four tiers: a pumping octave bass and racing arpeggios; drums; the lead; and its harmony and a metallic clank. |
 | Underworld Ascent | `underworld-ascent` | A quirky chip tune in the manner of Kid Icarus, for the NES's sound, at 150 BPM in G minor: a bouncing triangle bass and chirps always, and a lead, its harmony, chords and drums coming and going. |
@@ -174,10 +174,10 @@ songs wander, and the game can hold them in with `SetPart`; Star
 Drift's bells always ring, as do Candy Clouds' soft snap, Compass
 Rose's rim and Summer Meadow's woody tick, on beats 2 and 4. Pocket
 Kingdom claps twice, quick, every bar; Boss Entrance, Bubble Bounce,
-Hero's Field, Underworld Ascent, Orbit Round and Alien Entrance every
-other bar. The recorded songs, Greek Themes and A round song, tell
-their beat but not their drums: a character can clap on beats 2 and 4
-to them.
+Hero's Field, Underworld Ascent, Orbit Round, Alien Entrance and Meadow
+Hop every other bar. The recorded songs, Greek Themes and A round song,
+tell their beat but not their drums: a character can clap on beats 2
+and 4 to them.
 
 The engine makes a second of the busiest song, all twelve of Mascot
 Dance's tracks at once, in about 35 ms on one core of a 2015 desktop
