@@ -311,3 +311,43 @@ func TestAWanderSongShowsItsOneLabelChosen(t *testing.T) {
 		t.Errorf("Compass Rose's tiers show %v, %d chosen", h.v.tiers.Labels, got)
 	}
 }
+
+func TestPadsAndKeysPlayWhileTheSongIsPaused(t *testing.T) {
+	h := newHarness(t, music.KeypadRound)
+	h.play(time.Second)
+	h.do(PlayToggled{})
+	if h.s.state().Playing {
+		t.Fatal("the song plays on after Pause")
+	}
+	// Paused, the mix falls silent.
+	buf := make([]float32, 2*1024)
+	loud := func(blocks int) float32 {
+		var top float32
+		for range blocks {
+			h.s.mix.Mix(buf)
+			for _, v := range buf {
+				top = max(top, abs(v))
+			}
+		}
+		return top
+	}
+	loud(60)
+	if q := loud(10); q > 0.01 {
+		t.Fatalf("paused, the mix still peaks at %.3f", q)
+	}
+	for _, try := range []gunim.Intent{
+		Audition{Patch: "kit", Drum: "sn"},
+		Audition{Patch: "lead", Pitch: 72},
+		KeyPlayed{Digit: 5},
+	} {
+		loud(30)
+		h.do(try)
+		if q := loud(10); q < 0.02 {
+			t.Errorf("paused, %#v sounds at %.4f", try, q)
+		}
+	}
+	// And the song stays where it was paused.
+	if h.s.state().Playing {
+		t.Error("trying a pad started the song")
+	}
+}

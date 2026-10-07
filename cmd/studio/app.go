@@ -40,11 +40,16 @@ type studio struct {
 	i     int
 	// song is the song open, as edited: each edit makes a new one, as
 	// the player keeps the one it was handed.
-	song   *synth.Song
-	p      *synth.Player
-	voice  *audio.Voice
-	volume float32
-	gen    int
+	song  *synth.Song
+	p     *synth.Player
+	voice *audio.Voice
+	// tryer is the same song with all its parts off, playing on a voice
+	// of its own that never pauses: the kit's pads, the keyboard and the
+	// keypad play through it while the song is paused.
+	tryer      *synth.Player
+	tryerVoice *audio.Voice
+	volume     float32
+	gen        int
 	// drafts are patterns typed that do not play, by track, and errs
 	// why not.
 	drafts    map[string]string
@@ -124,12 +129,18 @@ func (s *studio) start() {
 	if s.voice != nil {
 		s.voice.Stop(250 * time.Millisecond)
 	}
+	if s.tryerVoice != nil {
+		s.tryerVoice.Stop(250 * time.Millisecond)
+	}
 	s.seed++
 	s.p = synth.NewPlayer(s.song.Clone(), s.seed)
 	if tier > 0 {
 		s.p.SetTier(tier)
 	}
 	s.voice = s.mix.Play(s.p, audio.Options{Volume: s.volume, FadeIn: 150 * time.Millisecond})
+	s.tryer = synth.NewPlayer(s.song.Clone(), s.seed)
+	s.silence(s.song)
+	s.tryerVoice = s.mix.Play(s.tryer, audio.Options{Volume: s.volume})
 	s.chordText = strings.Join(s.song.Chords, " ")
 	s.gen++
 }
@@ -143,8 +154,28 @@ func (s *studio) edit(fn func(*synth.Song)) error {
 	if err := s.p.SetSong(next.Clone()); err != nil {
 		return err
 	}
+	_ = s.tryer.SetSong(next.Clone())
+	s.silence(next)
 	s.song = next
 	return nil
+}
+
+// silence turns every part of song off in the tryer, a part an edit
+// adds as well, so it plays only what is tried.
+func (s *studio) silence(song *synth.Song) {
+	for _, t := range song.Tracks {
+		_ = s.tryer.SetPart(t.Name, band.PartOff)
+	}
+}
+
+// padPlayer returns the player a pad, a key or the keypad plays through:
+// the song's while it plays, so they sound with it, in time; the
+// tryer's while it is paused, which plays on.
+func (s *studio) padPlayer() *synth.Player {
+	if s.voice.Paused() {
+		return s.tryer
+	}
+	return s.p
 }
 
 // track returns the song's track named name.
@@ -222,7 +253,7 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 			s.status = "Playing the " + v.Name + " sting; Restart plays the song again"
 		}
 	case KeyPlayed:
-		s.p.Key(v.Digit)
+		s.padPlayer().Key(v.Digit)
 	case PatternEdited:
 		err := s.edit(func(song *synth.Song) {
 			if t := track(song, v.Track); t != nil {
@@ -289,6 +320,7 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 	case VolumeSet:
 		s.volume = v.Volume
 		s.voice.SetVolume(v.Volume, anim.Spring{Response: 0.15, Damping: 1})
+		s.tryerVoice.SetVolume(v.Volume, anim.Spring{Response: 0.15, Damping: 1})
 	case Saved:
 		go s.save(ctx, s.song.Clone())
 	case SetValue:
@@ -366,9 +398,9 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		}
 	case Audition:
 		if v.Drum != "" {
-			s.p.AuditionDrum(v.Patch, v.Drum, 0.95)
+			s.padPlayer().AuditionDrum(v.Patch, v.Drum, 0.95)
 		} else {
-			s.p.Audition(v.Patch, v.Pitch, 0.9, 0.45)
+			s.padPlayer().Audition(v.Patch, v.Pitch, 0.9, 0.45)
 		}
 	case PatternOp:
 		t := track(s.song, v.Track)
