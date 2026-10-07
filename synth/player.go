@@ -89,7 +89,11 @@ type Player struct {
 	// out, which starts on aheadFrom.
 	ahead     []Hit
 	aheadFrom int64
-	err       error
+	// clapTrack and clapDrum are the clap cue's, "" for none, and
+	// aheadClaps its hits foreseen with ahead's.
+	clapTrack, clapDrum string
+	aheadClaps          []Hit
+	err                 error
 	// levels are the tracks, to read their levels from: replaced, never
 	// changed, as songs change.
 	levels []*track
@@ -1202,8 +1206,13 @@ func (p *Player) publishBar(sb int) {
 		}
 		notes = append(notes, nt)
 	}
-	ahead := p.foresee(sb)
+	ahead, claps := p.foresee(sb)
+	clapTrack := ""
+	if c.clap >= 0 {
+		clapTrack = c.tracks[c.clap].t.Name
+	}
 	p.wmu.Lock()
+	p.clapTrack, p.clapDrum, p.aheadClaps = clapTrack, c.clapDrum, claps
 	p.bars[p.nbars%barRing] = b
 	p.nbars++
 	p.look = b.look

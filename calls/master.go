@@ -27,6 +27,9 @@ type Stats struct {
 	// Onset is how long it takes to come within 20 dB of its peak, in
 	// seconds.
 	Onset float64
+	// Loop says the take is a loop, played over and over: it starts and
+	// ends anywhere, its length is the loop's.
+	Loop bool
 }
 
 // What the game asks of a call.
@@ -49,8 +52,11 @@ func Lengths(kind string) (lo, hi float64) {
 		return 0.4, 1.3
 	case Defeat:
 		return 0.6, 1.8
+	case Hello, Oops:
+		return 0.3, 0.7
 	}
-	return 0.3, 0.7
+	// An effect's.
+	return 0.1, 3
 }
 
 // Problems says where a take of a call of kind falls short of what the
@@ -58,13 +64,16 @@ func Lengths(kind string) (lo, hi float64) {
 func (s Stats) Problems(kind string, m Master) []string {
 	var out []string
 	lo, hi := Lengths(kind)
+	if s.Loop {
+		lo, hi = 0.5, 8
+	}
 	if s.Length < lo || s.Length > hi {
 		out = append(out, fmt.Sprintf("lasts %.2f s, not %.1f–%.1f s", s.Length, lo, hi))
 	}
 	if s.Peak > m.Ceiling+0.05 {
 		out = append(out, fmt.Sprintf("peaks at %.1f dBTP, over %.1f", s.Peak, m.Ceiling))
 	}
-	if s.Onset > maxOnset {
+	if s.Onset > maxOnset && !s.Loop {
 		out = append(out, fmt.Sprintf("takes %.0f ms to sound", s.Onset*1000))
 	}
 	if s.Phone > maxPhone {
@@ -113,7 +122,9 @@ func (l *Library) master(x []float64, call *Call) ([]float32, Stats) {
 			x[i] = h2.step(h1.step(v))
 		}
 	}
-	if cut > 0 {
+	if call.Loop > 0 {
+		x = loop(x, call.Loop)
+	} else if cut > 0 {
 		// Fade over the 80 ms before the cut, from where the sound
 		// starts, so the call ends by then.
 		start := 0
@@ -127,7 +138,9 @@ func (l *Library) master(x []float64, call *Call) ([]float32, Stats) {
 		}
 		x = x[:end]
 	}
-	x = trim(x)
+	if call.Loop <= 0 {
+		x = trim(x)
+	}
 	if len(x) == 0 {
 		return nil, Stats{}
 	}
@@ -169,8 +182,31 @@ func (l *Library) master(x []float64, call *Call) ([]float32, Stats) {
 		loud -= over + 0.02
 	}
 	st := measure(out, loud)
-	st.Peak, st.Limited = peak, limited
+	st.Peak, st.Limited, st.Loop = peak, limited, call.Loop > 0
 	return out, st
+}
+
+// loopXfade is how long a loop's end fades into its start.
+const loopXfade = 0.25
+
+// loop returns the first secs seconds of x as a loop without a seam:
+// what x plays after them fades into their start, so the loop's end
+// runs on into its start as x ran on. x shorter than that is padded
+// with silence.
+func loop(x []float64, secs float64) []float64 {
+	n := int(secs * rate)
+	xf := min(int(loopXfade*rate), n/2)
+	if len(x) < n+xf {
+		x = append(x, make([]float64, n+xf-len(x))...)
+	}
+	out := make([]float64, n)
+	copy(out, x[:n])
+	for i := range xf {
+		// Equal power, so the fade keeps the sound's loudness.
+		t := float64(i) / float64(xf) * math.Pi / 2
+		out[i] = x[n+i]*math.Cos(t) + x[i]*math.Sin(t)
+	}
+	return out
 }
 
 // trim cuts x's silence before it and after it, leaving it starting at

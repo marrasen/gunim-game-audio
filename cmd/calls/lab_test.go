@@ -340,3 +340,30 @@ func TestKeysTypedInTheNotesPlayNothing(t *testing.T) {
 		}
 	}
 }
+
+func TestALoopPlaysOnTillPlayedAgain(t *testing.T) {
+	h := newHarness(t)
+	h.do(CompanionChosen{ID: "rymden"})
+	s := h.l.state()
+	if len(s.Calls) != 5 || s.Calls[3].Kind != "ufo" || !s.Calls[3].Made {
+		t.Fatalf("rymden shows %d sounds, the fourth %q", len(s.Calls), s.Calls[3].Kind)
+	}
+	for _, c := range s.Companions {
+		if c.ID == "rymden" && c.Doing != "5 of 5 sounds" || c.ID == "alien-stor" && c.Doing != "7 of 7 calls" {
+			t.Errorf("the list says %s makes %q", c.ID, c.Doing)
+		}
+	}
+	h.do(PlayCall{Call: 3})
+	buf := make([]float32, 2*4800)
+	for range 50 {
+		h.l.mix.Mix(buf)
+	}
+	if i, _ := h.l.playing(); i != 3 {
+		t.Fatal("the ufo stopped after its loop")
+	}
+	h.do(PlayCall{Call: 3})
+	h.l.mix.Mix(buf)
+	if i, _ := h.l.playing(); i >= 0 {
+		t.Error("the ufo plays on after Play again")
+	}
+}

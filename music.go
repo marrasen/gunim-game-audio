@@ -111,6 +111,22 @@ const (
 	// and chirps always, and a lead, its harmony, chords and drums coming
 	// and going.
 	UnderworldAscent = "underworld-ascent"
+	// StarDrift is a calm song of space, made in code, at 76 BPM in D
+	// Lydian, full of wonder: slow pads, a sub and bells ringing
+	// always, and twinkles, arpeggios, a choir, a floating lead and a
+	// soft heartbeat coming and going.
+	StarDrift = "star-drift"
+	// OrbitRound is a round song in space, made in code, at 116 BPM in E
+	// minor, in four tiers: a pad, a bass and a driving sequencer; claps
+	// and bells; a theremin's lead; drums and zaps. The digit keys play
+	// the E minor pentatonic over it.
+	OrbitRound = "orbit-round"
+	// AlienEntrance is an alien boss's entrance, made in code, at 128
+	// BPM in C minor, in four tiers that rise as the boss's health
+	// falls: a bass and radar blips; saucer stabs, a march and claps; a
+	// theremin's theme and a choir; drums, string runs and zaps. A
+	// victory sting of 6 bars ends it.
+	AlienEntrance = "alien-entrance"
 )
 
 // files holds the songs: a folder each, named for the song, with its

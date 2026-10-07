@@ -1,0 +1,230 @@
+{
+	"Name": "Utomjordingen, liten",
+	"Style": "Boss",
+	"Character": "the first planets' alien: small, green, squeaky and cheeky",
+	"Role": "boss",
+	"Calls": {
+		"taunt": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Ring": 330,
+					"RingMix": 0.45,
+					"Params": {
+						"pitch": 880,
+						"notes": 4,
+						"n2": -3,
+						"n3": 2,
+						"n4": -3,
+						"syllable": 5,
+						"lastsyl": 5,
+						"length": 0.11,
+						"last": 1.6,
+						"gap": 0.02,
+						"vibrato": 0.5,
+						"size": 1.9,
+						"bright": 0.45,
+						"ring": 0.4,
+						"breath": 0.2
+					}
+				},
+				{
+					"Model": "beeps",
+					"At": 0.55,
+					"Gain": -10,
+					"Params": {
+						"pitch": 2000,
+						"beeps": 2,
+						"step": 5,
+						"length": 0.04,
+						"gap": 0.02,
+						"last": 1,
+						"wave": 0
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"roar": {
+			"Layers": [
+				{
+					"Model": "theremin",
+					"Params": {
+						"pitch": 600,
+						"notes": 3,
+						"n2": 12,
+						"n3": 7,
+						"length": 0.18,
+						"last": 2.2,
+						"glide": 0.05,
+						"vibrato": 2,
+						"vibhz": 11,
+						"bright": 0.5
+					}
+				},
+				{
+					"Model": "glitch",
+					"At": 0.2,
+					"Gain": -8,
+					"Params": {
+						"pitch": 1800,
+						"fall": 10,
+						"length": 0.35,
+						"stutters": 2,
+						"wave": 0.5,
+						"top": 5
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"hurt": {
+			"Layers": [
+				{
+					"Model": "yip",
+					"Ring": 480,
+					"RingMix": 0.4,
+					"Params": {
+						"pitch": 1250,
+						"length": 0.14,
+						"leap": 2,
+						"drop": 9,
+						"open": 0.5,
+						"rough": 0.2,
+						"bright": 0.45,
+						"size": 1.8
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"laugh": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Ring": 220,
+					"RingMix": 0.5,
+					"Params": {
+						"pitch": 1046,
+						"notes": 4,
+						"n2": -2,
+						"n3": -3,
+						"n4": -5,
+						"syllable": 7,
+						"lastsyl": 7,
+						"length": 0.075,
+						"last": 1.4,
+						"gap": 0.03,
+						"scoop": 2,
+						"vibrato": 0,
+						"breath": 0.35,
+						"size": 2.0,
+						"ring": 0.4,
+						"bright": 0.45
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"worried": {
+			"Layers": [
+				{
+					"Model": "theremin",
+					"Params": {
+						"pitch": 1000,
+						"notes": 2,
+						"n2": -4,
+						"length": 0.2,
+						"last": 1.8,
+						"vibrato": 1.2,
+						"vibhz": 8,
+						"glide": 0.04,
+						"bright": 0.3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"defeat": {
+			"Layers": [
+				{
+					"Model": "theremin",
+					"Params": {
+						"pitch": 1300,
+						"notes": 1,
+						"length": 1.1,
+						"last": 1,
+						"fall": 19,
+						"vibrato": 1.5,
+						"vibhz": 7,
+						"bright": 0.35
+					}
+				},
+				{
+					"Model": "sing",
+					"At": 0.05,
+					"Gain": -6,
+					"Ring": 200,
+					"RingMix": 0.5,
+					"Params": {
+						"pitch": 1046,
+						"notes": 1,
+						"syllable": 1,
+						"lastsyl": 1,
+						"length": 0.9,
+						"last": 1,
+						"fall": 12,
+						"vibrato": 1,
+						"size": 1.9,
+						"ring": 0.3,
+						"bright": 0.4
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Cut": 1.5
+		},
+		"whimper": {
+			"Layers": [
+				{
+					"Model": "theremin",
+					"Params": {
+						"pitch": 900,
+						"notes": 4,
+						"n2": 2,
+						"n3": -1,
+						"n4": 1,
+						"length": 0.17,
+						"last": 1.6,
+						"vibrato": 2,
+						"vibhz": 4,
+						"dip": 0.6,
+						"bright": 0.2
+					}
+				},
+				{
+					"Model": "beeps",
+					"At": 0.5,
+					"Gain": -12,
+					"Params": {
+						"pitch": 1500,
+						"beeps": 2,
+						"step": -3,
+						"length": 0.05,
+						"gap": 0.06,
+						"last": 1,
+						"wave": 0
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		}
+	}
+}

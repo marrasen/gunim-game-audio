@@ -9,6 +9,7 @@
 	"Scale": "harmonicMinor",
 	"Chords": ["Em", "C", "D", "B7", "Em", "Am", "C B7", "Em"],
 	"Mode": "tiers",
+	"Clap": {"Track": "claps", "Drum": "cp"},
 	"Patches": {
 		"bass": {
 			"Osc": [{"Wave": "pulse", "Width": 0.35}, {"Wave": "saw", "Level": 0.5}],

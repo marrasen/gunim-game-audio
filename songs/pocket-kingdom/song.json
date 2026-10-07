@@ -18,6 +18,7 @@
 		"G"
 	],
 	"Mode": "tiers",
+	"Clap": {"Track": "claps", "Drum": "cp"},
 	"Patches": {
 		"lead": {
 			"Osc": [

@@ -10,6 +10,7 @@
 	"Chords": ["F", "Dm", "Bb", "C", "F", "Dm", "Gm C", "F"],
 	"ChordBars": 1,
 	"Mode": "tiers",
+	"Clap": {"Track": "claps", "Drum": "cp"},
 	"Patches": {
 		"lead": {
 			"Osc": [{"Wave": "pulse", "Width": 0.3}],

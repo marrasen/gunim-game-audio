@@ -1,0 +1,218 @@
+{
+	"Name": "Utomjordingen, stor",
+	"Style": "Boss",
+	"Character": "the last planets' alien: big, deep and wobbly, a pantomime villain from space",
+	"Role": "boss",
+	"Calls": {
+		"taunt": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Ring": 28,
+					"RingMix": 0.3,
+					"Params": {
+						"pitch": 196,
+						"notes": 3,
+						"n2": -5,
+						"n3": 0,
+						"syllable": 1,
+						"lastsyl": 7,
+						"length": 0.16,
+						"last": 2,
+						"gap": 0.04,
+						"vibrato": 1.2,
+						"size": 1.0,
+						"bright": 0.55,
+						"ring": 0.6,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "theremin",
+					"At": 0.2,
+					"Gain": -8,
+					"Params": {
+						"pitch": 392,
+						"notes": 2,
+						"n2": -5,
+						"length": 0.2,
+						"last": 2,
+						"vibrato": 2.5,
+						"vibhz": 3,
+						"bright": 0.4
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Presence": 4
+		},
+		"roar": {
+			"Layers": [
+				{
+					"Model": "roar",
+					"Ring": 28,
+					"RingMix": 0.3,
+					"Params": {
+						"pitch": 150,
+						"length": 0.85,
+						"growl": 0.45,
+						"wobble": 0.08,
+						"open": 0.9,
+						"size": 1.0,
+						"bright": 0.9
+					}
+				},
+				{
+					"Model": "rumble",
+					"Gain": -8,
+					"Params": {
+						"length": 0.9,
+						"build": 0.2,
+						"fade": 0.5,
+						"jet": 0.4,
+						"deep": 0.6,
+						"crackle": 0.2
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Presence": 6
+		},
+		"hurt": {
+			"Layers": [
+				{
+					"Model": "roar",
+					"Ring": 28,
+					"RingMix": 0.3,
+					"Params": {
+						"pitch": 220,
+						"length": 0.3,
+						"arch": -5,
+						"growl": 0.12,
+						"wobble": 0.06,
+						"size": 1.0,
+						"bright": 0.85
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Presence": 5
+		},
+		"laugh": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Ring": 28,
+					"RingMix": 0.3,
+					"Params": {
+						"pitch": 175,
+						"notes": 4,
+						"n2": -1,
+						"n3": -3,
+						"n4": -5,
+						"syllable": 7,
+						"lastsyl": 7,
+						"length": 0.12,
+						"last": 1.6,
+						"gap": 0.04,
+						"vibrato": 0.6,
+						"breath": 0.4,
+						"size": 1.0,
+						"ring": 0.6,
+						"bright": 0.55
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Presence": 5
+		},
+		"worried": {
+			"Layers": [
+				{
+					"Model": "theremin",
+					"Params": {
+						"pitch": 466,
+						"notes": 2,
+						"n2": -4,
+						"length": 0.24,
+						"last": 1.8,
+						"vibrato": 2.4,
+						"vibhz": 3.2,
+						"glide": 0.08,
+						"bright": 0.95
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Presence": 8
+		},
+		"defeat": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Ring": 28,
+					"RingMix": 0.3,
+					"Params": {
+						"pitch": 196,
+						"notes": 1,
+						"syllable": 1,
+						"lastsyl": 1,
+						"length": 1.1,
+						"last": 1,
+						"fall": 12,
+						"vibrato": 1.5,
+						"size": 1.0,
+						"ring": 0.6,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "theremin",
+					"At": 0.1,
+					"Gain": -6,
+					"Params": {
+						"pitch": 392,
+						"notes": 1,
+						"length": 1.1,
+						"fall": 14,
+						"vibrato": 2.5,
+						"vibhz": 3,
+						"bright": 0.4
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Presence": 5,
+			"Cut": 1.7
+		},
+		"whimper": {
+			"Layers": [
+				{
+					"Model": "theremin",
+					"Params": {
+						"pitch": 440,
+						"notes": 4,
+						"n2": 2,
+						"n3": -1,
+						"n4": 1,
+						"length": 0.2,
+						"last": 1.6,
+						"vibrato": 2.5,
+						"vibhz": 3,
+						"dip": 0.6,
+						"bright": 0.95
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2,
+			"Presence": 8
+		}
+	}
+}

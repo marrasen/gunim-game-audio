@@ -1,0 +1,140 @@
+{
+	"Kind": "synth",
+	"Title": "Star Drift",
+	"Artist": "Marcus Johansson",
+	"BPM": 76,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "D",
+	"Scale": "lydian",
+	"Chords": ["Dmaj9", "E/D", "Dmaj9", "E/D", "Bm9", "C#m7", "F#m7", "Esus4"],
+	"ChordBars": 2,
+	"Mode": "wander",
+	"Clap": {"Track": "chime"},
+	"Patches": {
+		"pad": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 5, "Spread": 26, "Level": 0.6},
+				{"Wave": "tri", "Octave": 1, "Level": 0.4}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 900, "Res": 0.15, "Env": 0.6, "Key": 0.3},
+			"Amp": {"Attack": 2.2, "Decay": 2, "Sustain": 0.9, "Release": 3.2},
+			"FilterEnv": {"Attack": 2.5, "Decay": 3, "Sustain": 0.5, "Release": 2},
+			"LFO": [{"To": "cutoff", "Wave": "sine", "Beats": 32, "Depth": 0.6}],
+			"Poly": 12,
+			"Gain": 0.45
+		},
+		"sub": {
+			"Osc": [
+				{"Wave": "sine"},
+				{"Wave": "tri", "Octave": 1, "Level": 0.2}
+			],
+			"Amp": {"Attack": 0.4, "Decay": 1, "Sustain": 0.9, "Release": 1.5},
+			"Poly": 1,
+			"Gain": 0.7
+		},
+		"chime": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 3.5, "Index": 2, "Decay": 0.3, "Sustain": 0.05},
+				{"Wave": "sine", "Octave": 1, "Level": 0.2}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 6000, "Key": 0.4},
+			"Amp": {"Attack": 0.002, "Decay": 1.8, "Sustain": 0, "Release": 1.4},
+			"Poly": 8,
+			"Gain": 0.4
+		},
+		"glass": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 7, "Index": 1.1, "Decay": 0.25, "Sustain": 0.1},
+				{"Wave": "sine", "Level": 0.6}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 7000, "Key": 0.3, "Vel": 0.6},
+			"Amp": {"Attack": 0.003, "Decay": 1.2, "Sustain": 0, "Release": 1},
+			"Poly": 10,
+			"Gain": 0.45
+		},
+		"air": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 3, "Spread": 18},
+				{"Wave": "sine", "Octave": 1, "Level": 0.3}
+			],
+			"Vowel": "o",
+			"Filter": {"Type": "lp", "Cutoff": 2600, "Res": 0.05},
+			"Amp": {"Attack": 1.6, "Decay": 1, "Sustain": 0.9, "Release": 2.4},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 4.8, "Depth": 0.08}],
+			"Poly": 8,
+			"Gain": 0.5
+		},
+		"float": {
+			"Osc": [
+				{"Wave": "sine"},
+				{"Wave": "tri", "Octave": 1, "Level": 0.15}
+			],
+			"Amp": {"Attack": 0.12, "Decay": 0.5, "Sustain": 0.85, "Release": 0.9},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 5.6, "Depth": 0.3, "Delay": 0.35}],
+			"Poly": 1,
+			"Glide": 0.14,
+			"Gain": 0.55
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {"Decay": 0.7, "Tone": 0.15, "Gain": 0.6},
+				"sh": {"Gain": 0.25, "Pan": 0.3}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "pad", "Core": true, "Patch": "pad", "Color": "#7c8cff",
+			"Pattern": "ch", "Legato": 1, "Octave": 4,
+			"Gain": -14.5, "Chorus": 0.5, "Reverb": 0.55, "HPF": 120
+		},
+		{
+			"Name": "sub", "Core": true, "Patch": "sub", "Color": "#3fd0c9",
+			"Pattern": "b _ _ _", "Octave": 2, "Legato": 1,
+			"Gain": -12
+		},
+		{
+			"Name": "chime", "Core": true, "Patch": "chime", "Color": "#e9f27a",
+			"Pattern": "~ x ~ x", "Arp": "up", "ArpOctaves": 2, "Octave": 5, "Legato": 0.9,
+			"Params": {"vel": "0.8 1 0.8 0.9"},
+			"Gain": -5, "Reverb": 0.5, "Delay": 0.3
+		},
+		{
+			"Name": "twinkle", "Patch": "glass", "Color": "#ffe28a",
+			"Pattern": "x*8?0.35", "Arp": "updown", "ArpOctaves": 2, "Octave": 6, "Legato": 0.7,
+			"Params": {"vel": "[0.6 1 0.7 0.9]*2", "pan": "sine:-0.7:0.7:4"},
+			"Gain": -11, "Reverb": 0.55, "Delay": 0.4
+		},
+		{
+			"Name": "arp", "Patch": "glass", "Color": "#5ce1a8",
+			"Pattern": "x*8", "Arp": "up", "ArpOctaves": 2, "Octave": 4, "Legato": 0.8,
+			"Params": {"vel": "[1 0.6 0.75 0.6]*2", "cutoff": "sine:2500:6000:8"},
+			"Gain": -7, "Pan": -0.2, "Reverb": 0.4, "Delay": 0.3
+		},
+		{
+			"Name": "air", "Patch": "air", "Color": "#c58cff",
+			"Pattern": "ch", "Legato": 1, "Octave": 4,
+			"Params": {"vowel": "<o u o a>"},
+			"Gain": -20, "Reverb": 0.6, "HPF": 200
+		},
+		{
+			"Name": "float", "Patch": "float", "Color": "#ff6b9d",
+			"Pattern": "[4 _ _ 6 _ _ 7 _] [8 _ _ _ _ _ ~ ~] [7 _ _ 6 _ _ 4 _] [3 _ _ _ _ _ ~ ~] [4 _ _ 6 _ _ 9 _] [8 _ _ 7 _ _ 6 _] [5 _ _ _ 6 _ _ _] [4 _ _ _ _ _ ~ ~]",
+			"Bars": 8, "Octave": 5, "Legato": 1,
+			"Gain": -15, "Pan": 0.15, "Reverb": 0.5, "Delay": 0.35
+		},
+		{
+			"Name": "heartbeat", "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "[bd ~ ~ ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ ~ ~, sh*8?0.5]",
+			"Params": {"vel": "[1 0.6]*8"},
+			"Gain": -12, "Reverb": 0.3, "Human": 0.2
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 1, "Decay": 4.5, "Tone": 0.6, "PreDelay": 0.04},
+		"Delay": {"Beats": 0.75, "Feedback": 0.45, "Tone": 0.5},
+		"Gain": 2
+	}
+}

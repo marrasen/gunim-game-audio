@@ -35,9 +35,11 @@ type lab struct {
 	// to play after it.
 	voice *audio.Voice
 	call  int
-	queue []int
-	gap   time.Time
-	phone bool
+	// looping says the call playing is a loop, played over and over.
+	looping bool
+	queue   []int
+	gap     time.Time
+	phone   bool
 	// songs are the songs' names, song the one under the calls, 0 for
 	// none, and music its voice.
 	songs    []string
@@ -130,15 +132,23 @@ func (l *lab) play(i int) {
 	if t == nil || len(t.Samples) == 0 {
 		return
 	}
+	// A loop plays over and over, as the game plays it, till played
+	// again, or another call plays; in a run of all the calls, once.
+	loops := t.Stats.Loop && len(l.queue) == 0
 	if l.voice != nil {
+		wasLoop := l.looping && l.call == i
 		l.voice.Stop(10 * time.Millisecond)
+		l.voice = nil
+		if wasLoop && loops {
+			return
+		}
 	}
-	o := audio.Options{}
+	o := audio.Options{Loop: loops}
 	if l.phone {
 		o.Insert = calls.NewPhone()
 	}
 	l.voice = l.mix.Play(t.Clip().Source(), o)
-	l.call = i
+	l.call, l.looping = i, loops
 }
 
 // playing says whether a call plays, and how far through it is.
@@ -156,7 +166,11 @@ func (l *lab) playing() (int, float32) {
 	if n <= 0 {
 		return l.call, 0
 	}
-	return l.call, min(float32(l.voice.Position())/float32(n), 1)
+	at := float32(l.voice.Position()) / float32(n)
+	if l.looping {
+		return l.call, at - float32(int(at))
+	}
+	return l.call, min(at, 1)
 }
 
 // tick plays the next call queued once the one playing has ended, a
@@ -336,6 +350,8 @@ func (l *lab) set(v ParamSet) {
 			call.Cut = v.Value
 		case "presence":
 			call.Presence = v.Value
+		case "loop":
+			call.Loop = v.Value
 		}
 		l.changed(l.sel)
 	default:
@@ -349,6 +365,10 @@ func (l *lab) set(v ParamSet) {
 			ly.At = v.Value
 		case "@gain":
 			ly.Gain = v.Value
+		case "@ring":
+			ly.Ring = v.Value
+		case "@ringmix":
+			ly.RingMix = v.Value
 		default:
 			if ly.Params == nil {
 				ly.Params = map[string]float64{}
@@ -393,7 +413,11 @@ func (l *lab) state() Lab {
 	s.Songs = append([]string{"No music"}, l.songs...)
 	for i, c := range l.lib.Companions {
 		row := CompanionRow{ID: c.ID, Name: c.Name, Made: len(c.Calls) > 0, Open: c == l.comp}
-		row.Doing = fmt.Sprintf("%d of 3 calls", len(c.Calls))
+		what := "calls"
+		if c.Role == calls.Effects {
+			what = "sounds"
+		}
+		row.Doing = fmt.Sprintf("%d of %d %s", len(c.Calls), len(c.Kinds()), what)
 		if len(c.Calls) == 0 {
 			row.Doing = "not made yet"
 		}
@@ -441,7 +465,7 @@ func (l *lab) editor() Editor {
 	if call == nil {
 		return e
 	}
-	e.Vary, e.Room, e.Cut, e.Presence, e.Notes = call.Vary, call.Room, call.Cut, call.Presence, call.Notes
+	e.Vary, e.Room, e.Cut, e.Presence, e.Loop, e.Notes = call.Vary, call.Room, call.Cut, call.Presence, call.Loop, call.Notes
 	for _, ly := range call.Layers {
 		m := calls.Models()[ly.Model]
 		lv := LayerView{Model: ly.Model, About: m.About}
@@ -451,7 +475,9 @@ func (l *lab) editor() Editor {
 		}
 		lv.Params = append(lv.Params,
 			ParamView{Name: "@at", Label: "Starts", Unit: "s", About: "When the layer starts in the call", Lo: 0, Hi: 1, Value: ly.At},
-			ParamView{Name: "@gain", Label: "Level", Unit: "dB", About: "The layer's level", Lo: -24, Hi: 12, Value: ly.Gain})
+			ParamView{Name: "@gain", Label: "Level", Unit: "dB", About: "The layer's level", Lo: -24, Hi: 12, Value: ly.Gain},
+			ParamView{Name: "@ring", Label: "Ring", Unit: "Hz", About: "Ring-modulates the layer by a tone of this pitch, as a robot's voice", Lo: 0, Hi: 2000, Value: ly.Ring, Zero: "off"},
+			ParamView{Name: "@ringmix", Label: "Ring mix", About: "How much of the ring modulation is heard", Lo: 0, Hi: 1, Def: 1, Value: ly.RingMix})
 		e.Layers = append(e.Layers, lv)
 	}
 	return e

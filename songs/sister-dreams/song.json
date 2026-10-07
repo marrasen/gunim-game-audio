@@ -9,6 +9,7 @@
 	"Scale": "minor",
 	"Chords": ["Dm", "Bb", "F", "C", "Dm", "Bb", "Gm", "A"],
 	"Mode": "wander",
+	"Clap": {"Track": "claps", "Drum": "cp"},
 	"Patches": {
 		"arp": {
 			"Osc": [{"Wave": "pulse", "Width": 0.2}],

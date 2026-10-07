@@ -19,6 +19,9 @@ game's music. Each song plays without end, and changes as it goes.
 | Palace Run | `palace-run` | A driving chip tune in the manner of Zelda II's palaces, for the NES's sound, at 160 BPM in A minor, in four tiers: a pumping octave bass and racing arpeggios; drums; the lead; and its harmony and a metallic clank. |
 | Underworld Ascent | `underworld-ascent` | A quirky chip tune in the manner of Kid Icarus, for the NES's sound, at 150 BPM in G minor: a bouncing triangle bass and chirps always, and a lead, its harmony, chords and drums coming and going. |
 | Mascot Dance | `mascot-dance` | A bright dance groove, made in code, at 124 BPM in E major, for a mascot to dance to. Its tracks come and go by themselves around a kick, a bass and hats that always play, and a topline it writes itself changes every two phrases. |
+| Star Drift | `star-drift` | A calm song of space, made in code, at 76 BPM in D Lydian, full of wonder, for Rymden's room and its map: slow pads, a sub and bells ringing always, and twinkles, arpeggios, a choir, a floating lead and a soft heartbeat coming and going. |
+| Orbit Round | `orbit-round` | A round song in space, made in code, at 116 BPM in E minor, in four tiers: a pad, a bass and a driving sequencer; claps and bells; a theremin's lead; drums and zaps. The digit keys play the E minor pentatonic over it. |
+| Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 6 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
 with buttons or the keys 1 to 4, and shows what each part plays, bar by
@@ -132,21 +135,23 @@ b := music.BeatAt(song, p, heard)
 dancer.Bob(b.Beat, b.Phase)  // b.Frame+int64(b.Frames) is the next beat
 ```
 
-A song made in code also tells of its drums' hits before they sound,
-so a character can raise its hands in time for its palms to meet on
-the clap. `Hits` gives the hits from a frame up to another, each with
-the frame it sounds on and what drum it is, whatever the kit calls it:
+A song made in code also tells of its drums' hits before they sound.
+`Hits` gives the hits from a frame up to another, each with the frame
+it sounds on and what drum it is, whatever the kit calls it:
 `synth.Clap`, `synth.Kick`, `synth.Snare` and so on. It tells of the
 bar being made, and foresees the bar after it, so each hit comes with
-a bar's warning, two seconds at 120 BPM: time for a wind-up, and to
+a bar's warning, two seconds at 120 BPM.
+
+Each song made in code names a sound to clap to, its `Clap`: a clap, as
+most do, or any track's notes, as Star Drift's bells. `Claps` tells of
+it as `Hits` does, a bar ahead, so a character can raise its hands in
+time for its palms to meet on the sound: time for a wind-up, and to
 see two claps coming close together and clap twice, quick.
 
 ```go
 if sp, ok := p.(*synth.Player); ok {
-	for _, h := range sp.Hits(nil, heard, heard+audio.SampleRate) {
-		if h.Kind == synth.Clap {
-			dancer.ClapAt(h.Frame) // hands meet on that frame
-		}
+	for _, h := range sp.Claps(nil, heard, heard+audio.SampleRate) {
+		dancer.ClapAt(h.Frame) // hands meet on that frame
 	}
 }
 ```
@@ -159,14 +164,15 @@ goes, or where a sting starts. A tier asked for before the phrase's
 last bar is foreseen; a wander song's own choice of parts is not, but a
 part the game turns on or off is.
 
-All the songs made in code clap. Keypad Round's claps come in at tier
-2, and those of the other tiers songs at tier 3. Mascot Dance's, Sister
-Dreams' and Underworld Ascent's come and go as those songs wander, and
-the game can hold them in with `SetPart`. Pocket Kingdom claps twice,
-quick, every bar; Boss Entrance, Bubble Bounce, Hero's Field and
-Underworld Ascent every other bar. The recorded songs, Greek Themes and
-A round song, tell their beat but not their drums: a character can clap
-on beats 2 and 4 to them.
+Keypad Round's claps come in at tier 2, and those of the other tiers
+songs at tier 3, Orbit Round's and Alien Entrance's at tier 2. Mascot
+Dance's, Sister Dreams' and Underworld Ascent's come and go as those
+songs wander, and the game can hold them in with `SetPart`; Star
+Drift's bells always ring. Pocket Kingdom claps twice, quick, every
+bar; Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent,
+Orbit Round and Alien Entrance every other bar. The recorded songs,
+Greek Themes and A round song, tell their beat but not their drums: a
+character can clap on beats 2 and 4 to them.
 
 The engine makes a second of the busiest song, all twelve of Mascot
 Dance's tracks at once, in about 35 ms on one core of a 2015 desktop
@@ -192,12 +198,34 @@ how the sounds are made:
 | `roar` | a small creature's rough "rawr", ending in a squeak if asked | the baby dragon |
 | `yip` | a fox's short, bright yip, rising at its end as a question if asked | the fox, the dragon's hiccup |
 | `whistle`, `crowd`, `bonk` | a referee's pea whistle, a small crowd's "yay" or "ooh" with claps, and a ball's hollow knock | the football star |
+| `theremin` | a theremin's voice, nearly pure, sliding from note to note under a wide vibrato | the aliens |
+| `hum`, `rumble` | a flying saucer's beating, pulsing hum, and a rocket's rumble with its jet rising | Rymden's effects |
 
 An eleventh companion hides at the end of the list: Whizpah, a giggling
 gremlin named for the one who made the wizard old, who laughs at
 everything on the sung "ha". Its hello flies in with a "whizz-pHA!", its
 cheer is a cackle that runs down and then up an octave into a squeaky
 "HAAA", and its oops is a nervous "heh-heh-heh… huh?".
+
+The game's bosses have calls of their own, seven each: a taunt, a roar,
+a hurt "oof!", a laugh at a wrong answer, a worried "uh-oh", a defeated
+"nooo" and a dizzy whimper. The candy bosses are small, middle and big,
+and so are Rymden's aliens: a squeaky little one of theremin warbles
+and a giggle, a show-off with a robot's voice, and a deep, wobbly big
+one. A layer's `Ring` ring-modulates it, as a robot's voice is made.
+
+Rymden is a set of effects rather than a character: a whoosh into
+space, a rocket's launch, a shooting star, a saucer's hum and a soft
+"bliip" for a planet tapped, each called by its name. The saucer's hum
+is a loop, a call with a `Loop`, made so its end runs on into its start
+without a seam; the game starts it as the saucer comes and stops it as
+it goes:
+
+```go
+voices.Play("rymden", "launch", audio.Options{})
+voices.Start("rymden", "ufo", audio.Options{}) // hums till Stop
+voices.Stop("rymden", "ufo", 0)                // fades out
+```
 
 The voices are made as a throat makes them: a buzz of every harmonic
 of a pitch, and breath, shaped by the mouth's resonances into a vowel

@@ -59,6 +59,7 @@ type (
 		Vary, Room float64
 		Cut        float64
 		Presence   float64
+		Loop       float64
 		Notes      string
 		Models     []string
 	}
@@ -90,7 +91,7 @@ type (
 	// PlayAll plays the companion's calls, one after another.
 	PlayAll struct{}
 	// ParamSet sets a number: of layer Layer, or with Layer -1 of the
-	// call, Vary, Room, Cut or Presence, or with Layer -2 of the master. Done says the
+	// call, Vary, Room, Cut, Presence or Loop, or with Layer -2 of the master. Done says the
 	// knob was let go, and the call plays.
 	ParamSet struct {
 		Layer int
