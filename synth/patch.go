@@ -168,6 +168,7 @@ var drumNames = map[string]string{
 	"sbd":   "sidkick", "ssn": "sidsnare", "scp": "sidclap", "shh": "sidhat", "soh": "sidohat",
 	"stom": "sidtom", "szap": "sidzap",
 	"nbd": "neskick", "nsn": "nessnare", "nhh": "neshat", "noh": "nesohat", "ntom": "nestom", "nclk": "nesmetal",
+	"ncp": "nesclap",
 }
 
 // tomTune tunes the low and high toms either side of the middle one.
@@ -203,6 +204,7 @@ const (
 	drNESOHat
 	drNESTom
 	drNESMetal
+	drNESClap
 )
 
 var drumTypes = map[string]int{
@@ -212,6 +214,7 @@ var drumTypes = map[string]int{
 	"sidkick": drSIDKick, "sidsnare": drSIDSnare, "sidclap": drSIDClap, "sidhat": drSIDHat, "sidohat": drSIDOHat,
 	"sidtom": drSIDTom, "sidzap": drSIDZap,
 	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
+	"nesclap": drNESClap,
 }
 
 // The waves of an oscillator.

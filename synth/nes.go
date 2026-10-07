@@ -107,7 +107,7 @@ const (
 
 // nesDrums are the NES's drums, and the Game Boy's, a frame each 60th of
 // a second: the triangle's falling kick and tom, the noise's snare and
-// hats, and its short mode's metallic click.
+// hats, its short mode's metallic click, and a clap of its bursts.
 var nesDrums = map[int][]sidFrame{
 	drNESKick: {{sfTri4, 58, 1}, {sfTri4, 51, 1}, {sfTri4, 46, 0.95}, {sfTri4, 42, 0.85}, {sfTri4, 39, 0.7},
 		{sfTri4, 37, 0.5}, {sfTri4, 36, 0.3}, {sfTri4, 35, 0.15}},
@@ -118,6 +118,10 @@ var nesDrums = map[int][]sidFrame{
 	drNESTom: {{sfTri4, 56, 1}, {sfTri4, 53, 0.95}, {sfTri4, 51, 0.85}, {sfTri4, 49, 0.7}, {sfTri4, 47, 0.55},
 		{sfTri4, 46, 0.4}, {sfTri4, 45, 0.25}, {sfTri4, 44, 0.12}},
 	drNESMetal: {{sfNESMetal, 100, 0.8}, {sfNESMetal, 100, 0.5}, {sfNESMetal, 100, 0.25}, {sfNESMetal, 100, 0.1}},
+	// The NES had no clap; its games made one of the noise in bursts,
+	// on and off, as hands meeting in a crowd do.
+	drNESClap: {{sfNESNoise, 104, 1}, {sfNESNoise, 104, 0.15}, {sfNESNoise, 104, 0.95}, {sfNESNoise, 103, 0.15},
+		{sfNESNoise, 102, 0.8}, {sfNESNoise, 101, 0.5}, {sfNESNoise, 100, 0.3}, {sfNESNoise, 99, 0.14}, {sfNESNoise, 98, 0.06}},
 }
 
 // chipDrum returns a chip drum's frames, and how many frames a second.
@@ -130,4 +134,4 @@ func chipDrum(kind int) (frames []sidFrame, fps float32) {
 
 // isChipDrum reports whether a drum's kind is a chip's, built a frame at
 // a time.
-func isChipDrum(kind int) bool { return kind >= drSIDKick && kind <= drNESMetal }
+func isChipDrum(kind int) bool { return kind >= drSIDKick && kind <= drNESClap }

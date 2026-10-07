@@ -35,9 +35,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"path"
 	"slices"
 
+	"github.com/marrasen/gunim/audio"
 	"github.com/marrasen/gunim/audio/band"
 
 	"github.com/marrasen/gunim-music/calls"
@@ -217,4 +219,32 @@ func Song(name string) (band.Song, error) {
 			PhraseBars: s.PhraseBars, Parts: parts, Start: s.Start}, nil
 	}
 	return nil, fmt.Errorf("music: %s is of kind %q, which this version plays none of", name, s.Kind)
+}
+
+// Beat is where a song is in its bar: its bar, the beat in it, and how
+// far through the beat; see [synth.Beat].
+type Beat = synth.Beat
+
+// BeatAt returns where song s, played by p, is at frame at, as heard:
+// pass the frame the voice playing it is at, so a character dances to
+// the beat heard. It works for every song of the library: a song made
+// in code asks its player, which follows its tempo as it changes; a
+// recorded one keeps its tempo from its first frame.
+func BeatAt(s band.Song, p band.Player, at int64) Beat {
+	if sp, ok := p.(*synth.Player); ok {
+		return sp.Beat(at)
+	}
+	bpm, beats := s.Info().BPM, 4
+	switch s := s.(type) {
+	case *band.Wander:
+		beats = s.BeatsPerBar
+	case *band.Tiers:
+		beats = s.BeatsPerBar
+	}
+	if bpm <= 0 || beats <= 0 {
+		return Beat{}
+	}
+	bar := float64(audio.SampleRate) * 60 * float64(beats) / bpm
+	n := int(math.Floor(float64(at) / bar))
+	return synth.BeatOf(n, int64(math.Round(float64(n)*bar)), bar, beats, at)
 }

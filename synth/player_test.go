@@ -308,6 +308,8 @@ func TestPlayerIsSafeFromOtherGoroutines(t *testing.T) {
 			_ = p.SetPart("pad", band.PartControl(i%3))
 			_ = p.Look(p.Played())
 			_ = p.Notes(nil, 0)
+			_ = p.Hits(nil, p.Played(), p.Played()+48000)
+			_ = p.Beat(p.Played())
 			_ = p.Watch()
 			if i%50 == 0 {
 				edit := s.Clone()

@@ -58,7 +58,8 @@
 				"lt": {"Type": "sidtom", "Tune": -7},
 				"mt": {"Type": "sidtom", "Tune": -2},
 				"ht": {"Type": "sidtom", "Tune": 3},
-				"zap": {"Type": "sidzap", "Gain": 0.5}
+				"zap": {"Type": "sidzap", "Gain": 0.5},
+				"cp": {"Type": "sidclap"}
 			}
 		},
 		"fx": {
@@ -87,6 +88,11 @@
 			"Name": "march", "Tier": 2, "Patch": "sid", "Color": "#ff8a4c",
 			"Pattern": "[bd ~ bd ~ sn ~ bd ~, ~ hh ~ hh ~ hh ~ hh, ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ sn sn]",
 			"Gain": -11.2
+		},
+		{
+			"Name": "claps", "Tier": 3, "Patch": "sid", "Color": "#ff8a4c",
+			"Pattern": "[~ cp ~ cp]",
+			"Gain": -12.2, "Reverb": 0.1
 		},
 		{
 			"Name": "lead", "Tier": 3, "Patch": "lead", "Color": "#ff6b9d",

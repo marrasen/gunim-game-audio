@@ -61,7 +61,8 @@
 				"oh": {"Type": "sidohat", "Gain": 0.4},
 				"zap": {"Type": "sidzap", "Gain": 0.6},
 				"lt": {"Type": "sidtom", "Tune": -5},
-				"ht": {"Type": "sidtom", "Tune": 4}
+				"ht": {"Type": "sidtom", "Tune": 4},
+				"cp": {"Type": "sidclap"}
 			}
 		},
 		"fx": {
@@ -95,6 +96,11 @@
 			"Name": "drums", "Tier": 2, "Patch": "sid", "Color": "#ff8a4c",
 			"Pattern": "[bd ~ ~ ~ sn ~ ~ ~, ~ hh ~ hh ~ hh ~ hh]",
 			"Gain": -7
+		},
+		{
+			"Name": "claps", "Tier": 3, "Patch": "sid", "Color": "#ff8a4c",
+			"Pattern": "<[~ cp ~ cp] [~ cp ~ [~ cp cp ~]]>",
+			"Gain": -12.7, "Reverb": 0.1
 		},
 		{
 			"Name": "lead", "Tier": 3, "Patch": "lead", "Color": "#ff6b9d",

@@ -116,8 +116,57 @@ which the voice's position gives:
 ```go
 v := mix.Play(p, audio.Options{})
 l := p.Look(audio.Frames(v.Position()))
-beat := float64(audio.Frames(v.Position())-l.BarFrame) / l.BarFrames * float64(l.BeatsPerBar)
 ```
+
+### Dancing and clapping to the music
+
+`music.BeatAt` says where any song of the library is in its beat, as
+heard, for characters that dance to it: the bar, the beat in it, how
+far through the beat, and when the next beat comes. A song made in code
+asks its player, which follows its tempo as it changes; a recorded one
+keeps its tempo from its first frame:
+
+```go
+heard := audio.Frames(v.Position())
+b := music.BeatAt(song, p, heard)
+dancer.Bob(b.Beat, b.Phase)  // b.Frame+int64(b.Frames) is the next beat
+```
+
+A song made in code also tells of its drums' hits before they sound,
+so a character can raise its hands in time for its palms to meet on
+the clap. `Hits` gives the hits from a frame up to another, each with
+the frame it sounds on and what drum it is, whatever the kit calls it:
+`synth.Clap`, `synth.Kick`, `synth.Snare` and so on. It tells of the
+bar being made, and foresees the bar after it, so each hit comes with
+a bar's warning, two seconds at 120 BPM: time for a wind-up, and to
+see two claps coming close together and clap twice, quick.
+
+```go
+if sp, ok := p.(*synth.Player); ok {
+	for _, h := range sp.Hits(nil, heard, heard+audio.SampleRate) {
+		if h.Kind == synth.Clap {
+			dancer.ClapAt(h.Frame) // hands meet on that frame
+		}
+	}
+}
+```
+
+A hit is told of on each call until it sounds, so a dancer takes each
+once, by its frame. A foreseen hit, its `Foreseen` set, sounds as told,
+within a few milliseconds of a human's nudge, unless the song changes
+first: at a phrase's start, where a tier changes or a part comes or
+goes, or where a sting starts. A tier asked for before the phrase's
+last bar is foreseen; a wander song's own choice of parts is not, but a
+part the game turns on or off is.
+
+All the songs made in code clap. Keypad Round's claps come in at tier
+2, and those of the other tiers songs at tier 3. Mascot Dance's, Sister
+Dreams' and Underworld Ascent's come and go as those songs wander, and
+the game can hold them in with `SetPart`. Pocket Kingdom claps twice,
+quick, every bar; Boss Entrance, Bubble Bounce, Hero's Field and
+Underworld Ascent every other bar. The recorded songs, Greek Themes and
+A round song, tell their beat but not their drums: a character can clap
+on beats 2 and 4 to them.
 
 The engine makes a second of the busiest song, all twelve of Mascot
 Dance's tracks at once, in about 35 ms on one core of a 2015 desktop
@@ -412,10 +461,11 @@ channel, playing an oscillator's `Table` of 32 steps of 0 to 15, which
 the studio's patch editor lets you draw. A patch's `Chip` steps its
 level as a console does, `{"Levels": 16, "Hz": 60}`, and its `Bend`
 slides each note in from off its pitch, `{"Semis": 12, "Time": 0.05}`.
-The drums `nbd`, `nsn`, `nhh`, `noh`, `ntom` and `nclk` are the NES's,
-60 frames a second: a triangle's falling kick and tom, the noise's snare
-and hats, and a metallic click, as the types `neskick`, `nessnare`,
-`neshat`, `nesohat`, `nestom` and `nesmetal`.
+The drums `nbd`, `nsn`, `ncp`, `nhh`, `noh`, `ntom` and `nclk` are the
+NES's, 60 frames a second: a triangle's falling kick and tom, the
+noise's snare, its clap in bursts, as the console's games made one, and
+its hats, and a metallic click, as the types `neskick`, `nessnare`,
+`nesclap`, `neshat`, `nesohat`, `nestom` and `nesmetal`.
 
 A track's `Params` change each note, as TidalCycles' controls do: `vel`,
 `pan`, `cutoff`, `res`, `legato`, `octave`, `vowel` and `tune`, each a
