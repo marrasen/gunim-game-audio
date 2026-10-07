@@ -1,0 +1,176 @@
+{
+	"Name": "Rymden (space)",
+	"Style": "Effekter",
+	"Character": "the space room's sounds",
+	"Role": "effects",
+	"Sounds": [
+		"whoosh",
+		"launch",
+		"star",
+		"ufo",
+		"bliip"
+	],
+	"Calls": {
+		"whoosh": {
+			"Layers": [
+				{
+					"Model": "whoosh",
+					"Params": {
+						"from": 300,
+						"to": 5000,
+						"length": 0.9,
+						"peak": 0.7,
+						"start": 0.5,
+						"width": 0.6,
+						"tone": 0.25
+					}
+				},
+				{
+					"Model": "sparkle",
+					"At": 0.55,
+					"Gain": -6,
+					"Params": {
+						"bells": 10,
+						"length": 0.35,
+						"low": 2500,
+						"high": 7000,
+						"climb": 0.9,
+						"decay": 0.15
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.3
+		},
+		"launch": {
+			"Layers": [
+				{
+					"Model": "rumble",
+					"Params": {
+						"length": 1.9
+					}
+				},
+				{
+					"Model": "whoosh",
+					"At": 0.6,
+					"Gain": -4,
+					"Params": {
+						"from": 400,
+						"to": 3000,
+						"length": 1.2,
+						"peak": 0.5,
+						"start": 0.2,
+						"width": 0.8
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15
+		},
+		"star": {
+			"Layers": [
+				{
+					"Model": "whoosh",
+					"Gain": -6,
+					"Params": {
+						"from": 2500,
+						"to": 7000,
+						"length": 0.45,
+						"peak": 0.4,
+						"start": 0.5,
+						"width": 0.3,
+						"tone": 0.6
+					}
+				},
+				{
+					"Model": "sparkle",
+					"At": 0.05,
+					"Params": {
+						"bells": 9,
+						"length": 0.45,
+						"low": 2500,
+						"high": 7000,
+						"climb": -0.9,
+						"decay": 0.2,
+						"shimmer": 9
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.35
+		},
+		"ufo": {
+			"Layers": [
+				{
+					"Model": "hum",
+					"Params": {
+						"length": 2.6,
+						"pitch": 210,
+						"bright": 0.75
+					}
+				},
+				{
+					"Model": "beeps",
+					"At": 0.4,
+					"Gain": -10,
+					"Params": {
+						"pitch": 1800,
+						"beeps": 2,
+						"step": -5,
+						"length": 0.05,
+						"gap": 0.05,
+						"last": 1,
+						"wave": 0
+					}
+				},
+				{
+					"Model": "beeps",
+					"At": 1.4,
+					"Gain": -10,
+					"Params": {
+						"pitch": 1600,
+						"beeps": 2,
+						"step": 4,
+						"length": 0.05,
+						"gap": 0.05,
+						"last": 1,
+						"wave": 0
+					}
+				}
+			],
+			"Vary": 0.3,
+			"Room": 0.1,
+			"Loop": 2
+		},
+		"bliip": {
+			"Layers": [
+				{
+					"Model": "beeps",
+					"Params": {
+						"pitch": 1100,
+						"beeps": 1,
+						"length": 0.14,
+						"last": 1,
+						"slide": 7,
+						"wave": 0
+					}
+				},
+				{
+					"Model": "beeps",
+					"At": 0.06,
+					"Gain": -10,
+					"Params": {
+						"pitch": 2200,
+						"beeps": 1,
+						"length": 0.1,
+						"last": 1,
+						"slide": 7,
+						"wave": 0
+					}
+				}
+			],
+			"Vary": 0.3,
+			"Room": 0.3
+		}
+	}
+}

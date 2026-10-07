@@ -57,6 +57,11 @@ var BossKinds = []string{Taunt, Roar, Hurt, Laugh, Worried, Defeat, Whimper}
 // Boss is the Role of a boss.
 const Boss = "boss"
 
+// Effects is the Role of a set of effects, sounds of a place or a thing
+// rather than a character's: its calls are named as its Sounds list
+// them, as launch, or ufo.
+const Effects = "effects"
+
 // A Library is the companions and how their calls are finished.
 type Library struct {
 	Master Master
@@ -92,8 +97,11 @@ type Companion struct {
 	Name      string
 	Style     string
 	Character string
-	// Role is Boss for a boss; empty for a companion.
+	// Role is Boss for a boss, Effects for a set of effects, and empty
+	// for a companion.
 	Role string `json:",omitempty"`
+	// Sounds are an effects set's calls by name, in order.
+	Sounds []string `json:",omitempty"`
 	// Calls are its calls by kind: a companion's Kinds, a boss's
 	// BossKinds.
 	Calls map[string]*Call
@@ -101,8 +109,11 @@ type Companion struct {
 
 // Kinds returns the calls c makes, in order: a boss's or a companion's.
 func (c *Companion) Kinds() []string {
-	if c.Role == Boss {
+	switch c.Role {
+	case Boss:
 		return BossKinds
+	case Effects:
+		return c.Sounds
 	}
 	return Kinds
 }
@@ -122,6 +133,10 @@ type Call struct {
 	// Cut, where set, fades the call out to end by then, in seconds, as
 	// a bell's ring is stopped short.
 	Cut float64 `json:",omitempty"`
+	// Loop, where set, makes the call a loop that long, in seconds, to
+	// play over and over without a seam, as a hum, from Player.Start
+	// until Player.Stop.
+	Loop float64 `json:",omitempty"`
 	// Notes is what the listener asks to change, for the call's next
 	// round.
 	Notes string `json:",omitempty"`
@@ -133,6 +148,11 @@ type Layer struct {
 	// At is when it starts, in seconds; Gain its level, in decibels.
 	At   float64 `json:",omitempty"`
 	Gain float64 `json:",omitempty"`
+	// Ring, where set, ring-modulates the layer by a tone of that
+	// pitch, in hertz, as a robot's voice is made; RingMix is how much,
+	// from 0 to 1.
+	Ring    float64 `json:",omitempty"`
+	RingMix float64 `json:",omitempty"`
 	// Params are its model's numbers by name; those left out are their
 	// defaults.
 	Params map[string]float64
@@ -179,6 +199,13 @@ func Load(fsys fs.FS) (*Library, error) {
 		}
 		if c.Calls == nil {
 			c.Calls = map[string]*Call{}
+		}
+		if c.Role == Effects {
+			for i, name := range c.Sounds {
+				if name == "" || slices.Contains(c.Sounds[:i], name) {
+					return nil, fmt.Errorf("calls: %s lists the sound %q twice, or with no name", id, name)
+				}
+			}
 		}
 		for kind, call := range c.Calls {
 			if !slices.Contains(c.Kinds(), kind) {
@@ -289,6 +316,12 @@ func (l *Library) Make(call *Call, seed uint64) *Take {
 			p[spec.Name] = spec.stray(ly.Get(spec.Name), call.Vary, seed, r)
 		}
 		out := m.render(p, newRNG(seed^0x51ed270b2c8f3a61+uint64(i)*0x7f4a7c15))
+		if ly.Ring > 0 && ly.RingMix > 0 {
+			w := 2 * math.Pi * ly.Ring / rate
+			for i, v := range out {
+				out[i] = v * (1 - ly.RingMix + ly.RingMix*math.Sin(w*float64(i)))
+			}
+		}
 		g := dB(ly.Gain)
 		at := int(max(ly.At, 0) * rate)
 		if need := at + len(out); need > len(mix) {

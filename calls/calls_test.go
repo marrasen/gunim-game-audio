@@ -53,7 +53,8 @@ func TestEveryCallMeetsTheBriefInEveryTake(t *testing.T) {
 					if p := tk.Stats.Problems(kind, lib.Master); len(p) > 0 {
 						t.Errorf("%s's %s, take %d: %v", c.ID, kind, seed, p)
 					}
-					if v := tk.Samples[0]; v != 0 {
+					// A loop starts anywhere, as it runs on from its end.
+					if v := tk.Samples[0]; v != 0 && !tk.Stats.Loop {
 						t.Errorf("%s's %s, take %d, starts at %v, not from silence", c.ID, kind, seed, v)
 					}
 				}

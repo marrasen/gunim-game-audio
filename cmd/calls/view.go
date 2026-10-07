@@ -41,6 +41,18 @@ var kindNames = map[string]string{
 // three in one row, a boss's seven in two.
 const cardsPerRow = 4
 
+// kindName returns a call's name as the window shows it: its own, or an
+// effect's name, capitalised.
+func kindName(kind string) string {
+	if n, ok := kindNames[kind]; ok {
+		return n
+	}
+	if kind == "" {
+		return ""
+	}
+	return strings.ToUpper(kind[:1]) + kind[1:]
+}
+
 func small(s string) *widget.Label {
 	l := widget.NewLabel(s)
 	l.Size, l.Color = smallSize, widget.MenuHint
@@ -117,7 +129,7 @@ func buildView(s Lab) *root {
 
 	v.editing = widget.NewLabel("")
 	v.editing.Size = widget.HeadingSize
-	v.callKs = []*knob{{}, {}, {}, {}}
+	v.callKs = []*knob{{}, {}, {}, {}, {}}
 	v.master = []*knob{{}, {}, {}}
 	var setKnobs []gunim.Node
 	for _, k := range v.callKs {
@@ -187,7 +199,7 @@ func (v *view) update(s Lab, u *gunim.UI) {
 	v.cards.set(s.Calls, s.Selected)
 	v.keys.SetText(keysHint(s.Calls))
 	e := s.Editor
-	v.editing.SetText("Editing " + strings.ToLower(kindNames[e.Kind]))
+	v.editing.SetText("Editing " + strings.ToLower(kindName(e.Kind)))
 	made := len(e.Layers) > 0
 	v.callKs[0].show(-1, ParamView{Name: "vary", Label: "Vary", Lo: 0, Hi: 1, Def: 0.5, Value: e.Vary,
 		About: "How far each take strays from the call as set"})
@@ -197,6 +209,8 @@ func (v *view) update(s Lab, u *gunim.UI) {
 		About: "Fades the call out to end by then; 0 lets it ring out"})
 	v.callKs[3].show(-1, ParamView{Name: "presence", Label: "Presence", Unit: "dB", Lo: -6, Hi: 12, Def: 0, Value: e.Presence,
 		About: "Lifts the call about 2.2 kHz, where a phone's speaker carries it"})
+	v.callKs[4].show(-1, ParamView{Name: "loop", Label: "Loop", Unit: "s", Lo: 0, Hi: 6, Def: 0, Value: e.Loop, Zero: "no",
+		About: "Makes the call a loop this long, played over and over without a seam, as a hum; Play again stops it"})
 	v.master[0].show(-2, ParamView{Name: "highpass", Label: "Low cut", Unit: "Hz", Lo: 100, Hi: 600, Def: 300, Value: s.HighPass, Log: true})
 	v.master[1].show(-2, ParamView{Name: "loudness", Label: "Loudness", Unit: "", Lo: -24, Hi: -8, Def: -14, Value: s.Loudness})
 	v.master[2].show(-2, ParamView{Name: "ceiling", Label: "Ceiling", Unit: "", Lo: -6, Hi: 0, Def: -1, Value: s.Ceiling})
@@ -252,7 +266,7 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 func keysHint(cs []CallView) string {
 	names := make([]string, len(cs))
 	for i, c := range cs {
-		names[i] = strings.ToLower(kindNames[c.Kind])
+		names[i] = strings.ToLower(kindName(c.Kind))
 	}
 	digits := "1"
 	if n := len(cs); n > 1 {
@@ -364,7 +378,7 @@ func (g *cardGrid) set(views []CallView, selected int) {
 }
 
 func newCallCard(i int, kind string) *callCard {
-	c := &callCard{title: widget.NewLabel(kindNames[kind]), take: small(""), stats: small(""), problems: small("")}
+	c := &callCard{title: widget.NewLabel(kindName(kind)), take: small(""), stats: small(""), problems: small("")}
 	c.title.Size = theme.Length("calls.cardtitle", 17)
 	c.problems.Color = problem
 	c.wave = &wave{h: 84, click: PlayCall{Call: i}, playhead: -1}
@@ -390,7 +404,7 @@ func newCallCard(i int, kind string) *callCard {
 }
 
 func (c *callCard) set(v CallView, selected bool) {
-	c.title.SetText(kindNames[v.Kind])
+	c.title.SetText(kindName(v.Kind))
 	c.wave.data = v.Wave
 	c.wave.playhead = v.Playhead
 	c.take.SetText(v.Take)

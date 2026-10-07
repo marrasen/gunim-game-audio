@@ -1,8 +1,10 @@
 package calls
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"sync"
+	"time"
 
 	"github.com/marrasen/gunim/audio"
 )
@@ -21,13 +23,15 @@ type Player struct {
 	mu    sync.Mutex
 	ready map[string][]*audio.Clip
 	busy  map[string]bool
+	// loops are the loops playing, by companion and call.
+	loops map[string]*audio.Voice
 	// Volume scales every call, 1 as made.
 	Volume float32
 }
 
 // NewPlayer returns a player of lib's calls through mix.
 func NewPlayer(mix *audio.Mixer, lib *Library) *Player {
-	return &Player{mix: mix, lib: lib, ready: map[string][]*audio.Clip{}, busy: map[string]bool{}, Volume: 1}
+	return &Player{mix: mix, lib: lib, ready: map[string][]*audio.Clip{}, busy: map[string]bool{}, loops: map[string]*audio.Voice{}, Volume: 1}
 }
 
 // Warm makes takes of every call of the companions ids ahead, in the
@@ -119,3 +123,63 @@ func (p *Player) refill(id, kind string) {
 
 // newSeed returns a seed for a new take, never 0, the call as set.
 func newSeed() uint64 { return rand.Uint64() | 1 }
+
+// Start plays companion id's loop of kind, a call with a Loop, over
+// and over, fading in, until Stop: a UFO's hum while its saucer is on
+// screen. Started again while it plays, it plays on as it is.
+func (p *Player) Start(id, kind string, o audio.Options) (*audio.Voice, error) {
+	key := id + "/" + kind
+	p.mu.Lock()
+	if v, ok := p.loops[key]; ok && !done(v) {
+		p.mu.Unlock()
+		return v, nil
+	}
+	p.mu.Unlock()
+	c := p.lib.Companion(id)
+	if c == nil {
+		return nil, fmt.Errorf("calls: no companion %q", id)
+	}
+	if call, ok := c.Calls[kind]; !ok || call.Loop <= 0 {
+		return nil, fmt.Errorf("calls: %s's %s is no loop", id, kind)
+	}
+	t, err := p.lib.Take(id, kind, newSeed())
+	if err != nil {
+		return nil, err
+	}
+	o.Loop = true
+	if o.FadeIn == 0 {
+		o.FadeIn = 150 * time.Millisecond
+	}
+	v := p.play(t.Clip(), o)
+	p.mu.Lock()
+	p.loops[key] = v
+	p.mu.Unlock()
+	return v, nil
+}
+
+// Stop fades out companion id's loop of kind over fade, or 300 ms for
+// 0, where it plays.
+func (p *Player) Stop(id, kind string, fade time.Duration) {
+	key := id + "/" + kind
+	p.mu.Lock()
+	v, ok := p.loops[key]
+	delete(p.loops, key)
+	p.mu.Unlock()
+	if !ok {
+		return
+	}
+	if fade == 0 {
+		fade = 300 * time.Millisecond
+	}
+	v.Stop(fade)
+}
+
+// done says whether v has ended.
+func done(v *audio.Voice) bool {
+	select {
+	case <-v.Done():
+		return true
+	default:
+		return false
+	}
+}
