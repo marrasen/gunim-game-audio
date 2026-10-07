@@ -193,18 +193,18 @@ how the sounds are made:
 | Model | What it makes | Who uses it |
 |---|---|---|
 | `hoot` | an owl's breathy "hoo", sliding up into each hoot | the owl |
-| `ribbit` | a frog's "rib-bit", rolled by its throat, its throat sac ringing | the frog |
-| `blub` | a gulp: a lip's pop, a falling "blub", and rising bubbles | the frog |
+| `ribbit` | a frog's "rib-bit", rolled by its throat, its throat sac ringing | the frog, the meadow's frog |
+| `blub` | a gulp: a lip's pop, a falling "blub", and rising bubbles | the frog, Biologi's germs |
 | `mew` | a kitten's "m-i-a-u", its pitch arching, rolled into a trill if asked | the unicorn cat |
 | `sing` | a sung phrase: a syllable, "la", "oh", "yeah", "hey", "ooh", "na", "ah" or "ha", on each of up to four notes, with vibrato | the two K-pop singers, the wizard, the football star's "hey!", Whizpah's laugh |
-| `beeps`, `whirr`, `glitch` | a robot's beeps, a servo's whirr, and a stuttering, falling "bwoo" | the robot ninja |
+| `beeps`, `whirr`, `glitch` | a robot's beeps, a servo's whirr, and a stuttering, falling "bwoo" | the robot ninja, the meadow's birds and bumblebee |
 | `sparkle`, `chime` | small bells climbing a pentatonic scale, and notes struck on a celesta, as a "ta-da" | the wizard, the unicorn cat |
 | `whoosh`, `puff`, `fizzle` | air rushing past, a burst of smoke or flame, and crackles thinning over a hiss | the wizard, the dragon, the fox |
 | `roar` | a small creature's rough "rawr", ending in a squeak if asked | the baby dragon |
 | `yip` | a fox's short, bright yip, rising at its end as a question if asked | the fox, the dragon's hiccup |
 | `whistle`, `crowd`, `bonk` | a referee's pea whistle, a small crowd's "yay" or "ooh" with claps, and a ball's hollow knock | the football star |
 | `theremin` | a theremin's voice, nearly pure, sliding from note to note under a wide vibrato | the aliens |
-| `hum`, `rumble` | a flying saucer's beating, pulsing hum, and a rocket's rumble with its jet rising | Rymden's effects |
+| `hum`, `rumble` | a flying saucer's beating, pulsing hum, and a rocket's rumble with its jet rising | Rymden's effects, the meadow's bumblebee |
 
 An eleventh companion hides at the end of the list: Whizpah, a giggling
 gremlin named for the one who made the wizard old, who laughs at
@@ -218,6 +218,10 @@ a hurt "oof!", a laugh at a wrong answer, a worried "uh-oh", a defeated
 and so are Rymden's aliens: a squeaky little one of theremin warbles
 and a giggle, a show-off with a robot's voice, and a deep, wobbly big
 one. A layer's `Ring` ring-modulates it, as a robot's voice is made.
+Biologi's germs, `bacill-liten`, `bacill-mellan` and `bacill-stor`, are
+small, middle and big too: a squeaky one whose giggle pops like
+bubbles, a fizzy, gurgling show-off, and a deep, wobbly "blobb" with a
+gloopy laugh. Each squishes into a burst of bubbles as it falls.
 
 Rymden is a set of effects rather than a character: a whoosh into
 space, a rocket's launch, a shooting star, a saucer's hum and a soft
@@ -231,6 +235,11 @@ voices.Play("rymden", "launch", audio.Options{})
 voices.Start("rymden", "ufo", audio.Options{}) // hums till Stop
 voices.Stop("rymden", "ufo", 0)                // fades out
 ```
+
+Biologi, a summer meadow, is another set of effects: `vind`, a soft
+breeze with a few birds, for flying in; `fagel`, a bird's chirp;
+`groda`, the frog's ribbit; `bubbla`, a germ popping into bubbles as
+it falls; and `humla`, a bumblebee buzzing by.
 
 The voices are made as a throat makes them: a buzz of every harmonic
 of a pitch, and breath, shaped by the mouth's resonances into a vowel

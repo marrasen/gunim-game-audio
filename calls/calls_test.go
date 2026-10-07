@@ -37,6 +37,16 @@ func TestEveryCallMeetsTheBriefInEveryTake(t *testing.T) {
 			t.Errorf("the library holds no boss %s", id)
 		}
 	}
+	// Biologi's germs, its bosses, and the meadow's effects.
+	for _, id := range []string{"bacill-liten", "bacill-mellan", "bacill-stor"} {
+		if c := lib.Companion(id); c == nil || c.Role != Boss {
+			t.Errorf("the library holds no germ %s", id)
+		}
+	}
+	if c := lib.Companion("biologi"); c == nil || c.Role != Effects ||
+		!slices.Equal(c.Kinds(), []string{"vind", "fagel", "groda", "bubbla", "humla"}) {
+		t.Errorf("the library holds no meadow's effects: %v", c)
+	}
 	for _, c := range lib.Companions {
 		t.Run(c.ID, func(t *testing.T) {
 			t.Parallel()
