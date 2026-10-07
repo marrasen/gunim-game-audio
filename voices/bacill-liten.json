@@ -1,0 +1,346 @@
+{
+	"Name": "Bacillen, liten",
+	"Style": "Boss",
+	"Character": "Biologi's first germ: small, round and squeaky, its giggle popping like bubbles",
+	"Role": "boss",
+	"Calls": {
+		"taunt": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 740,
+						"notes": 3,
+						"n2": -3,
+						"n3": 2,
+						"syllable": 5,
+						"lastsyl": 6,
+						"length": 0.1,
+						"last": 1.7,
+						"gap": 0.03,
+						"scoop": 1,
+						"fall": 3,
+						"vibrato": 0.4,
+						"size": 2.0,
+						"ring": 0.5,
+						"bright": 0.5,
+						"breath": 0.2
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.42,
+					"Gain": -6,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1700,
+						"bubbles": 3,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.06,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": 3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 2
+		},
+		"roar": {
+			"Layers": [
+				{
+					"Model": "roar",
+					"Params": {
+						"pitch": 560,
+						"length": 0.5,
+						"arch": 4,
+						"growl": 0.45,
+						"growlhz": 28,
+						"open": 0.85,
+						"squeak": 0.35,
+						"squeakup": 12,
+						"size": 2.0,
+						"bright": 0.8,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.45,
+					"Gain": -5,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1500,
+						"bubbles": 4,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.05,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": 2
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 3
+		},
+		"hurt": {
+			"Layers": [
+				{
+					"Model": "blub",
+					"Params": {
+						"voice": 0.7,
+						"vpitch": 760,
+						"vlen": 0.09,
+						"vfall": 5,
+						"pop": 0.9,
+						"pitch": 1900,
+						"bubbles": 2,
+						"level": 0.8,
+						"start": 0.06,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 2.0,
+						"bright": 0.6
+					}
+				},
+				{
+					"Model": "yip",
+					"At": 0.03,
+					"Gain": -2,
+					"Params": {
+						"pitch": 1300,
+						"length": 0.12,
+						"leap": 4,
+						"drop": 8,
+						"open": 0.6,
+						"rough": 0.1,
+						"size": 2.0,
+						"bright": 0.5,
+						"breath": 0.2
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 2
+		},
+		"laugh": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 880,
+						"notes": 4,
+						"n2": -2,
+						"n3": -4,
+						"n4": -7,
+						"syllable": 7,
+						"lastsyl": 7,
+						"length": 0.075,
+						"last": 1.3,
+						"gap": 0.045,
+						"scoop": 2,
+						"vibrato": 0,
+						"size": 2.1,
+						"ring": 0.45,
+						"bright": 0.5,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.06,
+					"Gain": -4,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1800,
+						"bubbles": 4,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.12,
+						"climb": 0.8,
+						"decay": 0.025,
+						"drop": -2
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 2
+		},
+		"worried": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 820,
+						"notes": 2,
+						"n2": -3,
+						"syllable": 1,
+						"lastsyl": 1,
+						"length": 0.17,
+						"last": 1.8,
+						"fall": 2,
+						"vibrato": 1.0,
+						"size": 2.0,
+						"ring": 0.6,
+						"bright": 0.5,
+						"breath": 0.35
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.55,
+					"Gain": -8,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1400,
+						"bubbles": 2,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.08,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": -3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 2.5
+		},
+		"defeat": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 900,
+						"notes": 1,
+						"syllable": 4,
+						"lastsyl": 4,
+						"length": 0.55,
+						"last": 1,
+						"fall": 10,
+						"vibrato": 1.2,
+						"size": 2.0,
+						"ring": 0.6,
+						"bright": 0.5,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.4,
+					"Gain": -2,
+					"Params": {
+						"voice": 0.8,
+						"vpitch": 700,
+						"vlen": 0.14,
+						"vfall": 7,
+						"pop": 0.7,
+						"pitch": 1800,
+						"bubbles": 5,
+						"level": 1.0,
+						"start": 0.06,
+						"spacing": 0.05,
+						"climb": 0.9,
+						"decay": 0.035,
+						"drop": -3,
+						"size": 2.0,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.62,
+					"Gain": -1,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 2000,
+						"bubbles": 5,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.07,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": -2
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.9,
+					"Gain": -4,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1300,
+						"bubbles": 4,
+						"level": 0.9,
+						"start": 0.0,
+						"spacing": 0.09,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": -3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 2
+		},
+		"whimper": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 760,
+						"notes": 3,
+						"n2": 1,
+						"n3": -2,
+						"syllable": 4,
+						"lastsyl": 4,
+						"length": 0.14,
+						"last": 1.8,
+						"gap": 0.04,
+						"scoop": 2,
+						"fall": 3,
+						"vibrato": 0.9,
+						"size": 2.0,
+						"ring": 0.7,
+						"bright": 0.5,
+						"breath": 0.5
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.6,
+					"Gain": -9,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1500,
+						"bubbles": 2,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.12,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": -2
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 3
+		}
+	}
+}
