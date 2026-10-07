@@ -1,0 +1,151 @@
+{
+	"Kind": "synth",
+	"Title": "Candy Clouds",
+	"Artist": "Mikael Lönebrink",
+	"BPM": 84,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "F",
+	"Scale": "major",
+	"Chords": ["Fmaj7", "Am7", "Bbmaj7", "C6", "Dm7", "Am7", "Gm7", "Csus4"],
+	"ChordBars": 2,
+	"Mode": "wander",
+	"Clap": {"Track": "tick", "Drum": "snap"},
+	"Patches": {
+		"pad": {
+			"Osc": [
+				{"Wave": "tri", "Level": 0.7},
+				{"Wave": "saw", "Unison": 3, "Spread": 14, "Level": 0.35}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 1100, "Res": 0.1, "Env": 0.4, "Key": 0.3},
+			"Amp": {"Attack": 1.2, "Decay": 1.5, "Sustain": 0.85, "Release": 2.2},
+			"FilterEnv": {"Attack": 1.5, "Decay": 2, "Sustain": 0.5, "Release": 1.5},
+			"LFO": [{"To": "cutoff", "Wave": "sine", "Beats": 16, "Depth": 0.4}],
+			"Poly": 10,
+			"Gain": 0.45
+		},
+		"bass": {
+			"Osc": [
+				{"Wave": "sine"},
+				{"Wave": "tri", "Octave": 1, "Level": 0.25}
+			],
+			"Amp": {"Attack": 0.01, "Decay": 0.6, "Sustain": 0.5, "Release": 0.4},
+			"Poly": 1,
+			"Gain": 0.75
+		},
+		"musicbox": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 5, "Index": 1.6, "Decay": 0.12, "Sustain": 0.05},
+				{"Wave": "sine", "Octave": 1, "Level": 0.25}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 7000, "Key": 0.3},
+			"Amp": {"Attack": 0.002, "Decay": 1.1, "Sustain": 0, "Release": 0.9},
+			"Poly": 8,
+			"Gain": 0.4
+		},
+		"marimba": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 4, "Index": 1.4, "Decay": 0.06, "Sustain": 0},
+				{"Wave": "sine", "Level": 0.8}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 3500, "Key": 0.4, "Vel": 0.5},
+			"Amp": {"Attack": 0.002, "Decay": 0.45, "Sustain": 0, "Release": 0.3},
+			"Poly": 6,
+			"Gain": 0.55
+		},
+		"celesta": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 3, "Index": 1.2, "Decay": 0.25, "Sustain": 0.15},
+				{"Wave": "sine", "Level": 0.6}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 6000, "Key": 0.3},
+			"Amp": {"Attack": 0.003, "Decay": 1.4, "Sustain": 0.1, "Release": 1},
+			"Poly": 4,
+			"Gain": 0.5
+		},
+		"glass": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 7, "Index": 1, "Decay": 0.2, "Sustain": 0.1},
+				{"Wave": "sine", "Level": 0.6}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 8000, "Key": 0.3, "Vel": 0.6},
+			"Amp": {"Attack": 0.003, "Decay": 0.9, "Sustain": 0, "Release": 0.8},
+			"Poly": 8,
+			"Gain": 0.4
+		},
+		"hum": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 3, "Spread": 12},
+				{"Wave": "sine", "Octave": 1, "Level": 0.3}
+			],
+			"Vowel": "u",
+			"Filter": {"Type": "lp", "Cutoff": 2000, "Res": 0.05},
+			"Amp": {"Attack": 1.4, "Decay": 1, "Sustain": 0.9, "Release": 2},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 4.5, "Depth": 0.06}],
+			"Poly": 8,
+			"Gain": 0.45
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"snap": {"Gain": 0.45, "Tone": 0.4},
+				"sh": {"Gain": 0.22, "Pan": -0.25},
+				"rim": {"Gain": 0.3, "Tone": 0.3, "Pan": 0.2}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "pad", "Core": true, "Patch": "pad", "Color": "#ffb3d9",
+			"Pattern": "ch", "Legato": 1, "Octave": 4,
+			"Gain": -11.7, "Chorus": 0.4, "Reverb": 0.45, "HPF": 140
+		},
+		{
+			"Name": "bass", "Core": true, "Patch": "bass", "Color": "#3fd0c9",
+			"Pattern": "b _ ~ ~ b ~ c2 ~", "Octave": 2, "Legato": 0.9,
+			"Params": {"vel": "1 0.8 0.8 0.7"},
+			"Gain": -6
+		},
+		{
+			"Name": "musicbox", "Core": true, "Patch": "musicbox", "Color": "#fff1a8",
+			"Pattern": "[x ~ x ~ x ~ x x]", "Arp": "up", "ArpOctaves": 2, "Octave": 5, "Legato": 0.8,
+			"Params": {"vel": "[0.9 0.6 0.8 0.6 0.85 0.6 0.7 0.5]"},
+			"Gain": -3, "Pan": 0.15, "Reverb": 0.4, "Delay": 0.25
+		},
+		{
+			"Name": "tick", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "[~ snap ~ snap, sh*8?0.6]",
+			"Params": {"vel": "[0.9 0.6]*4"},
+			"Gain": -5, "Reverb": 0.25, "Human": 0.25
+		},
+		{
+			"Name": "marimba", "Patch": "marimba", "Color": "#ffb36b",
+			"Pattern": "[c0 ~ c2 c1 ~ c2 c0' ~]", "Octave": 4, "Legato": 0.8,
+			"Params": {"vel": "[1 0.7 0.8 0.7 0.9 0.6 0.8 0.6]"},
+			"Gain": -3.2, "Pan": -0.2, "Reverb": 0.3
+		},
+		{
+			"Name": "celesta", "Patch": "celesta", "Color": "#ff6b9d",
+			"Pattern": "[c0' _ _ c3 c2 _ _ _] [c1 _ c2 _ c0 _ ~ ~] [c1 _ _ c2 c3 _ _ c2] [c1 _ _ _ _ _ ~ ~]",
+			"Bars": 4, "Octave": 5, "Legato": 1,
+			"Gain": -4.4, "Pan": 0.1, "Reverb": 0.45, "Delay": 0.3
+		},
+		{
+			"Name": "sparkle", "Patch": "glass", "Color": "#c9f2ff",
+			"Pattern": "x*8?0.3", "Arp": "random", "ArpOctaves": 2, "Octave": 6, "Legato": 0.6,
+			"Params": {"vel": "[0.6 1 0.7 0.9]*2", "pan": "sine:-0.7:0.7:4"},
+			"Gain": -8.6, "Reverb": 0.5, "Delay": 0.35
+		},
+		{
+			"Name": "hum", "Patch": "hum", "Color": "#c58cff",
+			"Pattern": "ch", "Legato": 1, "Octave": 4,
+			"Params": {"vowel": "<u o u a>"},
+			"Gain": -17, "Reverb": 0.55, "HPF": 220
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 0.8, "Decay": 2.8, "Tone": 0.65, "PreDelay": 0.03},
+		"Delay": {"Beats": 0.75, "Feedback": 0.35, "Tone": 0.55},
+		"Gain": 2
+	}
+}

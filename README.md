@@ -21,6 +21,8 @@ game's music. Each song plays without end, and changes as it goes.
 | Mascot Dance | `mascot-dance` | A bright dance groove, made in code, at 124 BPM in E major, for a mascot to dance to. Its tracks come and go by themselves around a kick, a bass and hats that always play, and a topline it writes itself changes every two phrases. |
 | Star Drift | `star-drift` | A calm song of space, made in code, at 76 BPM in D Lydian, full of wonder, for Rymden's room and its map: slow pads, a sub and bells ringing always, and twinkles, arpeggios, a choir, a floating lead and a soft heartbeat coming and going. |
 | Orbit Round | `orbit-round` | A round song in space, made in code, at 116 BPM in E minor, in four tiers: a pad, a bass and a driving sequencer; claps and bells; a theremin's lead; drums and zaps. The digit keys play the E minor pentatonic over it. |
+| Candy Clouds | `candy-clouds` | A calm, sweet song of candy land, made in code, at 84 BPM in F major, for a room and its map: a soft pad, a round bass, a music box and a soft snap always, and a marimba, a celesta's tune, sugar sparkles and a hum coming and going. |
+| Compass Rose | `compass-rose` | A calm song of travel, made in code, at 92 BPM in D major, for a room and its map: a fingerpicked guitar, an upright bass, strings and a hand drum always, and a wooden flute's tune, a glockenspiel and the sea's swell coming and going. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 6 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -168,7 +170,8 @@ Keypad Round's claps come in at tier 2, and those of the other tiers
 songs at tier 3, Orbit Round's and Alien Entrance's at tier 2. Mascot
 Dance's, Sister Dreams' and Underworld Ascent's come and go as those
 songs wander, and the game can hold them in with `SetPart`; Star
-Drift's bells always ring. Pocket Kingdom claps twice, quick, every
+Drift's bells always ring, as do Candy Clouds' soft snap and Compass
+Rose's rim, on beats 2 and 4. Pocket Kingdom claps twice, quick, every
 bar; Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent,
 Orbit Round and Alien Entrance every other bar. The recorded songs,
 Greek Themes and A round song, tell their beat but not their drums: a
@@ -512,8 +515,10 @@ go run ./cmd/render -song boss-entrance -o boss.wav -tracks -bands
 
 ## Licence
 
-The songs, in `songs/`, are © 2026 Marcus Johansson, under the
+The songs, in `songs/`, are © 2026 Marcus Johansson, but for Candy
+Clouds and Compass Rose, © 2026 Mikael Lönebrink, all under the
 [Creative Commons Attribution 4.0](LICENSE-music) licence: use them,
-change them and share them, in anything, and credit Marcus Johansson.
+change them and share them, in anything, and credit the song's maker,
+as its song.json names them.
 
 The Go code is under the [Apache License 2.0](LICENSE), as gunim is.
