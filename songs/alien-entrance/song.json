@@ -182,34 +182,36 @@
 	],
 	"Stings": {
 		"victory": {
-			"Bars": 6,
+			"Bars": 2,
 			"Key": "C",
 			"Scale": "major",
-			"Chords": ["Ab", "Bb", "C", "C", "C", "C"],
+			"Chords": ["Bb", "C"],
 			"Then": "stop",
 			"Tracks": [
 				{
 					"Name": "fanfare", "Patch": "fanfare", "Color": "#ffcf5c",
-					"Pattern": "[Eb4 _ _ Eb4 Ab4 _ C5 _] [F4 _ _ F4 Bb4 _ D5 _] [G4 _ G4 G4 C5 _ _ _] [E5 _ D5 _ C5 _ G4 _] [C5 _ _ _ _ _ _ _] ~",
-					"Bars": 6, "Legato": 0.9,
+					"Pattern": "[F4 _ F4 F4 Bb4 _ D5 _] [C5 _ _ _ _ _ _ _]", "Bars": 2, "Legato": 0.92,
 					"Gain": -7, "Reverb": 0.35, "Delay": 0.1
 				},
 				{
 					"Name": "stabs", "Patch": "saucer", "Color": "#ff8a4c",
-					"Pattern": "[ch ~ ~ ch ch _ _ _] [ch ~ ~ ch ch _ _ _] [ch _ _ _ _ _ _ _] [~ ~ ~ ~ ch _ _ _] [ch _ _ _ _ _ _ _] ~",
-					"Bars": 6, "Octave": 4, "Legato": 0.95,
-					"Gain": -10, "Reverb": 0.35
+					"Pattern": "[ch ~ ~ ch ch _ _ _] [ch _ _ _ _ _ _ _]", "Bars": 2, "Octave": 4, "Legato": 0.95,
+					"Gain": -7, "Reverb": 0.35
 				},
 				{
 					"Name": "bells", "Patch": "bell", "Color": "#e9f27a",
-					"Pattern": "~ ~ [x*16] [x*8] [x*4 ~] ~", "Bars": 6, "Arp": "up", "ArpOctaves": 3, "Octave": 5, "Legato": 0.6,
-					"Gain": -10, "Reverb": 0.4, "Delay": 0.25
+					"Pattern": "[~ x*8] [x x x x ~ ~ ~ ~]", "Bars": 2, "Arp": "up", "ArpOctaves": 3, "Octave": 5, "Legato": 0.6,
+					"Gain": -7, "Reverb": 0.4, "Delay": 0.25
+				},
+				{
+					"Name": "theremin", "Patch": "theremin", "Color": "#ff6b9d",
+					"Pattern": "~ [C6 _ _ _ _ _ _ _]", "Bars": 2, "Legato": 1,
+					"Gain": -14, "Reverb": 0.45
 				},
 				{
 					"Name": "timpani", "Patch": "kit", "Color": "#ff5c5c",
-					"Pattern": "[tim ~ ~ tim tim ~ ~ ~] [tim ~ ~ tim tim ~ ~ ~] [tim*16] [[tim, cr, boom] ~ ~ ~ ~ ~ ~ ~] [[tim, cr] ~ ~ ~ ~ ~ ~ ~] ~",
-					"Bars": 6, "Octave": 4,
-					"Params": {"vel": "[0.9 0.6 0.6 0.8 1 0.6 0.6 0.6] [0.9 0.6 0.6 0.8 1 0.6 0.6 0.6] [0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1 1] 1 1 1"},
+					"Pattern": "[[tim ~ ~ tim] [tim*8]] [[tim, cr, boom] ~ ~ ~ ~ ~ ~ ~]", "Bars": 2, "Octave": 4,
+					"Params": {"vel": "[[0.9 0.6 0.6 0.8] [0.5 0.55 0.6 0.7 0.75 0.85 0.95 1]] 1"},
 					"Gain": -8, "Reverb": 0.3
 				}
 			]

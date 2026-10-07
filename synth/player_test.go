@@ -390,3 +390,42 @@ func TestPreviews(t *testing.T) {
 		t.Error("a drum of no kit previewed")
 	}
 }
+
+func TestAVictoryStingLastsTwoBarsAndEndsOnItsChord(t *testing.T) {
+	// The game's results screen counts its stars up in about two bars:
+	// the fanfare ends with them, on a chord held to its end.
+	for _, name := range []string{"boss-entrance", "alien-entrance"} {
+		p := synth.NewPlayer(songs(t)[name], 1)
+		play(p, 30000)
+		l := p.Look(0)
+		bar := l.BarFrames
+		if err := p.Sting("victory"); err != nil {
+			t.Fatal(err)
+		}
+		var out []float32
+		frames := 0
+		for !p.Look(p.Played()).Stopped {
+			out = append(out, play(p, 480)...)
+			frames += 480
+			if frames > int(4*bar) {
+				t.Fatalf("%s: the sting plays on past 4 bars", name)
+			}
+		}
+		// It starts on the next beat, and lasts two bars.
+		beat := bar / float64(l.BeatsPerBar)
+		if got := float64(frames); got < 2*bar || got > 2*bar+beat+480 {
+			t.Errorf("%s: the sting lasts %.2f s, not two bars, %.2f s", name, got/48000, 2*bar/48000)
+		}
+		// Its last quarter still sounds: the final chord, held.
+		end, _, _ := stats(out[len(out)-int(bar/2):])
+		if end < 0.02 {
+			t.Errorf("%s: the sting's last half bar is %.4f rms, not its final chord", name, end)
+		}
+		// Then its chord rings out into silence, through the reverb's
+		// tail.
+		play(p, 6*48000)
+		if rms, _, _ := stats(play(p, 48000)); rms > 3e-4 {
+			t.Errorf("%s: after the sting, %.5f rms, not under -70 dB", name, rms)
+		}
+	}
+}
