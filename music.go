@@ -64,7 +64,7 @@ const (
 	KeypadRound = "keypad-round"
 	// BossEntrance is a cartoon villain's entrance, made in code, at
 	// 146 BPM in D minor: pizzicato, a tuba, brass stabs and timpani in
-	// four tiers that rise as a boss's health falls, and a victory
+	// four tiers that rise as a boss's health falls, and a two-bar victory
 	// sting.
 	BossEntrance = "boss-entrance"
 	// MascotDance is a bright dance groove, made in code, at 124 BPM in
@@ -125,7 +125,7 @@ const (
 	// BPM in C minor, in four tiers that rise as the boss's health
 	// falls: a bass and radar blips; saucer stabs, a march and claps; a
 	// theremin's theme and a choir; drums, string runs and zaps. A
-	// victory sting of 6 bars ends it.
+	// victory sting of 2 bars ends it.
 	AlienEntrance = "alien-entrance"
 )
 
