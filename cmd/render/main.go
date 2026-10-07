@@ -61,7 +61,9 @@ func main() {
 					one.Tracks = append(one.Tracks, u)
 				}
 			}
-			one.Mode, one.Mix.Duck, one.Stings, one.Mix.Transitions = "tiers", "", nil, nil
+			// The track alone: no other track for the mix to duck to,
+			// or a dancer to clap to.
+			one.Mode, one.Mix.Duck, one.Stings, one.Mix.Transitions, one.Clap = "tiers", "", nil, nil, nil
 			lufs, peak, oct := measure(one, 2, *seed)
 			fmt.Printf("  %-18s %6.1f LUFS  peak %6.1f dB", t.Name, lufs, peak)
 			if *bands {
