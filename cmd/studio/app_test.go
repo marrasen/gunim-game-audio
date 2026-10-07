@@ -298,3 +298,16 @@ func TestFilterSliderRunsByOctaves(t *testing.T) {
 		}
 	}
 }
+
+func TestAWanderSongShowsItsOneLabelChosen(t *testing.T) {
+	// From a tiers song at tier 3 to a wander song, the tiers' highlight
+	// goes to the one label, "wanders", not where tier 3's button was.
+	h := newHarness(t, music.KeypadRound)
+	h.do(TierChosen{Tier: 3})
+	h.settle()
+	h.do(SongChosen{Song: slices.Index(h.s.state().Songs, "Compass Rose")})
+	h.settle()
+	if got := h.v.tiers.Selected(); got != 0 || !slices.Equal(h.v.tiers.Labels, []string{"wanders"}) {
+		t.Errorf("Compass Rose's tiers show %v, %d chosen", h.v.tiers.Labels, got)
+	}
+}

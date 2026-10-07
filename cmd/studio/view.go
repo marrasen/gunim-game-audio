@@ -213,6 +213,9 @@ func (v *view) update(s Studio, u *gunim.UI) {
 		v.tiers.Labels = []string{"wanders"}
 		v.tierLabel.SetText("Parts")
 		v.shown = 0
+		// The one label is the one chosen: the last song's tier would
+		// leave the highlight where its button was, over the stings.
+		v.tiers.SetSelected(0, u)
 	}
 	if fmt.Sprint(s.Stings) != fmt.Sprint(v.stingNames) {
 		v.stingNames = s.Stings
