@@ -89,7 +89,7 @@ type Player struct {
 	// out, which starts on aheadFrom.
 	ahead     []Hit
 	aheadFrom int64
-	err    error
+	err       error
 	// levels are the tracks, to read their levels from: replaced, never
 	// changed, as songs change.
 	levels []*track
