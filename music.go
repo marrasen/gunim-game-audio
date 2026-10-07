@@ -127,6 +127,16 @@ const (
 	// theremin's theme and a choir; drums, string runs and zaps. A
 	// victory sting of 2 bars ends it.
 	AlienEntrance = "alien-entrance"
+	// CandyClouds is a calm, sweet song of candy land, made in code, at
+	// 84 BPM in F major, for a game's room and its map: a soft pad, a
+	// round bass, a music box and a soft snap always, and a marimba, a
+	// celesta's tune, sugar sparkles and a hum coming and going.
+	CandyClouds = "candy-clouds"
+	// CompassRose is a calm song of travel, made in code, at 92 BPM in D
+	// major, for a game's room and its map: a fingerpicked guitar, an
+	// upright bass, strings and a hand drum always, and a wooden flute's
+	// tune, a glockenspiel and the sea's swell coming and going.
+	CompassRose = "compass-rose"
 )
 
 // files holds the songs: a folder each, named for the song, with its
