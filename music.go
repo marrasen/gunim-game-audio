@@ -91,10 +91,12 @@ const (
 	// in four tiers: a calypso bass on the wave channel and offbeat stabs;
 	// drums and a counter melody; the lead; and its echo.
 	PocketKingdom = "pocket-kingdom"
-	// MeadowHop is a swung, jazzy chip tune in the manner of Super Mario
-	// Bros. 3, made in code for the NES's sound, at 140 BPM in F major, in
-	// four tiers: a walking triangle bass and comping sevenths; drums; the
-	// lead; and its harmony and toms.
+	// MeadowHop is a shuffling, jazzy chip tune in the manner of Super
+	// Mario Bros. 3, made in code for the NES's sound, at 140 BPM in F
+	// major, its eighths swung in triplets, in four tiers: a walking
+	// triangle bass and two pulses comping each chord's third and
+	// seventh; a shuffle beat; the lead's hook and claps; a counter line
+	// and fills.
 	MeadowHop = "meadow-hop"
 	// HerosField is a heroic march in the manner of The Legend of Zelda,
 	// for the NES's sound, at 130 BPM in B flat major, in four tiers:
