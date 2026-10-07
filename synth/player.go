@@ -85,6 +85,10 @@ type Player struct {
 	nbars  int
 	notes  [noteRing]Note
 	nnotes int
+	// ahead are the drum hits foreseen in the bar after the one laid
+	// out, which starts on aheadFrom.
+	ahead     []Hit
+	aheadFrom int64
 	err    error
 	// levels are the tracks, to read their levels from: replaced, never
 	// changed, as songs change.
@@ -162,8 +166,10 @@ type Note struct {
 	// none.
 	Pitch int
 	Vel   float32
-	// Drum names the drum, for a drum, as its kit does: bd, or oh.
+	// Drum names the drum, for a drum, as its kit does: bd, or oh; and
+	// Kind says what drum it is, whatever the kit calls it: see Hit.
 	Drum string
+	Kind string
 }
 
 // Look is what a player plays, as a tool shows it.
@@ -1192,14 +1198,16 @@ func (p *Player) publishBar(sb int) {
 	for _, s := range p.queue {
 		nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
 		if s.drum {
-			nt.Len, nt.Pitch, nt.Drum = max(s.dur, rate/20), int(s.pitch), s.d.name
+			nt.Len, nt.Pitch, nt.Drum, nt.Kind = max(s.dur, rate/20), int(s.pitch), s.d.name, drumKind(s.d.kind)
 		}
 		notes = append(notes, nt)
 	}
+	ahead := p.foresee(sb)
 	p.wmu.Lock()
 	p.bars[p.nbars%barRing] = b
 	p.nbars++
 	p.look = b.look
+	p.ahead, p.aheadFrom = ahead, p.barEnd
 	p.wmu.Unlock()
 	p.publish(notes)
 }

@@ -146,6 +146,9 @@
 				"clk": {
 					"Type": "nesmetal",
 					"Gain": 0.4
+				},
+				"cp": {
+					"Type": "nesclap"
 				}
 			}
 		},
@@ -202,6 +205,14 @@
 			"Tier": 2,
 			"Gain": -6,
 			"Human": 0.2
+		},
+		{
+			"Name": "claps",
+			"Tier": 3,
+			"Patch": "kit",
+			"Color": "#ff8a4c",
+			"Pattern": "[~ cp ~ cp]",
+			"Gain": -16.5
 		},
 		{
 			"Name": "lead",

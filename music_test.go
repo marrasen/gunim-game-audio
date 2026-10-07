@@ -3,6 +3,7 @@ package music
 import (
 	"cmp"
 	"errors"
+	"math"
 	"slices"
 	"testing"
 
@@ -193,6 +194,36 @@ func TestTheCompanionsCallsLoadFromTheLibrary(t *testing.T) {
 		c := lib.Companion(id)
 		if c == nil || len(c.Calls) != 3 {
 			t.Errorf("%s makes %v", id, c)
+		}
+	}
+}
+
+func TestEverySongTellsItsBeat(t *testing.T) {
+	for _, name := range Songs() {
+		s, err := Song(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := s.Play(1)
+		// Play two bars and a half, then ask about a beat and a half into
+		// the second bar.
+		frames := int(audio.SampleRate * 60 / s.Info().BPM * 10)
+		buf := make([]float32, 2*1000)
+		for done := 0; done < frames; done += 1000 {
+			_, _ = p.Read(buf)
+		}
+		b := BeatAt(s, p, 0)
+		if b.Bar != 0 || b.Beat != 0 || b.Frames <= 0 {
+			t.Errorf("%s: at its start the beat is %+v", name, b)
+			continue
+		}
+		at := int64(float64(b.BeatsPerBar)*b.Frames + 1.5*b.Frames)
+		b = BeatAt(s, p, at)
+		if b.Bar != 1 || b.Beat != 1 || math.Abs(b.Phase-0.5) > 0.01 {
+			t.Errorf("%s: 1.5 beats into its second bar the beat is %+v", name, b)
+		}
+		if want := 60 / s.Info().BPM * audio.SampleRate; math.Abs(b.Frames-want) > 1 {
+			t.Errorf("%s: a beat lasts %.1f frames at %v BPM, not %.1f", name, b.Frames, s.Info().BPM, want)
 		}
 	}
 }

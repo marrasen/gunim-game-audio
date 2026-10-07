@@ -55,7 +55,8 @@
 				"sn": {"Type": "sidsnare", "Gain": 0.75},
 				"hh": {"Type": "sidhat", "Gain": 0.45},
 				"oh": {"Type": "sidohat", "Gain": 0.35},
-				"zap": {"Type": "sidzap", "Gain": 0.5}
+				"zap": {"Type": "sidzap", "Gain": 0.5},
+				"cp": {"Type": "sidclap"}
 			}
 		},
 		"wind": {
@@ -101,6 +102,11 @@
 			"Name": "drums", "Patch": "sid", "Color": "#ff8a4c",
 			"Pattern": "[bd ~ ~ bd ~ ~ bd ~, ~ ~ sn ~ ~ ~ sn ~, hh*8]",
 			"Gain": -10.4
+		},
+		{
+			"Name": "claps", "Patch": "sid", "Color": "#ff8a4c",
+			"Pattern": "[~ cp ~ cp]",
+			"Gain": -11.4, "Reverb": 0.1
 		},
 		{
 			"Name": "wind", "Patch": "wind", "Color": "#9aa3b5",

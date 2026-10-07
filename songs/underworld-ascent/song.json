@@ -165,6 +165,9 @@
 				"clk": {
 					"Type": "nesmetal",
 					"Gain": 0.4
+				},
+				"cp": {
+					"Type": "nesclap"
 				}
 			}
 		}
@@ -228,6 +231,13 @@
 			"Color": "#ff8a4c",
 			"Pattern": "[bd ~ ~ bd sn ~ bd ~, [~ hh]*4]",
 			"Gain": -8.1
+		},
+		{
+			"Name": "claps",
+			"Patch": "kit",
+			"Color": "#ff8a4c",
+			"Pattern": "<[~ cp ~ cp] [~ cp ~ [cp cp]]>",
+			"Gain": -17.7
 		}
 	],
 	"Mix": {

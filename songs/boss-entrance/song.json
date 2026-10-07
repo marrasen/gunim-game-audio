@@ -106,7 +106,8 @@
 				"mt": {"Gain": 0.7},
 				"ht": {"Gain": 0.65},
 				"boom": {"Gain": 0.6},
-				"rim": {"Gain": 0.45}
+				"rim": {"Gain": 0.45},
+				"cp": {}
 			}
 		},
 		"fx": {
@@ -164,6 +165,11 @@
 			"Bars": 2, "Octave": 4,
 			"Params": {"vel": "[1 0.8]*8"},
 			"Gain": -11.5, "Reverb": 0.2
+		},
+		{
+			"Name": "claps", "Tier": 3, "Patch": "orch", "Color": "#ff8a4c",
+			"Pattern": "<[~ cp ~ cp] [~ cp ~ [cp cp]]>",
+			"Gain": -6.4, "Reverb": 0.3
 		},
 		{
 			"Name": "runs", "Tier": 4, "Patch": "strings", "Color": "#7c8cff",
