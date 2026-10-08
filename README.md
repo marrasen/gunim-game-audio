@@ -204,16 +204,16 @@ how the sounds are made:
 |---|---|---|
 | `hoot` | an owl's breathy "hoo", sliding up into each hoot | the owl |
 | `ribbit` | a frog's "rib-bit", rolled by its throat, its throat sac ringing | the frog, the meadow's frog |
-| `blub` | a gulp: a lip's pop, a falling "blub", and rising bubbles | the frog, Biologi's germs |
+| `blub` | a gulp: a lip's pop, a falling "blub", and rising bubbles | the frog, Biologi's germs, Labbet's slimes, bubbles and drops |
 | `mew` | a kitten's "m-i-a-u", its pitch arching, rolled into a trill if asked | the unicorn cat |
 | `sing` | a sung phrase: a syllable, "la", "oh", "yeah", "hey", "ooh", "na", "ah" or "ha", on each of up to four notes, with vibrato | the two K-pop singers, the wizard, the football star's "hey!", Whizpah's laugh |
-| `beeps`, `whirr`, `glitch` | a robot's beeps, a servo's whirr, and a stuttering, falling "bwoo" | the robot ninja, the meadow's birds and bumblebee |
-| `sparkle`, `chime` | small bells climbing a pentatonic scale, and notes struck on a celesta, as a "ta-da" | the wizard, the unicorn cat |
-| `whoosh`, `puff`, `fizzle` | air rushing past, a burst of smoke or flame, and crackles thinning over a hiss | the wizard, the dragon, the fox |
+| `beeps`, `whirr`, `glitch` | a robot's beeps, a servo's whirr, and a stuttering, falling "bwoo" | the robot ninja, the meadow's birds and bumblebee, Labbet's crank |
+| `sparkle`, `chime` | small bells climbing a pentatonic scale, and notes struck on a celesta, as a "ta-da" | the wizard, the unicorn cat, Labbet's lamp |
+| `whoosh`, `puff`, `fizzle` | air rushing past, a burst of smoke or flame, and crackles thinning over a hiss | the wizard, the dragon, the fox, Labbet's splash, fizz and spark |
 | `roar` | a small creature's rough "rawr", ending in a squeak if asked | the baby dragon |
 | `yip` | a fox's short, bright yip, rising at its end as a question if asked | the fox, the dragon's hiccup |
-| `whistle`, `crowd`, `bonk` | a referee's pea whistle, a small crowd's "yay" or "ooh" with claps, and a ball's hollow knock | the football star |
-| `theremin` | a theremin's voice, nearly pure, sliding from note to note under a wide vibrato | the aliens |
+| `whistle`, `crowd`, `bonk` | a referee's pea whistle, a small crowd's "yay" or "ooh" with claps, and a ball's hollow knock | the football star, Labbet's magnet and pendulum |
+| `theremin` | a theremin's voice, nearly pure, sliding from note to note under a wide vibrato | the aliens, Labbet's spring |
 | `hum`, `rumble` | a flying saucer's beating, pulsing hum, and a rocket's rumble with its jet rising | Rymden's effects, the meadow's bumblebee |
 
 An eleventh companion hides at the end of the list: Whizpah, a giggling
@@ -232,6 +232,12 @@ Biologi's germs, `bacill-liten`, `bacill-mellan` and `bacill-stor`, are
 small, middle and big too: a squeaky one whose giggle pops like
 bubbles, a fizzy, gurgling show-off, and a deep, wobbly "blobb" with a
 gloopy laugh. Each squishes into a burst of bubbles as it falls.
+Labbet's slimes, `slemmis-liten`, `slemmis-mellan` and `slemmis-stor`,
+blobs escaped from their test tubes, are small, middle and big as well,
+and speak in gloops: each syllable a voiced "blub", a giggle with a
+gloop on every "ha", a wobbling "oo-ooh", and a splat for a hurt. As it
+falls each melts into a puddle, its gloops running down into thinning
+bubbles.
 
 Rymden is a set of effects rather than a character: a whoosh into
 space, a rocket's launch, a shooting star, a saucer's hum and a soft
@@ -250,6 +256,15 @@ Biologi, a summer meadow, is another set of effects: `vind`, a soft
 breeze with a few birds, for flying in; `fagel`, a bird's chirp;
 `groda`, the frog's ribbit; `bubbla`, a germ popping into bubbles as
 it falls; and `humla`, a bumblebee buzzing by.
+
+Labbet, an inventor's workshop, is a third, for the game to play as a
+thing it shows happens: `blubb`, bubbles rising as a thing floats up;
+`plask`, a splash and a bloop as it sinks; `fizz`, a tablet fizzing as
+it dissolves; `klonk`, a magnet's zip and clank on metal; `zap`, a soft
+spark of static; `pling`, a switch's click and a lamp's ding; `droppe`,
+a water drop; `eko`, a sung "hal-lå!" and its echoes; `vind`, a puff of
+air; `tick`, a pendulum's tick-tock with a creak; `boing`, a spring; and
+`vev`, a little crank whirring up and down.
 
 The voices are made as a throat makes them: a buzz of every harmonic
 of a pitch, and breath, shaped by the mouth's resonances into a vowel
