@@ -13,7 +13,7 @@ import (
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/widget"
 
-	"github.com/marrasen/gunim-music/synth"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // kitPane edits a drums patch: its drums as pads, which light as the

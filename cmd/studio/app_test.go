@@ -14,8 +14,8 @@ import (
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/widget"
 
-	music "github.com/marrasen/gunim-music"
-	"github.com/marrasen/gunim-music/synth"
+	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // harness runs the studio's two halves in a test: the window offscreen,

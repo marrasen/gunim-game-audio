@@ -11,7 +11,7 @@ import (
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 
-	"github.com/marrasen/gunim-music/calls"
+	"github.com/marrasen/gunim-game-audio/calls"
 )
 
 // The readouts' colours.

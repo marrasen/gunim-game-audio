@@ -21,8 +21,8 @@ import (
 	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/driver"
 
-	music "github.com/marrasen/gunim-music"
-	"github.com/marrasen/gunim-music/synth"
+	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // spectrumPoints is how many frequencies the spectrum shows.

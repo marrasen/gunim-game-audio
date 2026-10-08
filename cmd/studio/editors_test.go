@@ -9,8 +9,8 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/input"
 
-	music "github.com/marrasen/gunim-music"
-	"github.com/marrasen/gunim-music/synth"
+	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 func TestPathsReadAndSetTheSong(t *testing.T) {

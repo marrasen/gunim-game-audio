@@ -12,7 +12,7 @@ import (
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 
-	"github.com/marrasen/gunim-music/synth"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // screen is the dark glass a readout draws on, as a synth's display.

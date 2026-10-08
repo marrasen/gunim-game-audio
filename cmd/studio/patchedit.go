@@ -15,7 +15,7 @@ import (
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/widget"
 
-	"github.com/marrasen/gunim-music/synth"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // The choices the editors offer, as the song writes them.

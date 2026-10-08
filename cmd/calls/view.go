@@ -14,7 +14,7 @@ import (
 	"github.com/marrasen/gunim/theme"
 	"github.com/marrasen/gunim/widget"
 
-	"github.com/marrasen/gunim-music/calls"
+	"github.com/marrasen/gunim-game-audio/calls"
 )
 
 // The window's own tokens.

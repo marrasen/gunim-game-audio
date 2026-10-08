@@ -32,7 +32,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/widget"
 
-	"github.com/marrasen/gunim-music/calls"
+	"github.com/marrasen/gunim-game-audio/calls"
 )
 
 func main() {

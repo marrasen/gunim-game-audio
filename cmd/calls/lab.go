@@ -13,8 +13,8 @@ import (
 	"github.com/marrasen/gunim/anim"
 	"github.com/marrasen/gunim/audio"
 
-	music "github.com/marrasen/gunim-music"
-	"github.com/marrasen/gunim-music/calls"
+	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/calls"
 )
 
 // lab is what the window works on: the library, the companion open, its

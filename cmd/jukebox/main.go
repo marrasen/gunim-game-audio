@@ -4,7 +4,7 @@
 // stop one by one, a click on a part starts it, or stops it with its
 // outro, at the next phrase.
 //
-//	go run github.com/marrasen/gunim-music/cmd/jukebox@latest
+//	go run github.com/marrasen/gunim-game-audio/cmd/jukebox@latest
 //
 // The keys 1 to 9 set the tier too.
 package main
@@ -29,7 +29,7 @@ import (
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/widget"
 
-	music "github.com/marrasen/gunim-music"
+	music "github.com/marrasen/gunim-game-audio"
 )
 
 // The vocabulary the two halves share.
@@ -95,7 +95,7 @@ func run() error {
 	defer stop()
 	return gunim.Main(ctx, func(a *gunim.App) error {
 		w, err := a.NewWindow(gunim.WindowOptions{
-			Title: "gunim-music jukebox",
+			Title: "gunim-game-audio jukebox",
 			Size:  geom.Sz(460, 600),
 			Root:  widget.NewSurface(),
 		})
@@ -355,7 +355,7 @@ func (pl *player) state() Jukebox {
 
 func serve(ctx context.Context, c gunim.Client) error {
 	pl := &player{mix: audio.NewMixer(), volume: 1}
-	if _, err := speaker.Open(pl.mix, speaker.Options{Name: "gunim-music jukebox"}); err != nil {
+	if _, err := speaker.Open(pl.mix, speaker.Options{Name: "gunim-game-audio jukebox"}); err != nil {
 		return err
 	}
 	for _, name := range music.Songs() {

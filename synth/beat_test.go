@@ -6,7 +6,7 @@ import (
 
 	"github.com/marrasen/gunim/audio/band"
 
-	"github.com/marrasen/gunim-music/synth"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // sighting is a hit, and the frame the player had made when Hits first

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/marrasen/gunim-music/calls"
+	"github.com/marrasen/gunim-game-audio/calls"
 )
 
 // render writes every call of lib to a WAV file in dir, mono, 24 bits,

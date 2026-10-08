@@ -5,7 +5,7 @@ import (
 
 	"github.com/marrasen/gunim"
 
-	"github.com/marrasen/gunim-music/synth"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // The vocabulary the two halves share: the state the window shows, and

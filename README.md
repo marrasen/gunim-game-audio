@@ -1,8 +1,16 @@
-# gunim-music
+# gunim-game-audio
 
-A library of songs for [gunim](https://github.com/marrasen/gunim)'s band
-player, package `audio/band`, to try a program's sound with, as a
-game's music. Each song plays without end, and changes as it goes.
+Sound for games made with [gunim](https://github.com/marrasen/gunim):
+songs for its band player, package `audio/band`, the calls a game's
+companions make, and the tools to make both. Each song plays without
+end, and changes as it goes.
+
+The module was called gunim-music until v0.4.0; its packages are the
+same, at the new path:
+
+```go
+import music "github.com/marrasen/gunim-game-audio"
+```
 
 | Song | Name | What it is |
 |---|---|---|
@@ -33,15 +41,15 @@ outro, at the next phrase, and Follow the tier hands every part back to
 the tier:
 
 ```sh
-go run github.com/marrasen/gunim-music/cmd/jukebox@latest
+go run github.com/marrasen/gunim-game-audio/cmd/jukebox@latest
 ```
 
 Or listen from the terminal:
 
 ```sh
-go run github.com/marrasen/gunim-music/cmd/play@latest -list
-go run github.com/marrasen/gunim-music/cmd/play@latest -song greek-themes
-go run github.com/marrasen/gunim-music/cmd/play@latest -song a-round-song -tier 3
+go run github.com/marrasen/gunim-game-audio/cmd/play@latest -list
+go run github.com/marrasen/gunim-game-audio/cmd/play@latest -song greek-themes
+go run github.com/marrasen/gunim-game-audio/cmd/play@latest -song a-round-song -tier 3
 ```
 
 Play one in a program, under its other sounds:
@@ -310,7 +318,7 @@ The studio is a window to make game music in, with the engine playing
 as you work:
 
 ```sh
-go run github.com/marrasen/gunim-music/cmd/studio@latest
+go run github.com/marrasen/gunim-game-audio/cmd/studio@latest
 ```
 
 ![gunim music studio](cmd/studio/studio.png)

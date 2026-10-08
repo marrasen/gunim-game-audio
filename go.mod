@@ -1,4 +1,4 @@
-module github.com/marrasen/gunim-music
+module github.com/marrasen/gunim-game-audio
 
 go 1.27.1
 

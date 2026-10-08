@@ -9,7 +9,7 @@ import (
 
 	"github.com/marrasen/gunim"
 
-	"github.com/marrasen/gunim-music/synth"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // PatternOp changes a step of a track's pattern, as the pattern editor

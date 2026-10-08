@@ -1,7 +1,7 @@
 // Command play plays a song of the library through the speakers
 // until interrupted.
 //
-//	go run github.com/marrasen/gunim-music/cmd/play@latest
+//	go run github.com/marrasen/gunim-game-audio/cmd/play@latest
 //
 // -song picks the song, by name, and -list lists them. -seed picks how
 // the band plays it; each seed plays it its own way. -tier sets the
@@ -22,7 +22,7 @@ import (
 	"github.com/marrasen/gunim/audio/band"
 	"github.com/marrasen/gunim/audio/speaker"
 
-	music "github.com/marrasen/gunim-music"
+	music "github.com/marrasen/gunim-game-audio"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
 		log.Fatalf("%v; -list lists the songs", err)
 	}
 	mix := audio.NewMixer()
-	if _, err := speaker.Open(mix, speaker.Options{Name: "gunim-music"}); err != nil {
+	if _, err := speaker.Open(mix, speaker.Options{Name: "gunim-game-audio"}); err != nil {
 		log.Fatal(err)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)

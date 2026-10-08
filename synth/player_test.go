@@ -11,8 +11,8 @@ import (
 	"github.com/marrasen/gunim/audio"
 	"github.com/marrasen/gunim/audio/band"
 
-	music "github.com/marrasen/gunim-music"
-	"github.com/marrasen/gunim-music/synth"
+	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // songs returns the library's songs made in code, by name.

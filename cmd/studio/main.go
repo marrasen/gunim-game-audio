@@ -1,7 +1,7 @@
 // Command studio is gunim music studio: a window to make game music
 // in, with package synth's engine playing as you work.
 //
-//	go run github.com/marrasen/gunim-music/cmd/studio@latest
+//	go run github.com/marrasen/gunim-game-audio/cmd/studio@latest
 //
 // It opens the library's songs made in code. The stage shows the song in
 // 3D: each track an orb on the ring of its tier, its notes flying in to
@@ -43,7 +43,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/widget"
 
-	music "github.com/marrasen/gunim-music"
+	music "github.com/marrasen/gunim-game-audio"
 )
 
 func main() {
