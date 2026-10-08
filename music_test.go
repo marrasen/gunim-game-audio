@@ -168,7 +168,7 @@ func TestEverySongPlays(t *testing.T) {
 func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 	for _, name := range []string{KeypadRound, BossEntrance, MascotDance, BubbleBounce, SisterDreams, GraveyardGallop,
 		PocketKingdom, MeadowHop, HerosField, PalaceRun, UnderworldAscent, StarDrift, OrbitRound, AlienEntrance,
-		CandyClouds, CompassRose, SummerMeadow} {
+		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound} {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)
@@ -176,6 +176,68 @@ func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 		if _, ok := s.(*synth.Song); !ok {
 			t.Fatalf("%s is a %T, want a *synth.Song", name, s)
 		}
+	}
+}
+
+// loudness plays bars of song name, made in code, at tier, and says how
+// loud they are, in LUFS, as cmd/render measures a song.
+func loudness(t *testing.T, name string, tier, bars int) float64 {
+	t.Helper()
+	s, err := Song(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := synth.NewPlayer(s.(*synth.Song), 1)
+	p.SetTier(tier)
+	look := p.Look(0)
+	// A tier asked for starts at the next phrase: play the first, then
+	// measure.
+	skip := 0
+	if tier > 1 {
+		skip = int(float64(look.PhraseBars) * look.BarFrames)
+	}
+	frames := skip + int(float64(bars)*look.BarFrames)
+	buf := make([]float32, 2*1024)
+	var m audio.LoudnessMeter
+	for done := 0; done < frames; done += len(buf) / 2 {
+		if _, err := p.Read(buf); err != nil {
+			t.Fatal(err)
+		}
+		if done >= skip {
+			m.Write(buf)
+		}
+	}
+	lufs, _ := m.Integrated()
+	return lufs
+}
+
+func TestLabbetsSongsAreAsLoudAsTheOtherRooms(t *testing.T) {
+	if testing.Short() {
+		t.Skip("plays a minute of music")
+	}
+	// The room song sits with Candy Clouds and Compass Rose, within a
+	// decibel of the range they span.
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, name := range []string{CandyClouds, CompassRose} {
+		l := loudness(t, name, 1, 16)
+		lo, hi = min(lo, l), max(hi, l)
+	}
+	l := loudness(t, TinkerLab, 1, 16)
+	t.Logf("Tinker Lab %.1f LUFS; Candy Clouds and Compass Rose %.1f to %.1f", l, lo, hi)
+	if l < lo-1 || l > hi+1 {
+		t.Errorf("Tinker Lab is %.1f LUFS, not within a decibel of %.1f to %.1f", l, lo, hi)
+	}
+	// The round song's full tier sits with Keypad Round's and Orbit
+	// Round's.
+	lo, hi = math.Inf(1), math.Inf(-1)
+	for _, name := range []string{KeypadRound, OrbitRound} {
+		l := loudness(t, name, 4, 8)
+		lo, hi = min(lo, l), max(hi, l)
+	}
+	l = loudness(t, TinkerRound, 4, 8)
+	t.Logf("Tinker Round's tier 4 %.1f LUFS; Keypad Round's and Orbit Round's %.1f to %.1f", l, lo, hi)
+	if l < lo-1 || l > hi+1 {
+		t.Errorf("Tinker Round's tier 4 is %.1f LUFS, not within a decibel of %.1f to %.1f", l, lo, hi)
 	}
 }
 

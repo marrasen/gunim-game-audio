@@ -144,6 +144,18 @@ const (
 	// a soft pad, a round bass and a woody tick always, and an
 	// ocarina's tune, birdsong and a bumblebee's hum coming and going.
 	SummerMeadow = "summer-meadow"
+	// TinkerLab is a curious, bouncy song of an inventor's workshop,
+	// made in code, at 96 BPM in A major, shuffled in triplets, for a
+	// game's room and its map: plucked strings, a plucked bass, a soft
+	// pad, a light groove and a clock's tick-tock always, and a
+	// marimba's tune, bubbly blips and a vibraphone coming and going.
+	TinkerLab = "tinker-lab"
+	// TinkerRound is a round song of the same workshop, made in code,
+	// at 112 BPM in A major, shuffled, in four tiers: plucked strings, a
+	// plucked bass and a pad; claps and a clock; a marimba's tune;
+	// drums and bubbly blips. The digit keys play the A major
+	// pentatonic over it.
+	TinkerRound = "tinker-round"
 )
 
 // files holds the songs: a folder each, named for the song, with its

@@ -32,6 +32,8 @@ import music "github.com/marrasen/gunim-game-audio"
 | Candy Clouds | `candy-clouds` | A calm, sweet song of candy land, made in code, at 84 BPM in F major, for a room and its map: a soft pad, a round bass, a music box and a soft snap always, and a marimba, a celesta's tune, sugar sparkles and a hum coming and going. |
 | Compass Rose | `compass-rose` | A calm song of travel, made in code, at 92 BPM in D major, for a room and its map: a fingerpicked guitar, an upright bass, strings and a hand drum always, and a wooden flute's tune, a glockenspiel and the sea's swell coming and going. |
 | Summer Meadow | `summer-meadow` | A calm song of a summer meadow, made in code, at 88 BPM in G major, for a room and its map: a plucked harp, a soft pad, a round bass and a woody tick always, and an ocarina's tune, birdsong and a bumblebee's hum coming and going. |
+| Tinker Lab | `tinker-lab` | A curious, bouncy song of an inventor's workshop, made in code, at 96 BPM in A major, shuffled in triplets, for a room and its map: plucked strings, a plucked bass, a soft pad, a light groove and a clock's tick-tock always, and a marimba's tune, bubbly blips and a vibraphone coming and going. |
+| Tinker Round | `tinker-round` | A round song of the same workshop, made in code, at 112 BPM in A major, shuffled, in four tiers: plucked strings, a plucked bass and a pad; claps and a clock; a marimba's tune; drums and bubbly blips. The digit keys play the A major pentatonic over it. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -176,14 +178,14 @@ last bar is foreseen; a wander song's own choice of parts is not, but a
 part the game turns on or off is.
 
 Keypad Round's claps come in at tier 2, and those of the other tiers
-songs at tier 3, Orbit Round's and Alien Entrance's at tier 2. Mascot
-Dance's, Sister Dreams' and Underworld Ascent's come and go as those
-songs wander, and the game can hold them in with `SetPart`; Star
-Drift's bells always ring, as do Candy Clouds' soft snap, Compass
-Rose's rim and Summer Meadow's woody tick, on beats 2 and 4. Pocket
-Kingdom claps twice, quick, every bar; Boss Entrance, Bubble Bounce,
-Hero's Field, Underworld Ascent, Orbit Round, Alien Entrance and Meadow
-Hop every other bar. The recorded songs, Greek Themes and A round song,
+songs at tier 3, Orbit Round's, Alien Entrance's and Tinker Round's at
+tier 2. Mascot Dance's, Sister Dreams' and Underworld Ascent's come and
+go as those songs wander, and the game can hold them in with
+`SetPart`; Star Drift's bells always ring, as do Candy Clouds' soft
+snap, Compass Rose's rim, Summer Meadow's woody tick and Tinker Lab's
+snap, on beats 2 and 4. Pocket Kingdom claps twice, quick, every bar;
+Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent, Orbit
+Round, Alien Entrance, Meadow Hop and Tinker Round every other bar. The recorded songs, Greek Themes and A round song,
 tell their beat but not their drums: a character can clap on beats 2
 and 4 to them.
 
@@ -535,9 +537,9 @@ go run ./cmd/render -song boss-entrance -o boss.wav -tracks -bands
 ## Licence
 
 The songs, in `songs/`, are © 2026 Marcus Johansson, but for Candy
-Clouds, Compass Rose and Summer Meadow, © 2026 Mikael Lönebrink, all
-under the [Creative Commons Attribution 4.0](LICENSE-music) licence:
-use them, change them and share them, in anything, and credit the
-song's maker, as its song.json names them.
+Clouds, Compass Rose, Summer Meadow, Tinker Lab and Tinker Round, © 2026
+Mikael Lönebrink, all under the [Creative Commons Attribution
+4.0](LICENSE-music) licence: use them, change them and share them, in
+anything, and credit the song's maker, as its song.json names them.
 
 The Go code is under the [Apache License 2.0](LICENSE), as gunim is.
