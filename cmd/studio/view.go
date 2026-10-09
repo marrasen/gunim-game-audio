@@ -83,35 +83,35 @@ func buildView(s Studio) *root {
 	v.root = r
 	title := widget.NewLabel("gunim music studio")
 	title.Size = widget.HeadingSize
-	v.songs = widget.NewDropdown(s.Songs...)
+	v.songs = widget.NewDropdown(widget.Labels(s.Songs...))
 	v.songs.Label = "Song"
-	v.songs.OnChange = func(i int) gunim.Intent { return SongChosen{Song: i} }
+	v.songs.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} }
 	v.play = widget.NewButton("Pause")
-	v.play.Icon, v.play.Kind, v.play.On = icon.Pause, widget.ButtonPrimary, PlayToggled{}
+	v.play.Icon, v.play.Kind, v.play.OnClick = icon.Pause, widget.ButtonPrimary, widget.Sends(PlayToggled{})
 	v.play.KeepFocus = true
 	restart := widget.NewIconButton(icon.RotateCcw, "Play from the start")
-	restart.On = Restarted{}
+	restart.OnClick = widget.Sends(Restarted{})
 	v.tierLabel = small("Tier")
 	v.tiers = widget.NewSegmented("1")
 	v.tiers.KeepFocus = true
-	v.tiers.OnChange = func(i int) gunim.Intent { return TierChosen{Tier: i + 1} }
-	v.stings = widget.NewDropdown("no stings")
+	v.tiers.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return TierChosen{Tier: i + 1} }
+	v.stings = widget.NewDropdown(widget.Labels("no stings"))
 	v.stings.Label, v.stings.Disabled = "Sting", true
 	v.sting = widget.NewButton("Sting")
 	v.sting.Icon = icon.Trophy
 	v.bpm = widget.NewNumberField(40, 240)
 	v.bpm.Suffix = " BPM"
-	v.bpm.OnChange = func(x float64) gunim.Intent { return BPMSet{BPM: x} }
+	v.bpm.OnChange = func(x float64, _ *gunim.UI) gunim.Intent { return BPMSet{BPM: x} }
 	down := widget.NewIconButton(icon.Minus, "Down a semitone")
-	down.On = Transposed{By: -1}
+	down.OnClick = widget.Sends(Transposed{By: -1})
 	up := widget.NewIconButton(icon.Plus, "Up a semitone")
-	up.On = Transposed{By: 1}
+	up.OnClick = widget.Sends(Transposed{By: 1})
 	v.key = widget.NewLabel("")
 	v.volume = widget.NewSlider(0, 1)
-	v.volume.Set(s.Volume)
-	v.volume.OnChange = func(x float32) gunim.Intent { return VolumeSet{Volume: x} }
+	v.volume.SetValue(s.Volume, nil)
+	v.volume.OnChange = func(x float32, _ *gunim.UI) gunim.Intent { return VolumeSet{Volume: x} }
 	save := widget.NewIconButton(icon.Save, "Save the song as a song.json")
-	save.On = Saved{}
+	save.OnClick = widget.Sends(Saved{})
 	gap := widget.NewSpacer()
 	top := widget.Row(title, v.songs, v.play, restart, v.tierLabel, v.tiers, v.stings, v.sting, gap,
 		widget.NewSized(v.bpm.TextField, 104, 0), down, v.key, up, widget.NewIcon(icon.Volume2, "Volume"),
@@ -130,20 +130,20 @@ func buildView(s Studio) *root {
 	v.pattern = newPatternPane(func(string) gunim.Intent { return v.focus() })
 	v.tabs = widget.NewTabs(editorTabs, stagePage, v.mixer, v.patch, v.kit, v.fx, v.pattern)
 	v.tabs.Icons = []*icon.Icon{icon.Orbit, icon.SlidersHorizontal, icon.AudioWaveform, icon.Drum, icon.Waves, icon.Grid3x3}
-	v.tabs.OnChange = func(int) gunim.Intent { return v.focus() }
+	v.tabs.OnChange = func(int, *gunim.UI) gunim.Intent { return v.focus() }
 	left := v.tabs
 
 	head := widget.NewLabel("Tracks")
 	head.Size = widget.HeadingSize
 	v.follow = widget.NewButton("Follow the tier")
-	v.follow.Icon, v.follow.On = icon.Layers, TierFollowed{}
+	v.follow.Icon, v.follow.OnClick = icon.Layers, widget.Sends(TierFollowed{})
 	hint := small("Type a pattern and hear it from the next bar. Click a card to start or stop its track.")
 	headGap := widget.NewSpacer()
 	headRow := widget.Row(head, headGap, v.follow).Grow(headGap, 1)
 	headRow.Cross = widget.CrossCenter
 	v.tracks = widget.NewList()
-	v.tracks.NoFocus = true
-	v.tracks.OnClick = func(k widget.Key) gunim.Intent { return PartClicked{Name: string(k)} }
+	v.tracks.SkipFocus = true
+	v.tracks.OnActivate = func(k widget.Key, _ *gunim.UI) gunim.Intent { return PartClicked{Name: string(k)} }
 	list := widget.NewScroll(v.tracks)
 	right := widget.Column(headRow, hint, list).Grow(list, 1)
 	right.Cross = widget.CrossStretch
@@ -158,13 +158,13 @@ func buildView(s Studio) *root {
 	v.chords = widget.NewTextField()
 	v.chords.Placeholder = "Am F C G, or vi IV I V"
 	v.chords.Face = widget.MonoFont
-	v.chords.OnChange = func(t string) gunim.Intent { return ChordsEdited{Text: t} }
+	v.chords.OnChange = func(t string, _ *gunim.UI) gunim.Intent { return ChordsEdited{Text: t} }
 	v.chordErr = small("")
 	v.chordErr.Color = problem
 	genButtons := make([]gunim.Node, 0, len(styles))
 	for _, st := range styles {
 		b := widget.NewButton(st)
-		b.Icon, b.On, b.Ghost, b.KeepFocus = icon.WandSparkles, ChordsGenerated{Style: st}, true, true
+		b.Icon, b.OnClick, b.Ghost, b.KeepFocus = icon.WandSparkles, widget.Sends(ChordsGenerated{Style: st}), true, true
 		b.Tooltip = "Write a " + st + " progression"
 		genButtons = append(genButtons, b)
 	}
@@ -189,8 +189,8 @@ func (r *root) update(s Studio, u *gunim.UI) { r.view.update(s, u) }
 // update shows s.
 func (v *view) update(s Studio, u *gunim.UI) {
 	v.s = s
-	v.songs.Selected = s.Song
-	v.about.SetText(s.About)
+	v.songs.SetSelected(s.Song, u)
+	v.about.Text = s.About
 	if s.Playing {
 		v.play.Label, v.play.Icon = "Pause", icon.Pause
 	} else {
@@ -202,16 +202,16 @@ func (v *view) update(s Studio, u *gunim.UI) {
 			for i := range labels {
 				labels[i] = strconv.Itoa(i + 1)
 			}
-			v.tiers.Labels = labels
+			v.tiers.Items = labels
 			v.shown = s.Tiers
 		}
-		v.tierLabel.SetText("Tier")
+		v.tierLabel.Text = "Tier"
 		if v.tiers.Selected() != s.Tier-1 {
 			v.tiers.SetSelected(s.Tier-1, u)
 		}
 	} else if v.shown != 0 {
-		v.tiers.Labels = []string{"wanders"}
-		v.tierLabel.SetText("Parts")
+		v.tiers.Items = []string{"wanders"}
+		v.tierLabel.Text = "Parts"
 		v.shown = 0
 		// The one label is the one chosen: the last song's tier would
 		// leave the highlight where its button was, over the stings.
@@ -220,31 +220,33 @@ func (v *view) update(s Studio, u *gunim.UI) {
 	if fmt.Sprint(s.Stings) != fmt.Sprint(v.stingNames) {
 		v.stingNames = s.Stings
 		if len(s.Stings) == 0 {
-			v.stings.Items, v.stings.Disabled = []string{"no stings"}, true
+			v.stings.SetItems(widget.Labels("no stings"))
+			v.stings.Disabled = true
 		} else {
-			v.stings.Items, v.stings.Disabled = s.Stings, false
+			v.stings.SetItems(widget.Labels(s.Stings...))
+			v.stings.Disabled = false
 		}
-		v.stings.Selected = 0
+		v.stings.SetSelected(0, u)
 	}
 	v.sting.Disabled = len(s.Stings) == 0
 	if len(s.Stings) > 0 {
-		v.sting.On = StingPlayed{Name: s.Stings[min(v.stings.Selected, len(s.Stings)-1)]}
+		v.sting.OnClick = widget.Sends(StingPlayed{Name: s.Stings[min(v.stings.Selected(), len(s.Stings)-1)]})
 	}
-	v.key.SetText(s.Key)
+	v.key.Text = s.Key
 	v.follow.Disabled = false
 	if v.gen != s.Gen {
 		v.gen = s.Gen
-		v.chords.SetText(s.ChordText)
+		v.chords.SetText(s.ChordText, u)
 		v.chords.Select(0, 0)
-		v.bpm.SetText(strconv.FormatFloat(s.BPM, 'f', -1, 64))
+		v.bpm.SetText(strconv.FormatFloat(s.BPM, 'f', -1, 64), u)
 	}
-	v.chordErr.SetText(s.ChordErr)
+	v.chordErr.Text = s.ChordErr
 	if s.Keypad {
-		v.keypad.SetText("Keypad: the digit keys play the key's pentatonic over the song, so typing always fits. F1 to F4 set the tier; Space plays and pauses.")
+		v.keypad.Text = "Keypad: the digit keys play the key's pentatonic over the song, so typing always fits. F1 to F4 set the tier; Space plays and pauses."
 	} else {
-		v.keypad.SetText("F1 to F4 set the tier; Space plays and pauses.")
+		v.keypad.Text = "F1 to F4 set the tier; Space plays and pauses."
 	}
-	v.status.SetText(s.Status)
+	v.status.Text = s.Status
 	v.stage.s = s
 	v.flow.s = s
 	if s.EditorGen != v.editorGen {
@@ -312,26 +314,26 @@ func newCard(t TrackRow) *card {
 	c.field.Face = widget.MonoFont
 	c.field.Placeholder = "a pattern, as bd ~ sn ~ or x*8"
 	name := t.Name
-	c.field.OnChange = func(s string) gunim.Intent { return PatternEdited{Track: name, Text: s} }
+	c.field.OnChange = func(s string, _ *gunim.UI) gunim.Intent { return PatternEdited{Track: name, Text: s} }
 	knob := func(lo, hi float32, k string) *widget.Slider {
 		s := widget.NewSlider(lo, hi)
-		s.OnChange = func(x float32) gunim.Intent { return KnobSet{Track: name, Knob: k, Value: x} }
+		s.OnChange = func(x float32, _ *gunim.UI) gunim.Intent { return KnobSet{Track: name, Knob: k, Value: x} }
 		return s
 	}
 	c.gain, c.filter, c.reverb, c.delay = knob(-36, 6, "gain"), knob(0, 1, "filter"), knob(0, 1, "reverb"), knob(0, 1, "delay")
-	c.patch = widget.NewDropdown("–")
+	c.patch = widget.NewDropdown(widget.Labels("–"))
 	c.patch.Label = "Patch"
 	c.patch.MaxWidth = 110
-	c.patch.OnChange = func(i int) gunim.Intent {
+	c.patch.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		if i < len(c.patchNames) {
 			return TrackPatch{Track: name, Patch: c.patchNames[i]}
 		}
 		return TrackPatch{Track: name, Patch: c.patchName}
 	}
 	editPattern := widget.NewIconButton(icon.Grid3x3, "Edit the pattern")
-	editPattern.On, editPattern.KeepFocus = OpenEditor{Editor: "Pattern", Track: name}, true
+	editPattern.OnClick, editPattern.KeepFocus = widget.Sends(OpenEditor{Editor: "Pattern", Track: name}), true
 	editPatch := widget.NewIconButton(icon.AudioWaveform, "Edit the patch")
-	editPatch.On, editPatch.KeepFocus = OpenEditor{Editor: "Patch", Track: name}, true
+	editPatch.OnClick, editPatch.KeepFocus = widget.Sends(OpenEditor{Editor: "Patch", Track: name}), true
 	head := widget.Row(widget.NewSized(c.swatch, 12, 12), c.name, c.doing, widget.NewSpacer(), widget.NewSized(c.meter, 60, 8), c.patch, editPatch, editPattern)
 	head.Cross = widget.CrossCenter
 	head.Grow(head.Children()[3], 1)
@@ -351,7 +353,7 @@ func newCard(t TrackRow) *card {
 	return c
 }
 
-func (c *card) set(t TrackRow, _ *gunim.UI) {
+func (c *card) set(t TrackRow, u *gunim.UI) {
 	label := t.Name
 	switch {
 	case t.Tier > 0:
@@ -359,15 +361,15 @@ func (c *card) set(t TrackRow, _ *gunim.UI) {
 	case t.Core:
 		label = t.Name + " · always"
 	}
-	c.name.SetText(label)
-	c.doing.SetText(t.Doing)
+	c.name.Text = label
+	c.doing.Text = t.Doing
 	c.doing.Color = widget.MenuHint
 	c.Fill = cardFill
 	if t.Playing {
 		c.doing.Color = widget.Accent
 		c.Fill = playing
 	}
-	c.err.SetText(t.PatternErr)
+	c.err.Text = t.PatternErr
 	c.patchName = t.Patch
 	c.swatch.c = hexColor(t.Color, 0)
 	c.swatch.on = t.Playing
@@ -375,12 +377,12 @@ func (c *card) set(t TrackRow, _ *gunim.UI) {
 	c.meter.target = t.Level
 	if c.gen != t.Gen {
 		c.gen = t.Gen
-		c.field.SetText(t.Pattern)
+		c.field.SetText(t.Pattern, u)
 		c.field.Select(0, 0)
-		c.gain.Set(t.Gain)
-		c.filter.Set(t.Filter)
-		c.reverb.Set(t.Reverb)
-		c.delay.Set(t.Delay)
+		c.gain.SetValue(t.Gain, nil)
+		c.filter.SetValue(t.Filter, nil)
+		c.reverb.SetValue(t.Reverb, nil)
+		c.delay.SetValue(t.Delay, nil)
 	}
 }
 
@@ -526,7 +528,7 @@ func (v *view) open(s Studio, u *gunim.UI) {
 			}
 		}
 	}
-	v.tabs.Select(tab, u)
+	v.tabs.SetSelected(tab, u)
 }
 
 // patches offers the song's patches for the card's track to play.
@@ -537,7 +539,7 @@ func (c *card) patches(s Studio) {
 	names := sortedNames(s.Doc.Patches)
 	if !slices.Equal(names, c.patchNames) {
 		c.patchNames = names
-		c.patch.Items = names
+		c.patch.SetItems(widget.Labels(names...))
 	}
-	c.patch.Selected = max(slices.Index(names, c.patchName), 0)
+	c.patch.SetSelected(max(slices.Index(names, c.patchName), 0), nil)
 }

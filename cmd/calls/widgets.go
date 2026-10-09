@@ -10,6 +10,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
+	"github.com/marrasen/gunim/widget"
 
 	"github.com/marrasen/gunim-game-audio/calls"
 )
@@ -92,7 +93,7 @@ func (k *knob) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom
 }
 
 func (k *knob) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	r, text := float32(15), float32(10.5)
 	c := geom.Pt(box.W/2, 4+r)
 	const from, sweep = 0.75 * math.Pi, 1.5 * math.Pi
@@ -315,7 +316,7 @@ func (w *wave) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 	p.RRect(geom.Rc(4, mid, box.W-8, 1), 0, paint.Solid(withAlpha(scopeColor, 0.15)))
 	if len(w.data) < 4 {
 		run := audioui.Shaped("Not made yet", 11, false, false)
-		run.Paint(p, geom.Pt((box.W-run.Advance)/2, mid-run.Height()/2), withAlpha(audioui.Ink.Get(f.Theme), 0.4))
+		run.Paint(p, geom.Pt((box.W-run.Advance)/2, mid-run.Height()/2), withAlpha(widget.Ink.Get(f.Theme), 0.4))
 		return
 	}
 	n := len(w.data) / 2
@@ -349,7 +350,7 @@ func (s *spectrum) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) 
 func (s *spectrum) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
 	r := geom.Rc(0, 0, box.W, box.H)
 	screen(p, r)
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	lo, hi := math.Log(100.0), math.Log(16000.0)
 	x := func(hz float64) float32 { return 4 + (box.W-8)*float32((math.Log(hz)-lo)/(hi-lo)) }
 	top, floor := float32(14), float32(-60)

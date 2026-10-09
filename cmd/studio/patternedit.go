@@ -54,9 +54,9 @@ type opButton struct {
 
 func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 	pp := &patternPane{changed: changed, gen: -1, selGen: -1}
-	pp.picker = widget.NewDropdown("–")
+	pp.picker = widget.NewDropdown(widget.Labels("–"))
 	pp.picker.Label = "Track"
-	pp.picker.OnChange = func(i int) gunim.Intent {
+	pp.picker.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		if i < len(pp.tracks) {
 			pp.track = pp.tracks[i]
 			pp.gen = -1
@@ -66,7 +66,7 @@ func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 	}
 	pp.field = widget.NewTextField()
 	pp.field.Face = widget.MonoFont
-	pp.field.OnChange = func(s string) gunim.Intent { return PatternEdited{Track: pp.track, Text: s} }
+	pp.field.OnChange = func(s string, _ *gunim.UI) gunim.Intent { return PatternEdited{Track: pp.track, Text: s} }
 	pp.err = small("")
 	pp.err.Color = problem
 	head := widget.Row(pp.picker, pp.field).Grow(pp.field, 1)
@@ -79,7 +79,9 @@ func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 	pp.atom = widget.NewTextField()
 	pp.atom.Face = widget.MonoFont
 	pp.atom.Placeholder = "a value, as bd, 2, c1, ch or x"
-	pp.atom.OnSubmit = func(s string) gunim.Intent { return PatternOp{Track: pp.track, At: pp.sel, Op: "set", Arg: s} }
+	pp.atom.OnCommit = func(s string, _ *gunim.UI) gunim.Intent {
+		return PatternOp{Track: pp.track, At: pp.sel, Op: "set", Arg: s}
+	}
 	set := widget.NewIconButton(icon.Check, "Set the step to this")
 	set.KeepFocus = true
 	pp.palette = make([]*widget.Button, 16)
@@ -120,7 +122,7 @@ func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 		pp.ops = append(pp.ops, b)
 		opNodes = append(opNodes, b)
 	}
-	set.On = nil
+	set.OnClick = nil
 	pp.ops = append(pp.ops, &opButton{Button: &set.Button, op: "set"})
 	atomRow := widget.Row(pp.chosen, sized(pp.atom, 200, 0), set)
 	atomRow.Cross = widget.CrossCenter
@@ -134,14 +136,14 @@ func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 	}
 	pp.cycles = widget.NewSegmented("cycle 1")
 	pp.cycles.KeepFocus = true
-	pp.cycles.OnChange = func(i int) gunim.Intent {
+	pp.cycles.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		pp.grid.cycle = i
 		return pp.changed(pp.track)
 	}
 	pp.note = small("")
 	pp.res = widget.NewSegmented("8", "16", "32")
 	pp.res.KeepFocus = true
-	pp.res.OnChange = func(i int) gunim.Intent {
+	pp.res.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		pp.grid.perBar = []int{8, 16, 32}[i]
 		pp.grid.src = ""
 		return pp.changed(pp.track)
@@ -154,7 +156,7 @@ func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 			return false
 		}
 		pp.grid.addRow(pp.newRow.Text())
-		pp.newRow.SetText("")
+		pp.newRow.SetText("", u)
 		u.Invalidate()
 		return true
 	}
@@ -175,18 +177,18 @@ func (pp *patternPane) choose(path string) {
 	pp.sel = path
 	pp.tree.sel = path
 	for _, b := range pp.ops {
-		b.On = PatternOp{Track: pp.track, At: path, Op: b.op, Arg: b.arg}
+		b.OnClick = widget.Sends(PatternOp{Track: pp.track, At: path, Op: b.op, Arg: b.arg})
 	}
 	s := stepAt(pp.tree.root, parsePath(path))
 	if s == nil {
-		pp.chosen.SetText("Choose a step")
+		pp.chosen.Text = "Choose a step"
 		return
 	}
-	pp.chosen.SetText(describe(s))
+	pp.chosen.Text = describe(s)
 	if s.Kind == synth.StepAtom {
-		pp.atom.SetText(s.Atom)
+		pp.atom.SetText(s.Atom, nil)
 	} else {
-		pp.atom.SetText(s.String())
+		pp.atom.SetText(s.String(), nil)
 	}
 	pp.atom.Select(0, 0)
 }
@@ -227,13 +229,13 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 	}
 	if !slices.Equal(names, pp.tracks) {
 		pp.tracks = names
-		pp.picker.Items = names
+		pp.picker.SetItems(widget.Labels(names...))
 	}
 	if !slices.Contains(names, pp.track) && len(names) > 0 {
 		pp.track = names[0]
 		pp.gen = -1
 	}
-	pp.picker.Selected = max(slices.Index(names, pp.track), 0)
+	pp.picker.SetSelected(max(slices.Index(names, pp.track), 0), u)
 	t := track(song, pp.track)
 	if t == nil {
 		return
@@ -251,12 +253,12 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 	}
 	if pp.gen != st.Gen {
 		pp.gen = st.Gen
-		pp.field.SetText(src)
+		pp.field.SetText(src, u)
 		pp.field.Select(0, 0)
 	}
-	pp.err.SetText(row.PatternErr)
+	pp.err.Text = row.PatternErr
 	if t.Melody != nil {
-		pp.err.SetText("This track writes its own melody; its pattern goes unplayed.")
+		pp.err.Text = "This track writes its own melody; its pattern goes unplayed."
 	}
 	drums := song.Patches[t.Patch] != nil && song.Patches[t.Patch].Kind == "drums"
 	// The palette offers what the track plays.
@@ -271,7 +273,7 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 	}
 	for i, b := range pp.palette {
 		b.Label = pal[i%len(pal)]
-		b.On = PatternOp{Track: pp.track, At: pp.sel, Op: "set", Arg: b.Label}
+		b.OnClick = widget.Sends(PatternOp{Track: pp.track, At: pp.sel, Op: "set", Arg: b.Label})
 	}
 	if src != pp.shownOf {
 		pp.shownOf = src
@@ -286,12 +288,12 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 		pp.choose(pp.sel)
 	}
 	n := synth.PatternCycles(src)
-	if len(pp.cycles.Labels) != n {
+	if len(pp.cycles.Items) != n {
 		labels := make([]string, n)
 		for i := range labels {
 			labels[i] = "cycle " + strconv.Itoa(i+1)
 		}
-		pp.cycles.Labels = labels
+		pp.cycles.Items = labels
 		pp.grid.cycle = min(pp.grid.cycle, n-1)
 		pp.cycles.SetSelected(pp.grid.cycle, u)
 	}
@@ -304,9 +306,9 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 	pp.tree.cycle = pp.grid.nowCycle
 	pp.tree.color = hexColor(row.Color, max(ti, 0))
 	if pp.grid.lossy {
-		pp.note.SetText("The grid writes the pattern out step by step, a cycle each: what it cannot show, as triplets, it rounds to the nearest step.")
+		pp.note.Text = "The grid writes the pattern out step by step, a cycle each: what it cannot show, as triplets, it rounds to the nearest step."
 	} else {
-		pp.note.SetText("")
+		pp.note.Text = ""
 	}
 }
 
@@ -414,7 +416,7 @@ func (tv *treeView) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ guni
 		return
 	}
 	tv.lay(tv.root, geom.Rc(4, 4, box.W-8, box.H-8), nil, tv.cycle, true)
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	accent := widget.Accent.Get(f.Theme)
 	for _, b := range tv.boxes {
 		s := b.s

@@ -13,6 +13,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
+	"github.com/marrasen/gunim/widget"
 
 	"github.com/marrasen/gunim-game-audio/synth"
 )
@@ -404,7 +405,7 @@ func (g *stepGrid) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim
 		return
 	}
 	gr := g.grids[g.cycle]
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	cw := (box.W - gridLabelW) / float32(g.cols)
 	beat := max(g.perBar/4, 1)
 	for i := range g.rows {

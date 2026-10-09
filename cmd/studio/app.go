@@ -70,7 +70,7 @@ type studio struct {
 	drumOf    string
 	// levels are the mix's, as heard, and heardFrom the frame to read on
 	// from; scope holds the watched track's sound.
-	levels    audioui.Levels
+	levels    *audioui.Levels
 	heardFrom int64
 	heardBuf  []float32
 	lastTick  time.Time

@@ -88,9 +88,9 @@ func newChannel() *channel {
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
 	c.solo = widget.NewButton("S")
 	c.solo.KeepFocus, c.solo.Tooltip = true, "Solo"
-	c.fader = audioui.NewFader(func() float32 { return c.gain }, func(v float32, u *gunim.UI) {
+	c.fader = audioui.NewFader(func() float32 { return c.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
 		c.gain = v
-		u.Send(c.fader, SetValue{Path: c.base + "/Gain", Num: float64(v)})
+		return SetValue{Path: c.base + "/Gain", Num: float64(v)}
 	})
 	c.fader.Range = 36
 	rows := make([]gunim.Node, 0, len(c.ks)/2)
@@ -113,13 +113,13 @@ func newChannel() *channel {
 
 func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	c.base = "Tracks/" + t.Name
-	c.name.SetText(t.Name)
+	c.name.Text = t.Name
 	c.swatch.c, c.swatch.on = hexColor(t.Color, i), t.Playing
 	c.gain = t.Gain
-	c.gainDB.SetText(fmt.Sprintf("%+.1f dB", t.Gain))
+	c.gainDB.Text = fmt.Sprintf("%+.1f dB", t.Gain)
 	c.mute.Active, c.solo.Active = t.Mute, t.Solo
-	c.mute.On = SetValue{Path: c.base + "/Mute", Num: boolNum(!t.Mute)}
-	c.solo.On = SetValue{Path: c.base + "/Solo", Num: boolNum(!t.Solo)}
+	c.mute.OnClick = widget.Sends(SetValue{Path: c.base + "/Mute", Num: boolNum(!t.Mute)})
+	c.solo.OnClick = widget.Sends(SetValue{Path: c.base + "/Solo", Num: boolNum(!t.Solo)})
 	c.meter.m = t.Meter
 	showKnobs(st.Doc, c.ks...)
 	col := hexColor(t.Color, i)
@@ -157,9 +157,9 @@ func newMasterStrip() *masterStrip {
 		newKnob("Threshold", b, "/Threshold", -30, 0, -10).units("dB").unsetIs(-10).small(),
 		newKnob("Ratio", b, "/Ratio", 1, 10, 2).unsetIs(2).small(),
 	}
-	m.fader = audioui.NewFader(func() float32 { return m.gain }, func(v float32, u *gunim.UI) {
+	m.fader = audioui.NewFader(func() float32 { return m.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
 		m.gain = v
-		u.Send(m.fader, SetValue{Path: "Mix/Gain", Num: float64(v)})
+		return SetValue{Path: "Mix/Gain", Num: float64(v)}
 	})
 	m.fader.Range = 12
 	title := widget.NewLabel("MASTER")
@@ -176,13 +176,13 @@ func newMasterStrip() *masterStrip {
 
 func (m *masterStrip) update(st Studio) {
 	m.gain = float32(st.Doc.Mix.Gain)
-	m.gainDB.SetText(fmt.Sprintf("%+.1f dB", st.Doc.Mix.Gain))
+	m.gainDB.Text = fmt.Sprintf("%+.1f dB", st.Doc.Mix.Gain)
 	m.meter.m = st.Master
 	m.gr.db = st.Reduction
 	if st.LUFS > -70 {
-		m.lufs.SetText(fmt.Sprintf("%.1f LUFS", st.LUFS))
+		m.lufs.Text = fmt.Sprintf("%.1f LUFS", st.LUFS)
 	} else {
-		m.lufs.SetText("– LUFS")
+		m.lufs.Text = "– LUFS"
 	}
 	showKnobs(st.Doc, m.ks...)
 }
@@ -255,9 +255,9 @@ func newFxPane() *fxPane {
 	f.tail = &tailView{}
 	f.echoes = &echoView{}
 	f.curve = &curveView{}
-	f.duck = widget.NewDropdown("none")
+	f.duck = widget.NewDropdown(widget.Labels("none"))
 	f.duck.Label = "Duck to"
-	f.duck.OnChange = func(i int) gunim.Intent {
+	f.duck.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		to := ""
 		if i > 0 && i < len(f.duckTo) {
 			to = f.duckTo[i]
@@ -298,8 +298,8 @@ func (f *fxPane) update(st Studio) {
 	for _, t := range song.Tracks {
 		f.duckTo = append(f.duckTo, t.Name)
 	}
-	f.duck.Items = f.duckTo
-	f.duck.Selected = max(segmentedIndex(f.duckTo, song.Mix.Duck), 0)
+	f.duck.SetItems(widget.Labels(f.duckTo...))
+	f.duck.SetSelected(max(segmentedIndex(f.duckTo, song.Mix.Duck), 0), nil)
 	f.transOn.which = 1
 	if song.Mix.Transitions != nil {
 		f.transOn.which = 0

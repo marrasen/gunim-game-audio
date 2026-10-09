@@ -133,31 +133,31 @@ func buildView(s Jukebox) *keys {
 	title := widget.NewLabel("Jukebox")
 	title.Size = widget.HeadingSize
 	v := &view{shown: -1}
-	v.songs = widget.NewDropdown(s.Songs...)
+	v.songs = widget.NewDropdown(widget.Labels(s.Songs...))
 	v.songs.Label = "Song"
-	v.songs.OnChange = func(i int) gunim.Intent { return SongChosen{Song: i} }
+	v.songs.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} }
 	v.about = widget.NewLabel(s.About)
 	v.about.Color = widget.MenuHint
 	v.play = widget.NewButton("Pause")
-	v.play.Icon, v.play.Kind, v.play.On = icon.Pause, widget.ButtonPrimary, PlayToggled{}
+	v.play.Icon, v.play.Kind, v.play.OnClick = icon.Pause, widget.ButtonPrimary, widget.Sends(PlayToggled{})
 	restart := widget.NewButton("Restart")
-	restart.Icon, restart.On = icon.RotateCcw, Restarted{}
+	restart.Icon, restart.OnClick = icon.RotateCcw, widget.Sends(Restarted{})
 	volume := widget.NewSlider(0, 1)
-	volume.Set(1)
-	volume.OnChange = func(x float32) gunim.Intent { return VolumeSet{Volume: x} }
+	volume.SetValue(1, nil)
+	volume.OnChange = func(x float32, _ *gunim.UI) gunim.Intent { return VolumeSet{Volume: x} }
 	transport := widget.Row(v.play, restart, widget.NewLabel("Volume"), volume).Grow(volume, 1)
 	transport.Cross = widget.CrossCenter
 	v.tierUI = widget.NewLabel("Tier")
 	v.tiers = widget.NewSegmented("1")
-	v.tiers.OnChange = func(i int) gunim.Intent { return TierChosen{Tier: i + 1} }
+	v.tiers.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return TierChosen{Tier: i + 1} }
 	v.where = widget.NewLabel("")
 	v.where.Color = widget.MenuHint
 	v.parts = widget.NewList()
-	v.parts.OnClick = func(k widget.Key) gunim.Intent { return PartClicked{Name: string(k)} }
+	v.parts.OnActivate = func(k widget.Key, _ *gunim.UI) gunim.Intent { return PartClicked{Name: string(k)} }
 	v.hint = widget.NewLabel("")
 	v.hint.Color = widget.MenuHint
 	v.follow = widget.NewButton("Follow the tier")
-	v.follow.Icon, v.follow.On = icon.Layers, TierFollowed{}
+	v.follow.Icon, v.follow.OnClick = icon.Layers, widget.Sends(TierFollowed{})
 	partsHead := widget.Row(v.hint, v.follow).Grow(v.hint, 1)
 	partsHead.Cross = widget.CrossCenter
 	list := widget.NewScroll(v.parts)
@@ -170,8 +170,8 @@ func buildView(s Jukebox) *keys {
 
 // update shows s.
 func (v *view) update(s Jukebox, u *gunim.UI) {
-	v.songs.Selected = s.Song
-	v.about.SetText(s.About)
+	v.songs.SetSelected(s.Song, u)
+	v.about.Text = s.About
 	if s.Playing {
 		v.play.Label, v.play.Icon = "Pause", icon.Pause
 	} else {
@@ -183,24 +183,24 @@ func (v *view) update(s Jukebox, u *gunim.UI) {
 			for i := range labels {
 				labels[i] = strconv.Itoa(i + 1)
 			}
-			v.tiers.Labels = labels
+			v.tiers.Items = labels
 			v.shown = s.Tiers
 		}
-		v.tierUI.SetText(fmt.Sprintf("Tier: %d of %d. It changes at the next phrase; keys 1 to %d set it too.", s.Tier, s.Tiers, s.Tiers))
+		v.tierUI.Text = fmt.Sprintf("Tier: %d of %d. It changes at the next phrase; keys 1 to %d set it too.", s.Tier, s.Tiers, s.Tiers)
 		if v.tiers.Selected() != s.Tier-1 {
 			v.tiers.SetSelected(s.Tier-1, u)
 		}
 	} else {
-		v.tierUI.SetText("This song has no tiers: its parts come and go by themselves.")
-		v.tiers.Labels = []string{"–"}
+		v.tierUI.Text = "This song has no tiers: its parts come and go by themselves."
+		v.tiers.Items = []string{"–"}
 		v.shown = 0
 	}
-	v.where.SetText(s.Where)
+	v.where.Text = s.Where
 	v.follow.Disabled = !s.Triggers
 	if s.Triggers {
-		v.hint.SetText("Click a part to start it, or stop it with its outro, at the next phrase.")
+		v.hint.Text = "Click a part to start it, or stop it with its outro, at the next phrase."
 	} else {
-		v.hint.SetText("The song chooses its parts.")
+		v.hint.Text = "The song chooses its parts."
 	}
 	widget.Sync(v.parts, u, s.Parts, func(p PartRow) widget.Key { return widget.Key(p.Name) }, newPartRow, (*partRow).set)
 }
@@ -243,8 +243,8 @@ func (r *partRow) set(p PartRow, _ *gunim.UI) {
 	if p.Tier > 0 {
 		name = fmt.Sprintf("%s · tier %d", p.Name, p.Tier)
 	}
-	r.name.SetText(name)
-	r.doing.SetText(p.Doing)
+	r.name.Text = name
+	r.doing.Text = p.Doing
 	r.doing.Color = widget.MenuHint
 	if p.Playing {
 		r.doing.Color = widget.Accent

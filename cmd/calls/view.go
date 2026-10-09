@@ -92,18 +92,18 @@ func buildView(s Lab) *root {
 	title.Size = widget.HeadingSize
 	v.phone = widget.NewSwitch("Phone speaker")
 	v.phone.Tooltip = "Plays the calls as a phone's small speaker does: nothing under about 700 Hz, little over 8 kHz"
-	v.phone.OnChange = func(on bool) gunim.Intent { return PhoneSet{On: on} }
-	v.songs = widget.NewDropdown(s.Songs...)
+	v.phone.OnChange = func(on bool, _ *gunim.UI) gunim.Intent { return PhoneSet{On: on} }
+	v.songs = widget.NewDropdown(widget.Labels(s.Songs...))
 	v.songs.Label = "Music under the calls"
-	v.songs.OnChange = func(i int) gunim.Intent { return SongChosen{Song: i} }
+	v.songs.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} }
 	vol := widget.NewSlider(0, 1)
-	vol.Set(s.MusicVolume)
-	vol.OnChange = func(x float32) gunim.Intent { return MusicVolumeSet{Volume: x} }
+	vol.SetValue(s.MusicVolume, nil)
+	vol.OnChange = func(x float32, _ *gunim.UI) gunim.Intent { return MusicVolumeSet{Volume: x} }
 	volBox := widget.NewSized(vol, 110, 0)
 	v.save = widget.NewButton("Save")
-	v.save.Icon, v.save.Kind, v.save.On = icon.Save, widget.ButtonPrimary, Saved{}
+	v.save.Icon, v.save.Kind, v.save.OnClick = icon.Save, widget.ButtonPrimary, widget.Sends(Saved{})
 	revert := widget.NewButton("Revert")
-	revert.Icon, revert.On = icon.Undo2, Reverted{}
+	revert.Icon, revert.OnClick = icon.Undo2, widget.Sends(Reverted{})
 	revert.Tooltip = "Reads the companion back from its file, dropping changes not saved"
 	gap := widget.NewSpacer()
 	top := widget.Row(title, gap, v.phone, v.songs, volBox, v.save, revert).Grow(gap, 1)
@@ -111,14 +111,14 @@ func buildView(s Lab) *root {
 	v.status = small(s.Status)
 
 	v.list = widget.NewList()
-	v.list.OnClick = func(k widget.Key) gunim.Intent { return CompanionChosen{ID: string(k)} }
+	v.list.OnActivate = func(k widget.Key, _ *gunim.UI) gunim.Intent { return CompanionChosen{ID: string(k)} }
 	left := widget.NewSized(widget.NewScroll(v.list), 250, 0)
 
 	v.name = widget.NewLabel("")
 	v.name.Size = widget.HeadingSize
 	v.about = small("")
 	all := widget.NewButton("Play all")
-	all.Icon, all.On = icon.Play, PlayAll{}
+	all.Icon, all.OnClick = icon.Play, widget.Sends(PlayAll{})
 	all.Tooltip = "Plays every call, one after another (A)"
 	hgap := widget.NewSpacer()
 	head := widget.Row(widget.Column(v.name, v.about), hgap, all).Grow(hgap, 1)
@@ -150,12 +150,12 @@ func buildView(s Lab) *root {
 		v.layers[i] = newLayerSlot(v, i)
 		layerNodes = append(layerNodes, v.layers[i].sw)
 	}
-	v.add = widget.NewMenuButton("Add a layer", v.models...)
+	v.add = widget.NewMenuButton("Add a layer", widget.Labels(v.models...))
 	v.add.Icon = icon.Plus
-	v.add.OnPick = func(i int) gunim.Intent { return LayerAdded{Model: v.models[i]} }
+	v.add.OnPick = func(i int, _ *gunim.UI) gunim.Intent { return LayerAdded{Model: v.models[i]} }
 	v.notes = widget.NewTextArea()
 	v.notes.Placeholder = "What should change in this call? Write it here and save; Claude reads it from the companion's file."
-	v.notes.OnChange = func(t string) gunim.Intent { return NotesSet{Text: t} }
+	v.notes.OnChange = func(t string, _ *gunim.UI) gunim.Intent { return NotesSet{Text: t} }
 	notesPanel := panel("NOTES FOR CLAUDE", widget.NewSized(v.notes, 0, 90))
 	addRow := widget.Row(v.add)
 	editor := widget.Column(append([]gunim.Node{v.editing, knobsRow}, append(layerNodes, addRow, notesPanel)...)...)
@@ -185,21 +185,21 @@ func panel(title string, kids ...gunim.Node) *widget.Card {
 func (r *root) update(s Lab, u *gunim.UI) { r.view.update(s, u) }
 
 func (v *view) update(s Lab, u *gunim.UI) {
-	v.phone.On = s.Phone
-	v.songs.Selected = s.Song
-	v.status.SetText(s.Status)
+	v.phone.SetChecked(s.Phone, u)
+	v.songs.SetSelected(s.Song, u)
+	v.status.Text = s.Status
 	v.save.Label = "Save"
 	if s.Dirty {
 		v.save.Label = "Save changes"
 	}
 	widget.Sync(v.list, u, s.Companions, func(c CompanionRow) widget.Key { return widget.Key(c.ID) }, newCompanionRow, (*companionRow).set)
-	v.name.SetText(s.Name)
-	v.about.SetText(s.About)
+	v.name.Text = s.Name
+	v.about.Text = s.About
 	v.sel = s.Selected
 	v.cards.set(s.Calls, s.Selected)
-	v.keys.SetText(keysHint(s.Calls))
+	v.keys.Text = keysHint(s.Calls)
 	e := s.Editor
-	v.editing.SetText("Editing " + strings.ToLower(kindName(e.Kind)))
+	v.editing.Text = "Editing " + strings.ToLower(kindName(e.Kind))
 	made := len(e.Layers) > 0
 	v.callKs[0].show(-1, ParamView{Name: "vary", Label: "Vary", Lo: 0, Hi: 1, Def: 0.5, Value: e.Vary,
 		About: "How far each take strays from the call as set"})
@@ -229,7 +229,7 @@ func (v *view) update(s Lab, u *gunim.UI) {
 		v.add.Title = "Make this call: add a layer"
 	}
 	if s.Gen != v.gen {
-		v.notes.SetText(e.Notes)
+		v.notes.SetText(e.Notes, u)
 		v.gen = s.Gen
 	}
 	u.Invalidate()
@@ -292,8 +292,8 @@ func newCompanionRow(c CompanionRow) *companionRow {
 }
 
 func (r *companionRow) set(c CompanionRow, _ *gunim.UI) {
-	r.name.SetText(c.Name)
-	r.doing.SetText(c.Doing)
+	r.name.Text = c.Name
+	r.doing.Text = c.Doing
 	r.doing.Color = widget.MenuHint
 	if c.Made {
 		r.doing.Color = good
@@ -383,15 +383,15 @@ func newCallCard(i int, kind string) *callCard {
 	c.problems.Color = problem
 	c.wave = &wave{h: 84, click: PlayCall{Call: i}, playhead: -1}
 	play := widget.NewButton("Play")
-	play.Icon, play.On = icon.Play, PlayCall{Call: i}
+	play.Icon, play.OnClick = icon.Play, widget.Sends(PlayCall{Call: i})
 	again := widget.NewButton("New take")
-	again.Icon, again.On = icon.Shuffle, NewTake{Call: i}
+	again.Icon, again.OnClick = icon.Shuffle, widget.Sends(NewTake{Call: i})
 	again.Tooltip = "Makes another take, as the game does each time, and plays it"
 	asSet := widget.NewButton("As set")
-	asSet.Icon, asSet.On = icon.RotateCcw, AsSet{Call: i}
+	asSet.Icon, asSet.OnClick = icon.RotateCcw, widget.Sends(AsSet{Call: i})
 	asSet.Tooltip = "Plays the call exactly as its knobs set it, the take the files are made from"
 	c.edit = widget.NewButton("Edit")
-	c.edit.On = CallChosen{Call: i}
+	c.edit.OnClick = widget.Sends(CallChosen{Call: i})
 	gap := widget.NewSpacer()
 	head := widget.Row(c.title, gap, c.take).Grow(gap, 1)
 	head.Cross = widget.CrossCenter
@@ -404,20 +404,20 @@ func newCallCard(i int, kind string) *callCard {
 }
 
 func (c *callCard) set(v CallView, selected bool) {
-	c.title.SetText(kindName(v.Kind))
+	c.title.Text = kindName(v.Kind)
 	c.wave.data = v.Wave
 	c.wave.playhead = v.Playhead
-	c.take.SetText(v.Take)
-	c.stats.SetText(v.Stats)
+	c.take.Text = v.Take
+	c.stats.Text = v.Stats
 	switch {
 	case !v.Made:
-		c.problems.SetText("")
-		c.stats.SetText("Not made yet.")
+		c.problems.Text = ""
+		c.stats.Text = "Not made yet."
 	case len(v.Problems) == 0:
-		c.problems.SetText("Passes the checks.")
+		c.problems.Text = "Passes the checks."
 		c.problems.Color = good
 	default:
-		c.problems.SetText("Fails the checks: " + strings.Join(v.Problems, "; ") + ".")
+		c.problems.Text = "Fails the checks: " + strings.Join(v.Problems, "; ") + "."
 		c.problems.Color = problem
 	}
 	c.Fill = cardFill
@@ -443,12 +443,12 @@ type layerSlot struct {
 
 func newLayerSlot(v *view, i int) *layerSlot {
 	s := &layerSlot{i: i, models: v.models}
-	s.model = widget.NewDropdown(v.models...)
+	s.model = widget.NewDropdown(widget.Labels(v.models...))
 	s.model.Label = "Model"
-	s.model.OnChange = func(m int) gunim.Intent { return ModelChosen{Layer: i, Model: s.models[m]} }
+	s.model.OnChange = func(m int, _ *gunim.UI) gunim.Intent { return ModelChosen{Layer: i, Model: s.models[m]} }
 	s.about = small("")
 	remove := widget.NewButton("Remove")
-	remove.Icon, remove.On = icon.Trash2, LayerRemoved{Layer: i}
+	remove.Icon, remove.OnClick = icon.Trash2, widget.Sends(LayerRemoved{Layer: i})
 	gap := widget.NewSpacer()
 	head := widget.Row(small("LAYER"), s.model, s.about, gap, remove).Grow(s.about, 1)
 	head.Cross = widget.CrossCenter
@@ -469,8 +469,8 @@ func newLayerSlot(v *view, i int) *layerSlot {
 
 func (s *layerSlot) set(l LayerView) {
 	s.sw.which = 0
-	s.model.Selected = max(slices.Index(s.models, l.Model), 0)
-	s.about.SetText(l.About)
+	s.model.SetSelected(max(slices.Index(s.models, l.Model), 0), nil)
+	s.about.Text = l.About
 	n := min(len(l.Params), maxKnobs)
 	s.knobs.n = n
 	for j := range n {

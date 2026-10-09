@@ -307,8 +307,8 @@ func TestAWanderSongShowsItsOneLabelChosen(t *testing.T) {
 	h.settle()
 	h.do(SongChosen{Song: slices.Index(h.s.state().Songs, "Compass Rose")})
 	h.settle()
-	if got := h.v.tiers.Selected(); got != 0 || !slices.Equal(h.v.tiers.Labels, []string{"wanders"}) {
-		t.Errorf("Compass Rose's tiers show %v, %d chosen", h.v.tiers.Labels, got)
+	if got := h.v.tiers.Selected(); got != 0 || !slices.Equal(h.v.tiers.Items, []string{"wanders"}) {
+		t.Errorf("Compass Rose's tiers show %v, %d chosen", h.v.tiers.Items, got)
 	}
 }
 

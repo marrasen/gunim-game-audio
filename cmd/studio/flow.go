@@ -9,6 +9,7 @@ import (
 	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/paint"
+	"github.com/marrasen/gunim/widget"
 )
 
 // flow is the music as it flows past: the notes of each track, low to
@@ -46,7 +47,7 @@ func (fl *flow) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Ch
 	}
 	end := p.Layer(paint.LayerOpts{Bounds: v, Opacity: 1, Clip: true, Radius: 14})
 	defer end()
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	heard := heardAt(s.Clock, f.Now)
 	bar := s.BarFrames
 	from := heard - pastBars*bar

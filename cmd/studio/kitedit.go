@@ -41,21 +41,21 @@ type kitPane struct {
 
 func newKitPane(changed func(kit, drum string) gunim.Intent) *kitPane {
 	kp := &kitPane{changed: changed, drum: "bd"}
-	kp.picker = widget.NewDropdown("–")
+	kp.picker = widget.NewDropdown(widget.Labels("–"))
 	kp.picker.Label = "Kit"
-	kp.picker.OnChange = func(i int) gunim.Intent {
+	kp.picker.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		if i < len(kp.names) {
 			kp.choose(kp.names[i])
 		}
 		return kp.changed(kp.name, kp.drum)
 	}
 	newKit := widget.NewButton("New kit")
-	newKit.Icon, newKit.On, newKit.Ghost = icon.Plus, PatchNew{Kind: "drums"}, true
+	newKit.Icon, newKit.OnClick, newKit.Ghost = icon.Plus, widget.Sends(PatchNew{Kind: "drums"}), true
 	kp.copy = widget.NewIconButton(icon.Copy, "Copy the kit")
 	kp.load = widget.NewIconButton(icon.FolderOpen, "Load a kit from a file in this one's place")
 	kp.save = widget.NewIconButton(icon.Save, "Save the kit to a file")
 	importK := widget.NewIconButton(icon.FileInput, "Load a kit from a file as a new one")
-	importK.On = PatchLoad{}
+	importK.OnClick = widget.Sends(PatchLoad{})
 	kp.about = small("")
 	gap := widget.NewSpacer()
 	head := widget.Row(kp.picker, kp.about, gap, newKit, kp.copy, importK, kp.load, kp.save).Grow(gap, 1)
@@ -69,9 +69,9 @@ func newKitPane(changed func(kit, drum string) gunim.Intent) *kitPane {
 	}
 	kp.title = widget.NewLabel("")
 	kp.title.Size = widget.HeadingSize
-	kp.typ = widget.NewDropdown(synth.DrumTypes...)
+	kp.typ = widget.NewDropdown(widget.Labels(synth.DrumTypes...))
 	kp.typ.Label = "Type"
-	kp.typ.OnChange = func(i int) gunim.Intent {
+	kp.typ.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		return SetValue{Path: kp.base + "/Kit/" + kp.drum + "/Type", Str: synth.DrumTypes[i], IsStr: true}
 	}
 	b := &kp.base
@@ -120,15 +120,15 @@ func (kp *kitPane) update(st Studio) {
 	}
 	if !slices.Equal(names, kp.names) {
 		kp.names = names
-		kp.picker.Items = names
+		kp.picker.SetItems(widget.Labels(names...))
 		if len(names) == 0 {
-			kp.picker.Items = []string{"no kits"}
+			kp.picker.SetItems(widget.Labels("no kits"))
 		}
 	}
 	if _, ok := song.Patches[kp.name]; !ok && len(names) > 0 {
 		kp.choose(names[0])
 	}
-	kp.picker.Selected = max(slices.Index(names, kp.name), 0)
+	kp.picker.SetSelected(max(slices.Index(names, kp.name), 0), nil)
 	p := song.Patches[kp.name]
 	if p == nil {
 		return
@@ -139,16 +139,16 @@ func (kp *kitPane) update(st Studio) {
 			users = append(users, t.Name)
 		}
 	}
-	kp.about.SetText("kit · played by " + joinNames(users))
+	kp.about.Text = "kit · played by " + joinNames(users)
 	if len(users) == 0 {
-		kp.about.SetText("kit · played by nothing yet")
+		kp.about.Text = "kit · played by nothing yet"
 	}
-	kp.copy.On, kp.load.On, kp.save.On = PatchCopy{Name: kp.name}, PatchLoad{Name: kp.name}, PatchSave{Name: kp.name}
+	kp.copy.OnClick, kp.load.OnClick, kp.save.OnClick = widget.Sends(PatchCopy{Name: kp.name}), widget.Sends(PatchLoad{Name: kp.name}), widget.Sends(PatchSave{Name: kp.name})
 	kp.pads.kit, kp.pads.chosen = p, kp.drum
-	kp.pads.playButton.On = Audition{Patch: kp.name, Drum: kp.drum}
+	kp.pads.playButton.OnClick = widget.Sends(Audition{Patch: kp.name, Drum: kp.drum})
 	typ := p.DrumType(kp.drum)
-	kp.title.SetText(kp.drum)
-	kp.typ.Selected = max(slices.Index(synth.DrumTypes, typ), 0)
+	kp.title.Text = kp.drum
+	kp.typ.SetSelected(max(slices.Index(synth.DrumTypes, typ), 0), nil)
 	for i, rel := range []string{"Tune", "Decay", "Tone", "Gain", "Pan"} {
 		kp.ks[i].rel = "/Kit/" + kp.drum + "/" + rel
 	}
@@ -202,7 +202,7 @@ func (pd *pads) flash(name string, vel float32) {
 }
 
 func (pd *pads) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	for i, name := range pd.names {
 		r := pd.rect(i)
 		g := pd.glow[name]

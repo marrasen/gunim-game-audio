@@ -11,6 +11,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
+	"github.com/marrasen/gunim/widget"
 )
 
 // stage is the song in 3D: each track an orb on a ring, the rings its
@@ -312,7 +313,7 @@ func (st *stage) paintLabels(p *paint.Painter, f gunim.Frame, sc paint.Scene) {
 		return
 	}
 	m := sc.Camera.Matrix(v.Size().W / v.Size().H)
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	for i, t := range st.s.Tracks {
 		q := m.Apply(st.orbAt(i).Sub(geom.V3(0, 0.42, 0)))
 		if q.Z > 1 || q.Z < -1 {

@@ -104,7 +104,7 @@ func (k *knob) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom
 }
 
 func (k *knob) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
-	ink := audioui.Ink.Get(f.Theme)
+	ink := widget.Ink.Get(f.Theme)
 	r, text := float32(15), float32(10.5)
 	if k.compact {
 		r, text = 12, 9.5
