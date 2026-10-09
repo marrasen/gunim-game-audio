@@ -2,7 +2,8 @@
 // song, play and pause it, set its tier where it has tiers, and watch
 // what each part plays, bar by bar. In a song whose parts start and
 // stop one by one, a click on a part starts it, or stops it with its
-// outro, at the next phrase.
+// outro, at the next phrase. Autoplay steps a tiered song up a tier
+// each phrase, and from the top tier back to tier 1.
 //
 //	go run github.com/marrasen/gunim-game-audio/cmd/jukebox@latest
 //
@@ -45,6 +46,8 @@ type (
 		// Tiers is how many tiers the song has, 0 for none, and Tier
 		// the one set.
 		Tiers, Tier int
+		// Autoplay says the tier steps up by itself each phrase.
+		Autoplay bool
 		// Where says where the song is: its bar and phrase.
 		Where string
 		Parts []PartRow
@@ -69,6 +72,8 @@ type (
 	Restarted struct{}
 	// TierChosen travels when a tier is picked, from 1.
 	TierChosen struct{ Tier int }
+	// AutoplayToggled travels when Autoplay is pressed.
+	AutoplayToggled struct{}
 	// VolumeSet travels as the volume slider moves.
 	VolumeSet struct{ Volume float32 }
 )
@@ -82,6 +87,7 @@ func init() {
 	gunim.RegisterType[VolumeSet]("jukebox.volume")
 	gunim.RegisterType[PartClicked]("jukebox.part")
 	gunim.RegisterType[TierFollowed]("jukebox.follow")
+	gunim.RegisterType[AutoplayToggled]("jukebox.autoplay")
 }
 
 func main() {
@@ -116,6 +122,7 @@ type view struct {
 	about  *widget.Label
 	play   *widget.Button
 	tiers  *widget.Segmented
+	auto   *widget.Button
 	tierUI *widget.Label
 	where  *widget.Label
 	hint   *widget.Label
@@ -150,6 +157,11 @@ func buildView(s Jukebox) *keys {
 	v.tierUI = widget.NewLabel("Tier")
 	v.tiers = widget.NewSegmented("1")
 	v.tiers.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return TierChosen{Tier: i + 1} }
+	v.auto = widget.NewButton("Autoplay")
+	v.auto.Icon, v.auto.OnClick = icon.Repeat, widget.Sends(AutoplayToggled{})
+	v.auto.Tooltip = "Steps up a tier each phrase, and from the top tier back to tier 1"
+	tierRow := widget.Row(v.tiers, v.auto).Grow(v.tiers, 1)
+	tierRow.Cross = widget.CrossCenter
 	v.where = widget.NewLabel("")
 	v.where.Color = widget.MenuHint
 	v.parts = widget.NewList()
@@ -161,7 +173,7 @@ func buildView(s Jukebox) *keys {
 	partsHead := widget.Row(v.hint, v.follow).Grow(v.hint, 1)
 	partsHead.Cross = widget.CrossCenter
 	list := widget.NewScroll(v.parts)
-	col := widget.Column(title, v.songs, v.about, transport, v.tierUI, v.tiers, v.where, partsHead, list).Grow(list, 1)
+	col := widget.Column(title, v.songs, v.about, transport, v.tierUI, tierRow, v.where, partsHead, list).Grow(list, 1)
 	col.Cross = widget.CrossStretch
 	v.Pad = widget.NewPad(col)
 	v.Padding = widget.CardPadding
@@ -187,6 +199,9 @@ func (v *view) update(s Jukebox, u *gunim.UI) {
 			v.shown = s.Tiers
 		}
 		v.tierUI.Text = fmt.Sprintf("Tier: %d of %d. It changes at the next phrase; keys 1 to %d set it too.", s.Tier, s.Tiers, s.Tiers)
+		if s.Autoplay {
+			v.tierUI.Text = fmt.Sprintf("Tier: %d of %d. Autoplay steps up a tier each phrase, and from %d back to 1.", s.Tier, s.Tiers, s.Tiers)
+		}
 		if v.tiers.Selected() != s.Tier-1 {
 			v.tiers.SetSelected(s.Tier-1, u)
 		}
@@ -195,6 +210,8 @@ func (v *view) update(s Jukebox, u *gunim.UI) {
 		v.tiers.Items = []string{"–"}
 		v.shown = 0
 	}
+	v.auto.Disabled = s.Tiers == 0
+	v.auto.Active = s.Autoplay && s.Tiers > 0
 	v.where.Text = s.Where
 	v.follow.Disabled = !s.Triggers
 	if s.Triggers {
@@ -260,6 +277,10 @@ type player struct {
 	voice  *audio.Voice
 	p      band.Player
 	volume float32
+	// auto says autoplay is on, and phrase is the phrase it last
+	// stepped the tier in, -1 for none yet.
+	auto   bool
+	phrase int
 }
 
 // start plays song i from its start, at the tier the last one had.
@@ -271,12 +292,31 @@ func (pl *player) start(i int) {
 	if pl.voice != nil {
 		pl.voice.Stop(300 * time.Millisecond)
 	}
-	pl.song = i
+	pl.song, pl.phrase = i, -1
 	pl.p = pl.songs[i].Play(uint64(time.Now().UnixNano()))
 	if t, ok := pl.p.(band.Tiered); ok && tier > 0 {
 		t.SetTier(tier)
 	}
 	pl.voice = pl.mix.Play(pl.p, audio.Options{Volume: pl.volume, FadeIn: 300 * time.Millisecond})
+}
+
+// autoplay sets the next tier, and tier 1 after the top one, once in
+// each phrase, so each tier plays for a whole phrase. A tier set takes
+// effect at the next phrase.
+func (pl *player) autoplay() {
+	t, ok := pl.p.(band.Tiered)
+	w, ok2 := pl.p.(band.Watcher)
+	if !pl.auto || !ok || !ok2 {
+		return
+	}
+	st := w.Watch()
+	if st.PhraseBars <= 0 {
+		return
+	}
+	if phrase := st.Bar / st.PhraseBars; phrase != pl.phrase {
+		pl.phrase = phrase
+		t.SetTier(t.Tier()%t.Tiers() + 1)
+	}
 }
 
 // toggle starts the part named name where it rests or is leaving, and
@@ -322,7 +362,7 @@ func (pl *player) partNames() []string {
 
 // state returns what the window shows.
 func (pl *player) state() Jukebox {
-	s := Jukebox{Song: pl.song, Playing: !pl.voice.Paused()}
+	s := Jukebox{Song: pl.song, Playing: !pl.voice.Paused(), Autoplay: pl.auto}
 	for _, song := range pl.songs {
 		s.Songs = append(s.Songs, song.Info().Title)
 	}
@@ -398,6 +438,7 @@ func serve(ctx context.Context, c gunim.Client) error {
 			case Restarted:
 				pl.start(pl.song)
 			case TierChosen:
+				pl.auto = false
 				if t, ok := pl.p.(band.Tiered); ok {
 					t.SetTier(v.Tier)
 				}
@@ -409,11 +450,14 @@ func serve(ctx context.Context, c gunim.Client) error {
 						_ = t.SetPart(name, band.PartAuto)
 					}
 				}
+			case AutoplayToggled:
+				pl.auto, pl.phrase = !pl.auto, -1
 			case VolumeSet:
 				pl.volume = v.Volume
 				pl.voice.SetVolume(v.Volume, anim.Spring{Response: 0.2, Damping: 1})
 			}
 		}
+		pl.autoplay()
 		_ = c.Update("jukebox", pl.state())
 	}
 }
