@@ -13,9 +13,10 @@ import (
 type (
 	// Studio is what the window shows.
 	Studio struct {
-		// Songs are the songs' titles, and Song the one open.
-		Songs []string
-		Song  int
+		// Songs are the songs' titles, Categories their categories, and
+		// Song the one open.
+		Songs, Categories []string
+		Song              int
 		// Gen counts the songs opened, and the edits made other than by
 		// typing, so the window knows when to set its fields' text.
 		Gen   int

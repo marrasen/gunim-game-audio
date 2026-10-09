@@ -15,6 +15,8 @@ import (
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/theme"
 	"github.com/marrasen/gunim/widget"
+
+	"github.com/marrasen/gunim-game-audio/internal/songpicker"
 )
 
 // The studio's own tokens.
@@ -29,7 +31,7 @@ var (
 // view is the studio's window, with handles on what updates change.
 type view struct {
 	*widget.Pad
-	songs     *widget.Dropdown
+	songs     *songpicker.Picker
 	about     *widget.Label
 	play      *widget.Button
 	tiers     *widget.Segmented
@@ -83,9 +85,8 @@ func buildView(s Studio) *root {
 	v.root = r
 	title := widget.NewLabel("gunim music studio")
 	title.Size = widget.HeadingSize
-	v.songs = widget.NewDropdown(widget.Labels(s.Songs...))
+	v.songs = songpicker.New(s.Songs, s.Categories, func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} })
 	v.songs.Label = "Song"
-	v.songs.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} }
 	v.play = widget.NewButton("Pause")
 	v.play.Icon, v.play.Kind, v.play.OnClick = icon.Pause, widget.ButtonPrimary, widget.Sends(PlayToggled{})
 	v.play.KeepFocus = true
@@ -189,7 +190,8 @@ func (r *root) update(s Studio, u *gunim.UI) { r.view.update(s, u) }
 // update shows s.
 func (v *view) update(s Studio, u *gunim.UI) {
 	v.s = s
-	v.songs.SetSelected(s.Song, u)
+	v.songs.SetSongs(s.Songs, s.Categories)
+	v.songs.Choose(s.Song, u)
 	v.about.Text = s.About
 	if s.Playing {
 		v.play.Label, v.play.Icon = "Pause", icon.Pause

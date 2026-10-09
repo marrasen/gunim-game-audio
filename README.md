@@ -38,9 +38,11 @@ import music "github.com/marrasen/gunim-game-audio"
 
 Try them in the jukebox, a window that plays a song, sets its tier
 with buttons or the keys 1 to 4, and shows what each part plays, bar by
-bar. In A round song a click on a part starts it, or stops it with its
-outro, at the next phrase, and Follow the tier hands every part back to
-the tier:
+bar. Its song picker groups the songs by category, each a submenu.
+Autoplay steps a tiered song up a tier each phrase, and from the top
+tier back to tier 1. In A round song a click on a part starts it, or
+stops it with its outro, at the next phrase, and Follow the tier hands
+every part back to the tier:
 
 ```sh
 go run github.com/marrasen/gunim-game-audio/cmd/jukebox@latest
@@ -412,12 +414,16 @@ tier, and Space plays and pauses. Save writes the song as a song.json.
 Each song is a folder in `songs/`, named for the song, with its parts
 and a `song.json`. Its `Kind` says what plays it: `wander` is a
 `band.Wander`, whose parts come and go in phrases, and `tiers` a
-`band.Tiers`, whose parts play in tiers.
+`band.Tiers`, whose parts play in tiers. Its `Category` is the group
+the song shows in, in the tools' song pickers, and `music.Category`
+gives it: Boss fights, Calm rooms, Combo rounds, Grooves or Retro chip
+tunes so far.
 
 ```json
 {
 	"Kind": "wander",
 	"Title": "Greek Themes",
+	"Category": "Grooves",
 	"Artist": "Marcus Johansson",
 	"BPM": 136,
 	"BeatsPerBar": 4,

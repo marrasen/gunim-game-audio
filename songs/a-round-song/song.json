@@ -1,6 +1,7 @@
 {
 	"Kind": "tiers",
 	"Title": "A round song",
+	"Category": "Combo rounds",
 	"Artist": "Marcus Johansson",
 	"BPM": 110,
 	"BeatsPerBar": 4,

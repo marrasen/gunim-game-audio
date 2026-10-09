@@ -15,6 +15,7 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	"github.com/marrasen/gunim-game-audio/calls"
+	"github.com/marrasen/gunim-game-audio/internal/songpicker"
 )
 
 // The window's own tokens.
@@ -64,7 +65,7 @@ type view struct {
 	*widget.Pad
 	keys    *widget.Label
 	phone   *widget.Switch
-	songs   *widget.Dropdown
+	songs   *songpicker.Picker
 	save    *widget.Button
 	status  *widget.Label
 	list    *widget.List
@@ -93,9 +94,8 @@ func buildView(s Lab) *root {
 	v.phone = widget.NewSwitch("Phone speaker")
 	v.phone.Tooltip = "Plays the calls as a phone's small speaker does: nothing under about 700 Hz, little over 8 kHz"
 	v.phone.OnChange = func(on bool, _ *gunim.UI) gunim.Intent { return PhoneSet{On: on} }
-	v.songs = widget.NewDropdown(widget.Labels(s.Songs...))
+	v.songs = songpicker.New(s.Songs, s.Categories, func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} })
 	v.songs.Label = "Music under the calls"
-	v.songs.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} }
 	vol := widget.NewSlider(0, 1)
 	vol.SetValue(s.MusicVolume, nil)
 	vol.OnChange = func(x float32, _ *gunim.UI) gunim.Intent { return MusicVolumeSet{Volume: x} }
@@ -186,7 +186,8 @@ func (r *root) update(s Lab, u *gunim.UI) { r.view.update(s, u) }
 
 func (v *view) update(s Lab, u *gunim.UI) {
 	v.phone.SetChecked(s.Phone, u)
-	v.songs.SetSelected(s.Song, u)
+	v.songs.SetSongs(s.Songs, s.Categories)
+	v.songs.Choose(s.Song, u)
 	v.status.Text = s.Status
 	v.save.Label = "Save"
 	if s.Dirty {

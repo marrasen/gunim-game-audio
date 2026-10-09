@@ -43,6 +43,7 @@ type lab struct {
 	// songs are the songs' names, song the one under the calls, 0 for
 	// none, and music its voice.
 	songs    []string
+	cats     []string
 	song     int
 	music    *audio.Voice
 	musicVol float32
@@ -65,6 +66,14 @@ func newLab(c gunim.Client, mix *audio.Mixer, dir string) (*lab, error) {
 	}
 	l.lib = lib
 	l.songs = music.Songs()
+	l.cats = []string{""}
+	for _, name := range l.songs {
+		c, cerr := music.Category(name)
+		if cerr != nil {
+			return nil, cerr
+		}
+		l.cats = append(l.cats, c)
+	}
 	l.open(lib.Companions[0].ID)
 	abs, _ := filepath.Abs(dir)
 	if l.embedded {
@@ -410,7 +419,7 @@ func (l *lab) state() Lab {
 		Phone: l.phone, Song: l.song, MusicVolume: l.musicVol, Status: l.status, Gen: l.gen,
 		Dirty: l.dirty[l.comp.ID],
 	}
-	s.Songs = append([]string{"No music"}, l.songs...)
+	s.Songs, s.Categories = append([]string{"No music"}, l.songs...), l.cats
 	for i, c := range l.lib.Companions {
 		row := CompanionRow{ID: c.ID, Name: c.Name, Made: len(c.Calls) > 0, Open: c == l.comp}
 		what := "calls"

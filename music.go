@@ -197,6 +197,21 @@ func Songs() []string {
 	return out
 }
 
+// Category returns the category of song name, as its song.json gives
+// it: the group it shows in, in a list of songs, such as Boss fights or
+// Calm rooms. A song of no category gives "".
+func Category(name string) (string, error) {
+	b, err := files.ReadFile(path.Join("songs", name, "song.json"))
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", ErrNoSong, name)
+	}
+	var s spec
+	if err = json.Unmarshal(b, &s); err != nil {
+		return "", fmt.Errorf("music: %s: %w", name, err)
+	}
+	return s.Category, nil
+}
+
 // spec is a song.json: the song's kind, which says what plays it, and
 // its settings. Kind "wander" is a [band.Wander], and "tiers" a
 // [band.Tiers], whose Parts give each part its tier, and Start the
@@ -205,6 +220,7 @@ func Songs() []string {
 type spec struct {
 	Kind          string
 	Title, Artist string
+	Category      string
 	BPM           float64
 	BeatsPerBar   int
 	PhraseBars    int

@@ -23,6 +23,9 @@ import (
 // [Song.Clone] of it instead.
 type Song struct {
 	Title, Artist string
+	// Category is the group the song shows in, in a list of songs, as
+	// Boss fights or Calm rooms; see music.Category.
+	Category string
 	// BPM is the tempo, BeatsPerBar 4 by default, and PhraseBars how
 	// many bars a phrase lasts, 8 by default: tiers change, and parts
 	// come and go, where phrases start.

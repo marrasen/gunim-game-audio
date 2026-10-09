@@ -19,9 +19,10 @@ type (
 		HighPass, Loudness, Ceiling float64
 		// Phone plays the calls as a phone's speaker does.
 		Phone bool
-		// Songs are the songs to play under the calls, "None" first, and
-		// Song the one playing.
+		// Songs are the songs to play under the calls, "None" first,
+		// Categories their categories, and Song the one playing.
 		Songs       []string
+		Categories  []string
 		Song        int
 		MusicVolume float32
 		// Dirty says there are changes not saved; Status says what was

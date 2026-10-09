@@ -31,15 +31,17 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/internal/songpicker"
 )
 
 // The vocabulary the two halves share.
 type (
 	// Jukebox is the state the window shows.
 	Jukebox struct {
-		// Songs are the songs' titles, and Song the one chosen.
-		Songs []string
-		Song  int
+		// Songs are the songs' titles, Categories their categories, and
+		// Song the one chosen.
+		Songs, Categories []string
+		Song              int
 		// About says who made the song, and its tempo.
 		About   string
 		Playing bool
@@ -118,7 +120,7 @@ func run() error {
 // view is the window's view, with handles on what updates change.
 type view struct {
 	*widget.Pad
-	songs  *widget.Dropdown
+	songs  *songpicker.Picker
 	about  *widget.Label
 	play   *widget.Button
 	tiers  *widget.Segmented
@@ -140,9 +142,8 @@ func buildView(s Jukebox) *keys {
 	title := widget.NewLabel("Jukebox")
 	title.Size = widget.HeadingSize
 	v := &view{shown: -1}
-	v.songs = widget.NewDropdown(widget.Labels(s.Songs...))
+	v.songs = songpicker.New(s.Songs, s.Categories, func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} })
 	v.songs.Label = "Song"
-	v.songs.OnChange = func(i int, _ *gunim.UI) gunim.Intent { return SongChosen{Song: i} }
 	v.about = widget.NewLabel(s.About)
 	v.about.Color = widget.MenuHint
 	v.play = widget.NewButton("Pause")
@@ -182,7 +183,8 @@ func buildView(s Jukebox) *keys {
 
 // update shows s.
 func (v *view) update(s Jukebox, u *gunim.UI) {
-	v.songs.SetSelected(s.Song, u)
+	v.songs.SetSongs(s.Songs, s.Categories)
+	v.songs.Choose(s.Song, u)
 	v.about.Text = s.About
 	if s.Playing {
 		v.play.Label, v.play.Icon = "Pause", icon.Pause
@@ -273,6 +275,7 @@ type player struct {
 	mix    *audio.Mixer
 	songs  []band.Song
 	names  []string
+	cats   []string
 	song   int
 	voice  *audio.Voice
 	p      band.Player
@@ -366,6 +369,7 @@ func (pl *player) state() Jukebox {
 	for _, song := range pl.songs {
 		s.Songs = append(s.Songs, song.Info().Title)
 	}
+	s.Categories = pl.cats
 	i := pl.songs[pl.song].Info()
 	s.About = fmt.Sprintf("By %s, %v BPM. Name: %s", i.Artist, i.BPM, pl.names[pl.song])
 	if t, ok := pl.p.(band.Tiered); ok {
@@ -404,7 +408,11 @@ func serve(ctx context.Context, c gunim.Client) error {
 			log.Print(err)
 			continue
 		}
-		pl.songs, pl.names = append(pl.songs, s), append(pl.names, name)
+		c, err := music.Category(name)
+		if err != nil {
+			log.Print(err)
+		}
+		pl.songs, pl.names, pl.cats = append(pl.songs, s), append(pl.names, name), append(pl.cats, c)
 	}
 	if len(pl.songs) == 0 {
 		return errors.New("jukebox: the library holds no songs")

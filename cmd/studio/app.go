@@ -543,7 +543,7 @@ func (s *studio) state() Studio {
 		st.Tiers = 0
 	}
 	for _, ss := range s.songs {
-		st.Songs = append(st.Songs, ss.Title)
+		st.Songs, st.Categories = append(st.Songs, ss.Title), append(st.Categories, ss.Category)
 	}
 	st.About = fmt.Sprintf("By %s · %s · %g BPM", song.Artist, song.KeyName(), song.BPM)
 	st.Clock = Clock{Frame: heard, At: time.Now()}
