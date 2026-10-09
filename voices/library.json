@@ -25,8 +25,12 @@
 		"bacill-liten",
 		"bacill-mellan",
 		"bacill-stor",
+		"slemmis-liten",
+		"slemmis-mellan",
+		"slemmis-stor",
 		"rymden",
 		"biologi",
+		"labbet",
 		"whizpah"
 	]
 }

@@ -1,0 +1,495 @@
+{
+	"Name": "Slemmisen, mellan",
+	"Style": "Boss",
+	"Character": "Labbet's middle slime: a wobbly, gurgling show-off of green goo",
+	"Role": "boss",
+	"Calls": {
+		"taunt": {
+			"Layers": [
+				{
+					"Model": "blub",
+					"Params": {
+						"voice": 1,
+						"vpitch": 460.0,
+						"vlen": 0.08,
+						"vfall": -4,
+						"pop": 0.6,
+						"pitch": 1000,
+						"bubbles": 0,
+						"level": 0.8,
+						"start": 0.064,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.13,
+					"Params": {
+						"voice": 1,
+						"vpitch": 400.0,
+						"vlen": 0.09,
+						"vfall": 5,
+						"pop": 0.6,
+						"pitch": 1000,
+						"bubbles": 0,
+						"level": 0.8,
+						"start": 0.072,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "sing",
+					"At": 0.27,
+					"Gain": -1,
+					"Params": {
+						"pitch": 360.0,
+						"notes": 2,
+						"n2": 5,
+						"syllable": 4,
+						"lastsyl": 4,
+						"length": 0.12,
+						"last": 2.2,
+						"gap": 0.0,
+						"scoop": 3,
+						"fall": -2,
+						"vibrato": 1.3,
+						"size": 1.5,
+						"ring": 0.6,
+						"bright": 0.55,
+						"breath": 0.2
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.55,
+					"Gain": -7,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 880.0,
+						"bubbles": 3,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.07,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": 3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 3.5
+		},
+		"roar": {
+			"Layers": [
+				{
+					"Model": "roar",
+					"Params": {
+						"pitch": 340.0,
+						"length": 0.55,
+						"arch": 3,
+						"growl": 0.55,
+						"growlhz": 15,
+						"wobble": 0.08,
+						"open": 0.6,
+						"squeak": 0,
+						"squeakup": 12,
+						"size": 1.5,
+						"bright": 0.75,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.1,
+					"Gain": -6,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 640.0,
+						"bubbles": 5,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.08,
+						"climb": 0.8,
+						"decay": 0.04,
+						"drop": -1
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.5,
+					"Gain": -6,
+					"Params": {
+						"voice": 1,
+						"vpitch": 320.0,
+						"vlen": 0.12,
+						"vfall": 6,
+						"pop": 0.6,
+						"pitch": 720.0,
+						"bubbles": 2,
+						"level": 0.8,
+						"start": 0.096,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 4.0
+		},
+		"hurt": {
+			"Layers": [
+				{
+					"Model": "puff",
+					"Params": {
+						"pitch": 1800,
+						"drop": 8,
+						"length": 0.08,
+						"width": 1.5,
+						"attack": 0.01
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.02,
+					"Params": {
+						"voice": 1,
+						"vpitch": 500.0,
+						"vlen": 0.12,
+						"vfall": 8,
+						"pop": 1,
+						"pitch": 880.0,
+						"bubbles": 2,
+						"level": 0.8,
+						"start": 0.096,
+						"spacing": 0.05,
+						"drop": -3,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 3.5
+		},
+		"laugh": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Gain": -3,
+					"Params": {
+						"pitch": 440.0,
+						"notes": 4,
+						"n2": -2,
+						"n3": -4,
+						"n4": -7,
+						"syllable": 7,
+						"lastsyl": 7,
+						"length": 0.08,
+						"last": 1.4,
+						"gap": 0.04,
+						"scoop": 1,
+						"vibrato": 0,
+						"size": 1.5,
+						"ring": 0.5,
+						"bright": 0.5,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "blub",
+					"Gain": -2,
+					"Params": {
+						"voice": 1,
+						"vpitch": 440.0,
+						"vlen": 0.06,
+						"vfall": -2,
+						"pop": 0.4,
+						"pitch": 1000,
+						"bubbles": 0,
+						"level": 0.8,
+						"start": 0.048,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.12,
+					"Gain": -2,
+					"Params": {
+						"voice": 1,
+						"vpitch": 391.995,
+						"vlen": 0.06,
+						"vfall": -2,
+						"pop": 0.4,
+						"pitch": 1000,
+						"bubbles": 0,
+						"level": 0.8,
+						"start": 0.048,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.24,
+					"Gain": -2,
+					"Params": {
+						"voice": 1,
+						"vpitch": 349.228,
+						"vlen": 0.06,
+						"vfall": -2,
+						"pop": 0.4,
+						"pitch": 1000,
+						"bubbles": 0,
+						"level": 0.8,
+						"start": 0.048,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.36,
+					"Gain": -2,
+					"Params": {
+						"voice": 1,
+						"vpitch": 293.665,
+						"vlen": 0.06,
+						"vfall": -2,
+						"pop": 0.4,
+						"pitch": 1000,
+						"bubbles": 0,
+						"level": 0.8,
+						"start": 0.048,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.45,
+					"Gain": -8,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 800,
+						"bubbles": 3,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.06,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": 2
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 3.5
+		},
+		"worried": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 420.0,
+						"notes": 2,
+						"n2": -3,
+						"syllable": 1,
+						"lastsyl": 1,
+						"length": 0.17,
+						"last": 1.9,
+						"fall": 2,
+						"vibrato": 1.5,
+						"size": 1.5,
+						"ring": 0.6,
+						"bright": 0.5,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.62,
+					"Gain": -4,
+					"Params": {
+						"voice": 1,
+						"vpitch": 280.0,
+						"vlen": 0.12,
+						"vfall": 4,
+						"pop": 0.4,
+						"pitch": 640.0,
+						"bubbles": 1,
+						"level": 0.8,
+						"start": 0.096,
+						"spacing": 0.05,
+						"drop": -2,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 4.0
+		},
+		"defeat": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 440.0,
+						"notes": 1,
+						"syllable": 4,
+						"lastsyl": 4,
+						"length": 0.55,
+						"last": 1,
+						"fall": 12,
+						"vibrato": 1.5,
+						"size": 1.5,
+						"ring": 0.6,
+						"bright": 0.5,
+						"breath": 0.3
+					}
+				},
+				{
+					"Model": "puff",
+					"At": 0.45,
+					"Gain": -4,
+					"Params": {
+						"pitch": 1400,
+						"drop": 10,
+						"length": 0.12,
+						"width": 1.5,
+						"attack": 0.01
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.47,
+					"Params": {
+						"voice": 1,
+						"vpitch": 360.0,
+						"vlen": 0.16,
+						"vfall": 9,
+						"pop": 0.8,
+						"pitch": 800,
+						"bubbles": 4,
+						"level": 0.8,
+						"start": 0.128,
+						"spacing": 0.05,
+						"drop": -3,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.75,
+					"Gain": -4,
+					"Params": {
+						"voice": 1,
+						"vpitch": 280.0,
+						"vlen": 0.14,
+						"vfall": 7,
+						"pop": 0.3,
+						"pitch": 600.0,
+						"bubbles": 3,
+						"level": 0.8,
+						"start": 0.112,
+						"spacing": 0.05,
+						"drop": -3,
+						"size": 1.5,
+						"bright": 0.55
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 1.0,
+					"Gain": -7,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 480.0,
+						"bubbles": 4,
+						"level": 0.9,
+						"start": 0.0,
+						"spacing": 0.1,
+						"climb": 0.8,
+						"decay": 0.04,
+						"drop": -3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 3.5
+		},
+		"whimper": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 400.0,
+						"notes": 3,
+						"n2": 1,
+						"n3": -2,
+						"syllable": 4,
+						"lastsyl": 4,
+						"length": 0.15,
+						"last": 1.8,
+						"gap": 0.04,
+						"scoop": 2,
+						"fall": 3,
+						"vibrato": 1.5,
+						"size": 1.5,
+						"ring": 0.7,
+						"bright": 0.5,
+						"breath": 0.45
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.6,
+					"Gain": -9,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 720.0,
+						"bubbles": 2,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.12,
+						"climb": 0.8,
+						"decay": 0.03,
+						"drop": -2
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 4.5
+		}
+	}
+}

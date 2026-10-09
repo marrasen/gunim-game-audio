@@ -1,0 +1,143 @@
+{
+	"Kind": "synth",
+	"Title": "Tinker Lab",
+	"Artist": "Mikael Lönebrink",
+	"BPM": 96,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "A",
+	"Scale": "major",
+	"Chords": ["A6", "Bm7", "C#m7", "Dmaj7", "A6", "F#m7", "B9", "E7sus4"],
+	"ChordBars": 2,
+	"Mode": "wander",
+	"Clap": {"Track": "groove", "Drum": "snap"},
+	"Patches": {
+		"pizz": {
+			"Kind": "pluck",
+			"Pluck": {"Decay": 0.55, "Bright": 0.6, "Body": 0.35},
+			"Filter": {"Type": "lp", "Cutoff": 3600, "Res": 0.05, "Vel": 0.8},
+			"Amp": {"Attack": 0.001, "Decay": 0.6, "Sustain": 1, "Release": 0.2},
+			"Poly": 8,
+			"Gain": 0.9
+		},
+		"bass": {
+			"Kind": "pluck",
+			"Pluck": {"Decay": 0.9, "Bright": 0.3, "Body": 0.8},
+			"Filter": {"Type": "lp", "Cutoff": 950, "Res": 0.05},
+			"Amp": {"Attack": 0.001, "Decay": 0.8, "Sustain": 1, "Release": 0.2},
+			"Poly": 1,
+			"Gain": 1
+		},
+		"pad": {
+			"Osc": [
+				{"Wave": "tri", "Level": 0.7},
+				{"Wave": "saw", "Unison": 3, "Spread": 12, "Level": 0.3}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 1000, "Res": 0.1, "Env": 0.4, "Key": 0.3},
+			"Amp": {"Attack": 1.2, "Decay": 1.5, "Sustain": 0.85, "Release": 2},
+			"FilterEnv": {"Attack": 1.5, "Decay": 2, "Sustain": 0.5, "Release": 1.5},
+			"LFO": [{"To": "cutoff", "Wave": "sine", "Beats": 16, "Depth": 0.35}],
+			"Poly": 10,
+			"Gain": 0.45
+		},
+		"marimba": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 4, "Index": 1.5, "Decay": 0.05, "Sustain": 0},
+				{"Wave": "sine", "Level": 0.75},
+				{"Wave": "sine", "Octave": 2, "Level": 0.06}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 4000, "Key": 0.4, "Vel": 0.5},
+			"Amp": {"Attack": 0.002, "Decay": 0.5, "Sustain": 0, "Release": 0.35},
+			"Poly": 8,
+			"Gain": 0.6
+		},
+		"blip": {
+			"Osc": [
+				{"Wave": "sine"},
+				{"Wave": "tri", "Octave": 1, "Level": 0.12}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 5000, "Key": 0.3},
+			"Amp": {"Attack": 0.003, "Decay": 0.14, "Sustain": 0, "Release": 0.08},
+			"Bend": {"Semis": -12, "Time": 0.06},
+			"Poly": 4,
+			"Gain": 0.45
+		},
+		"vibes": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 4, "Index": 0.9, "Decay": 0.3, "Sustain": 0.08},
+				{"Wave": "sine", "Level": 0.7}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 6000, "Key": 0.3},
+			"Amp": {"Attack": 0.003, "Decay": 1.6, "Sustain": 0.05, "Release": 1.1},
+			"LFO": [{"To": "amp", "Wave": "sine", "Hz": 5, "Depth": 0.3}],
+			"Poly": 6,
+			"Gain": 0.45
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"lt": {"Tune": -3, "Decay": 0.6, "Tone": 0.15, "Gain": 0.4},
+				"snap": {"Gain": 0.42, "Tone": 0.4},
+				"sh": {"Gain": 0.2, "Pan": 0.3},
+				"tick": {"Type": "rim", "Tune": 9, "Tone": 0.5, "Gain": 0.28, "Pan": -0.35},
+				"tock": {"Type": "rim", "Tune": 2, "Tone": 0.3, "Gain": 0.28, "Pan": 0.35}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "pizz", "Core": true, "Patch": "pizz", "Color": "#ffcf7a",
+			"Pattern": "[x ~ x]*4", "Arp": "updown", "ArpOctaves": 2, "Octave": 4, "Legato": 0.6,
+			"Params": {"vel": "[1 0.6 0.8 0.6]*2"},
+			"Gain": 0.5, "Pan": -0.2, "Reverb": 0.25, "Human": 0.2
+		},
+		{
+			"Name": "bass", "Core": true, "Patch": "bass", "Color": "#3fd0c9",
+			"Pattern": "[b ~ ~] [~ ~ b] [c2 ~ ~] [~ ~ c1]", "Octave": 2, "Legato": 0.7,
+			"Params": {"vel": "1 0.7 0.85 0.7"},
+			"Gain": 0, "Human": 0.15
+		},
+		{
+			"Name": "pad", "Core": true, "Patch": "pad", "Color": "#9bb8ff",
+			"Pattern": "ch", "Legato": 1, "Octave": 4,
+			"Gain": -10, "Chorus": 0.4, "Reverb": 0.45, "HPF": 150
+		},
+		{
+			"Name": "groove", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "[[lt ~ ~] [snap ~ ~] [~ ~ lt] [snap ~ ~], [sh ~ sh]*4?0.3]",
+			"Params": {"vel": "[0.9 0.6]*4"},
+			"Gain": -6.7, "Reverb": 0.2, "Human": 0.25
+		},
+		{
+			"Name": "clock", "Core": true, "Patch": "kit", "Color": "#e9f27a",
+			"Pattern": "tick tock tick tock",
+			"Params": {"vel": "0.9 0.7"},
+			"Gain": 0, "Reverb": 0.3, "Human": 0.1
+		},
+		{
+			"Name": "marimba", "Patch": "marimba", "Color": "#ffb36b",
+			"Pattern": "[[c2 ~ c1] [c2 ~ c3] [c2 _ _] [~ ~ c0]] [[c1 ~ c2] [c3 ~ ~] [c0' _ _] ~] [[c3 ~ c2] [c1 ~ c2] [c3 ~ c1'] [c0' ~ ~]] [[c2 _ _] [c1 ~ c0] [c1 _ _] ~]",
+			"Bars": 4, "Octave": 5, "Legato": 0.8,
+			"Params": {"vel": "[1 0.75 0.9 0.75]"},
+			"Gain": -2, "Pan": 0.15, "Reverb": 0.3, "Delay": 0.15
+		},
+		{
+			"Name": "blips", "Patch": "blip", "Color": "#7ff0d0",
+			"Pattern": "[[x ~ ~] ~ [~ ~ x] ~]?0.4 [~ [x ~ x] ~ ~]?0.4",
+			"Bars": 2, "Arp": "random", "ArpOctaves": 2, "Octave": 5, "Legato": 0.5,
+			"Params": {"vel": "[1 0.7 0.85 0.6]", "pan": "rand:-0.6:0.6"},
+			"Gain": 2, "Reverb": 0.35, "Delay": 0.3
+		},
+		{
+			"Name": "vibes", "Patch": "vibes", "Color": "#c58cff",
+			"Pattern": "[~ ~ ~ ~ ~ ~ c2 c0'] [c1' _ _ _ ~ ~ ~ ~]",
+			"Bars": 2, "Octave": 5, "Legato": 1,
+			"Gain": -11, "Pan": -0.25, "Reverb": 0.5, "Delay": 0.3
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 0.8, "Decay": 2.4, "Tone": 0.6, "PreDelay": 0.025},
+		"Delay": {"Beats": 0.6667, "Feedback": 0.3, "Tone": 0.55},
+		"Gain": 3
+	}
+}

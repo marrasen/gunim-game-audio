@@ -1,0 +1,552 @@
+{
+	"Name": "Labbet (the lab)",
+	"Style": "Effekter",
+	"Character": "the physics and chemistry room's sounds: a crazy inventor's lab of bubbling flasks, springs and gears",
+	"Role": "effects",
+	"Sounds": [
+		"blubb",
+		"plask",
+		"fizz",
+		"klonk",
+		"zap",
+		"pling",
+		"droppe",
+		"eko",
+		"vind",
+		"tick",
+		"boing",
+		"vev"
+	],
+	"Calls": {
+		"blubb": {
+			"Layers": [
+				{
+					"Model": "blub",
+					"Params": {
+						"voice": 0,
+						"pop": 0.35,
+						"pitch": 650,
+						"bubbles": 5,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.075,
+						"climb": 1.0,
+						"decay": 0.04,
+						"drop": 3
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.2,
+					"Gain": -4,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1000,
+						"bubbles": 4,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.06,
+						"climb": 1.2,
+						"decay": 0.03,
+						"drop": 3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"plask": {
+			"Layers": [
+				{
+					"Model": "puff",
+					"Params": {
+						"pitch": 2200,
+						"drop": 10,
+						"length": 0.22,
+						"width": 1.6,
+						"attack": 0.02
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.03,
+					"Gain": -1,
+					"Params": {
+						"voice": 0.7,
+						"vpitch": 420,
+						"vlen": 0.18,
+						"vfall": 9,
+						"pop": 0.8,
+						"pitch": 900,
+						"bubbles": 4,
+						"level": 0.8,
+						"start": 0.14,
+						"spacing": 0.07,
+						"climb": 0.8,
+						"decay": 0.035,
+						"drop": -3,
+						"size": 1.3,
+						"bright": 0.5
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.45,
+					"Gain": -8,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 600,
+						"bubbles": 3,
+						"level": 1.0,
+						"start": 0.0,
+						"spacing": 0.1,
+						"climb": 0.8,
+						"decay": 0.04,
+						"drop": -3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"fizz": {
+			"Layers": [
+				{
+					"Model": "fizzle",
+					"Params": {
+						"length": 0.9,
+						"density": 450,
+						"pitch": 6500,
+						"fall": 3,
+						"hiss": 0.5,
+						"thin": 1.0
+					}
+				},
+				{
+					"Model": "blub",
+					"Gain": -6,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 2400,
+						"bubbles": 5,
+						"level": 0.7,
+						"start": 0.0,
+						"spacing": 0.05,
+						"climb": 1.2,
+						"decay": 0.02,
+						"drop": 2
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.3,
+					"Gain": -9,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 2800,
+						"bubbles": 5,
+						"level": 0.7,
+						"start": 0.0,
+						"spacing": 0.06,
+						"climb": 1.2,
+						"decay": 0.02,
+						"drop": 1
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"klonk": {
+			"Layers": [
+				{
+					"Model": "whirr",
+					"Params": {
+						"from": 700,
+						"to": 2400,
+						"length": 0.02,
+						"grit": 0.2,
+						"bright": 0.4,
+						"swell": 0.7
+					}
+				},
+				{
+					"Model": "bonk",
+					"At": 0.015,
+					"Params": {
+						"pitch": 1300,
+						"drop": 1,
+						"decay": 0.12,
+						"hollow": 0.9,
+						"click": 0.9,
+						"bounces": 2,
+						"bounce": 0.05
+					}
+				},
+				{
+					"Model": "chime",
+					"At": 0.015,
+					"Gain": -14,
+					"Params": {
+						"pitch": 2637,
+						"notes": 1,
+						"decay": 0.3,
+						"bright": 0.9,
+						"tremolo": 0
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Cut": 0.6
+		},
+		"zap": {
+			"Layers": [
+				{
+					"Model": "puff",
+					"Params": {
+						"pitch": 4000,
+						"drop": 10,
+						"length": 0.25,
+						"width": 1.0,
+						"attack": 0.03
+					}
+				},
+				{
+					"Model": "fizzle",
+					"Gain": -9,
+					"Params": {
+						"length": 0.2,
+						"density": 300,
+						"pitch": 7000,
+						"fall": 4,
+						"hiss": 0.3,
+						"thin": 3
+					}
+				},
+				{
+					"Model": "sparkle",
+					"At": 0.04,
+					"Gain": -10,
+					"Params": {
+						"bells": 4,
+						"length": 0.1,
+						"low": 3000,
+						"high": 6000,
+						"climb": -1,
+						"decay": 0.06
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"pling": {
+			"Layers": [
+				{
+					"Model": "bonk",
+					"Gain": -10,
+					"Params": {
+						"pitch": 1800,
+						"drop": 2,
+						"decay": 0.015,
+						"hollow": 0.1,
+						"click": 1
+					}
+				},
+				{
+					"Model": "chime",
+					"At": 0.03,
+					"Params": {
+						"pitch": 1319,
+						"notes": 2,
+						"n2": 5,
+						"length": 0.07,
+						"decay": 0.6,
+						"bright": 0.6,
+						"tremolo": 0.1
+					}
+				},
+				{
+					"Model": "sparkle",
+					"At": 0.1,
+					"Gain": -8,
+					"Params": {
+						"bells": 6,
+						"length": 0.25,
+						"low": 2500,
+						"high": 6000,
+						"climb": 0.8,
+						"decay": 0.12
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.25,
+			"Cut": 1.2
+		},
+		"droppe": {
+			"Layers": [
+				{
+					"Model": "blub",
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 900,
+						"bubbles": 1,
+						"level": 1.0,
+						"start": 0.0,
+						"climb": 1.6,
+						"decay": 0.05
+					}
+				},
+				{
+					"Model": "blub",
+					"At": 0.22,
+					"Gain": -10,
+					"Params": {
+						"voice": 0,
+						"pop": 0.0,
+						"pitch": 1300,
+						"bubbles": 1,
+						"level": 1.0,
+						"start": 0.0,
+						"climb": 1.4,
+						"decay": 0.03
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.35
+		},
+		"eko": {
+			"Layers": [
+				{
+					"Model": "sing",
+					"Params": {
+						"pitch": 659,
+						"notes": 2,
+						"n2": -3,
+						"syllable": 7,
+						"lastsyl": 1,
+						"length": 0.12,
+						"last": 1.8,
+						"gap": 0.01,
+						"scoop": 1,
+						"fall": 1,
+						"vibrato": 0.2,
+						"size": 1.9,
+						"ring": 0.8,
+						"bright": 0.55,
+						"breath": 0.25
+					}
+				},
+				{
+					"Model": "sing",
+					"At": 0.42,
+					"Gain": -7,
+					"Params": {
+						"pitch": 659,
+						"notes": 2,
+						"n2": -3,
+						"syllable": 7,
+						"lastsyl": 1,
+						"length": 0.12,
+						"last": 1.8,
+						"gap": 0.01,
+						"scoop": 1,
+						"fall": 1,
+						"vibrato": 0.2,
+						"size": 1.9,
+						"ring": 0.8,
+						"bright": 0.35,
+						"breath": 0.35
+					}
+				},
+				{
+					"Model": "sing",
+					"At": 0.84,
+					"Gain": -13,
+					"Params": {
+						"pitch": 659,
+						"notes": 2,
+						"n2": -3,
+						"syllable": 7,
+						"lastsyl": 1,
+						"length": 0.12,
+						"last": 1.8,
+						"gap": 0.01,
+						"scoop": 1,
+						"fall": 1,
+						"vibrato": 0.2,
+						"size": 1.9,
+						"ring": 0.8,
+						"bright": 0.25,
+						"breath": 0.35
+					}
+				},
+				{
+					"Model": "sing",
+					"At": 1.26,
+					"Gain": -19,
+					"Params": {
+						"pitch": 659,
+						"notes": 2,
+						"n2": -3,
+						"syllable": 7,
+						"lastsyl": 1,
+						"length": 0.12,
+						"last": 1.8,
+						"gap": 0.01,
+						"scoop": 1,
+						"fall": 1,
+						"vibrato": 0.2,
+						"size": 1.9,
+						"ring": 0.8,
+						"bright": 0.15,
+						"breath": 0.35
+					}
+				}
+			],
+			"Vary": 0.15,
+			"Room": 0.25
+		},
+		"vind": {
+			"Layers": [
+				{
+					"Model": "puff",
+					"Params": {
+						"pitch": 1200,
+						"drop": 6,
+						"length": 0.35,
+						"width": 1.4,
+						"attack": 0.15
+					}
+				},
+				{
+					"Model": "whoosh",
+					"Gain": -2,
+					"Params": {
+						"from": 500,
+						"to": 1600,
+						"length": 0.5,
+						"peak": 0.35,
+						"start": 0.3,
+						"width": 1.0,
+						"tone": 0.1
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"tick": {
+			"Layers": [
+				{
+					"Model": "bonk",
+					"Params": {
+						"pitch": 1900,
+						"drop": 2,
+						"decay": 0.07,
+						"hollow": 0.5,
+						"click": 0.6
+					}
+				},
+				{
+					"Model": "whirr",
+					"At": 0.08,
+					"Gain": -6,
+					"Params": {
+						"from": 300,
+						"to": 380,
+						"length": 0.25,
+						"grit": 1,
+						"bright": 0.3,
+						"swell": 0.5
+					}
+				},
+				{
+					"Model": "bonk",
+					"At": 0.38,
+					"Params": {
+						"pitch": 1400,
+						"drop": 2,
+						"decay": 0.07,
+						"hollow": 0.5,
+						"click": 0.6
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.2
+		},
+		"boing": {
+			"Layers": [
+				{
+					"Model": "bonk",
+					"Gain": -6,
+					"Params": {
+						"pitch": 600,
+						"drop": 12,
+						"decay": 0.05,
+						"hollow": 0.6,
+						"click": 0.6
+					}
+				},
+				{
+					"Model": "theremin",
+					"Params": {
+						"pitch": 440,
+						"notes": 2,
+						"n2": 12,
+						"length": 0.05,
+						"last": 4,
+						"glide": 0.04,
+						"dip": 0,
+						"fall": 0,
+						"vibrato": 3,
+						"vibhz": 14,
+						"attack": 0.002,
+						"bright": 0.6
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15,
+			"Presence": 4
+		},
+		"vev": {
+			"Layers": [
+				{
+					"Model": "whirr",
+					"Params": {
+						"from": 400,
+						"to": 900,
+						"length": 0.3,
+						"grit": 0.8,
+						"bright": 0.5,
+						"swell": 0.4
+					}
+				},
+				{
+					"Model": "whirr",
+					"At": 0.3,
+					"Params": {
+						"from": 900,
+						"to": 500,
+						"length": 0.3,
+						"grit": 0.8,
+						"bright": 0.5,
+						"swell": 0.3
+					}
+				}
+			],
+			"Vary": 0.4,
+			"Room": 0.15
+		}
+	}
+}
