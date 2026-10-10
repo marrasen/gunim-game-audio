@@ -3,8 +3,10 @@
 //
 //	go run github.com/marrasen/gunim-game-audio/cmd/gmplay@latest song.mid
 //
-// -o renders the file to a WAV file in place of playing it, and says
-// how loud it is. -loop plays it again from its start each time it
+// -style plays it in a style: gm, the default, its own instruments;
+// sid, a Commodore 64's; nes, the NES's; gb, the Game Boy's; or adlib,
+// an AdLib card's FM, as DOS games played it. -o renders the file to a
+// WAV file in place of playing it, and says how loud it is. -loop plays it again from its start each time it
 // ends, and -start starts it that many seconds in. -v lists the
 // instruments each channel plays.
 package main
@@ -21,6 +23,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/marrasen/gunim/audio"
@@ -36,6 +39,7 @@ func main() {
 	start := flag.Float64("start", 0, "start this many seconds in")
 	gain := flag.Float64("gain", 0, "turn the mix up or down by this many decibels")
 	verbose := flag.Bool("v", false, "list the instruments each channel plays")
+	style := flag.String("style", "gm", "the style to play in: "+strings.Join(synth.GMStyles, ", "))
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "usage: gmplay [flags] file.mid\n")
 		flag.PrintDefaults()
@@ -58,6 +62,9 @@ func main() {
 		instruments(f)
 	}
 	p := synth.NewMIDIPlayer(f)
+	if err := p.GM().SetStyle(*style); err != nil {
+		log.Fatal(err)
+	}
 	p.GM().Gain *= float32(math.Pow(10, *gain/20))
 	if *start > 0 {
 		p.Seek(*start)

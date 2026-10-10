@@ -24,10 +24,15 @@ type GM struct {
 	// drum kits, by key, by the kit's program: each made once.
 	patches map[int]*patch
 	kits    map[int]*[128]*drum
-	ctx     renderCtx
-	rev     *reverb
-	cho     *chorus
-	lim     *limiter
+	// style is the style the instruments play in, one of GMStyles, and
+	// room how much of the reverb sends it lets through: a chip's sound
+	// is dry.
+	style string
+	room  float32
+	ctx   renderCtx
+	rev   *reverb
+	cho   *chorus
+	lim   *limiter
 	// Gain is the whole mix's level, before its limiter.
 	Gain float32
 	// The buffers: a channel's sound, the mix, and the sends to the
@@ -76,6 +81,8 @@ func NewGM() *GM {
 	g := &GM{
 		patches: map[int]*patch{},
 		kits:    map[int]*[128]*drum{},
+		style:   "gm",
+		room:    1,
 		ctx:     renderCtx{beatHz: 2, l: make([]float32, control), r: make([]float32, control)},
 		rev:     newReverb(),
 		cho:     newChorus(chorusJuno12),
@@ -270,6 +277,31 @@ func (g *GM) control(c *gmChannel, cc, v byte) {
 	}
 }
 
+// SetStyle sets the style the instruments play in, one of [GMStyles]:
+// each channel plays its instrument in it from its next note.
+func (g *GM) SetStyle(style string) error {
+	if style == "" {
+		style = "gm"
+	}
+	if _, err := GMStylePatch(style, 0); err != nil {
+		return err
+	}
+	g.style = style
+	g.room = map[string]float32{"gm": 1, "adlib": 0.3}[style]
+	if g.room == 0 {
+		g.room = 0.4
+	}
+	g.patches = map[int]*patch{}
+	g.kits = map[int]*[128]*drum{}
+	for i := range g.ch {
+		g.setProgram(&g.ch[i], g.ch[i].program)
+	}
+	return nil
+}
+
+// Style returns the style the instruments play in.
+func (g *GM) Style() string { return g.style }
+
 // setProgram sets c's instrument: an instrument of General MIDI's, or
 // on a drum channel a kit. A bank of 127 is XG's drums.
 func (g *GM) setProgram(c *gmChannel, program int) {
@@ -283,9 +315,13 @@ func (g *GM) setProgram(c *gmChannel, program int) {
 	}
 	c.p = g.patches[c.program]
 	if c.p == nil {
-		p, err := GMPatch(c.program).compile(GMNames[c.program])
+		src, err := GMStylePatch(g.style, c.program)
 		if err != nil {
-			// The bank's own patches all compile; a test makes sure.
+			panic(err)
+		}
+		p, err := src.compile(GMNames[c.program])
+		if err != nil {
+			// The styles' own patches all compile; a test makes sure.
 			panic(err)
 		}
 		g.patches[c.program] = p
@@ -303,7 +339,7 @@ func (g *GM) kit(program int) *[128]*drum {
 	if k := g.kits[program]; k != nil {
 		return k
 	}
-	p, err := GMKit(program).compile("kit " + strconv.Itoa(program))
+	p, err := GMStyleKit(g.style, program).compile("kit " + strconv.Itoa(program))
 	if err != nil {
 		panic(err)
 	}
@@ -409,7 +445,7 @@ func (g *GM) render(dst []float32, n int) {
 		pl, pr := panGains(c.pan)
 		pl *= gain
 		pr *= gain
-		rv, cv := c.rev*0.5, c.cho*0.7
+		rv, cv := c.rev*0.5*g.room, c.cho*0.7*g.room
 		chorusOn = chorusOn || cv > 0
 		for j := range tl {
 			l, r := tl[j]*pl, tr[j]*pr

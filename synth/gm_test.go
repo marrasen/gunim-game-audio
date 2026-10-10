@@ -14,15 +14,24 @@ import (
 )
 
 func TestGMPatchesCompile(t *testing.T) {
-	for prog := range 128 {
-		if _, err := GMPatch(prog).compile(GMNames[prog]); err != nil {
-			t.Errorf("program %d, %s: %v", prog, GMNames[prog], err)
+	for _, style := range GMStyles {
+		for prog := range 128 {
+			p, err := GMStylePatch(style, prog)
+			if err == nil {
+				_, err = p.compile(GMNames[prog])
+			}
+			if err != nil {
+				t.Errorf("%s, program %d, %s: %v", style, prog, GMNames[prog], err)
+			}
+		}
+		for _, kit := range []int{0, 24, 25} {
+			if _, err := GMStyleKit(style, kit).compile("kit"); err != nil {
+				t.Errorf("%s, kit %d: %v", style, kit, err)
+			}
 		}
 	}
-	for _, kit := range []int{0, 24, 25} {
-		if _, err := GMKit(kit).compile("kit"); err != nil {
-			t.Errorf("kit %d: %v", kit, err)
-		}
+	if err := NewGM().SetStyle("amiga"); err == nil {
+		t.Error("SetStyle took a style there is none of")
 	}
 }
 
@@ -45,23 +54,31 @@ func peak(t *testing.T, g *GM, secs float64) float32 {
 }
 
 func TestGMEveryInstrumentSounds(t *testing.T) {
-	for prog := range 128 {
-		g := NewGM()
-		g.Send(midi.Program, byte(prog), 0, nil)
-		g.Send(midi.NoteOn, 60, 100, nil)
-		if p := peak(t, g, 0.5); p < 0.01 || p > 1 {
-			t.Errorf("program %d, %s, peaks at %v", prog, GMNames[prog], p)
+	for _, style := range GMStyles {
+		for prog := range 128 {
+			g := NewGM()
+			if err := g.SetStyle(style); err != nil {
+				t.Fatal(err)
+			}
+			g.Send(midi.Program, byte(prog), 0, nil)
+			g.Send(midi.NoteOn, 60, 100, nil)
+			if p := peak(t, g, 0.5); p < 0.01 || p > 1 {
+				t.Errorf("%s, program %d, %s, peaks at %v", style, prog, GMNames[prog], p)
+			}
 		}
-	}
-	for key := range 128 {
-		g := NewGM()
-		g.Send(midi.NoteOn|9, byte(key), 100, nil)
-		p := peak(t, g, 0.3)
-		if GMDrumName(key) != "" && p < 0.01 {
-			t.Errorf("drum %d, %s, is silent", key, GMDrumName(key))
-		}
-		if GMDrumName(key) == "" && p > 1e-6 {
-			t.Errorf("key %d, no drum, sounds", key)
+		for key := range 128 {
+			g := NewGM()
+			if err := g.SetStyle(style); err != nil {
+				t.Fatal(err)
+			}
+			g.Send(midi.NoteOn|9, byte(key), 100, nil)
+			p := peak(t, g, 0.3)
+			if GMDrumName(key) != "" && p < 0.01 {
+				t.Errorf("%s, drum %d, %s, is silent", style, key, GMDrumName(key))
+			}
+			if GMDrumName(key) == "" && p > 1e-6 {
+				t.Errorf("%s, key %d, no drum, sounds", style, key)
+			}
 		}
 	}
 }
