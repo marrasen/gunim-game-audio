@@ -1,0 +1,19 @@
+{
+	"Osc": [
+		{
+			"Wave": "sine"
+		},
+		{
+			"Wave": "sine",
+			"Octave": 1,
+			"Level": 0.15
+		}
+	],
+	"Amp": {
+		"Attack": 0.004,
+		"Decay": 0.3,
+		"Sustain": 0.9,
+		"Release": 0.1
+	},
+	"Poly": 1
+}

@@ -72,6 +72,7 @@ type patchPane struct {
 	vKnobs  []*knob
 	vowel   *widget.Dropdown
 	vocoder *widget.Button
+	lib     *libraryBar
 	note    *wave
 	cycle   *wave
 	live    *wave
@@ -221,7 +222,8 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	readouts.Cross = widget.CrossStretch
 	out := panel("OUTPUT · play the keys to hear the patch over the song", sized(readouts, 0, 96), sized(pp.keys, 0, 70))
 
-	col := widget.Column(head, pp.body, mid, low, out)
+	pp.lib = newLibraryBar(false)
+	col := widget.Column(head, pp.lib, pp.body, mid, low, out)
 	col.Cross = widget.CrossStretch
 	pp.Scroll = widget.NewScroll(widget.NewPad(col))
 	return pp
@@ -264,6 +266,7 @@ func (pp *patchPane) update(st Studio) {
 	if p == nil {
 		return
 	}
+	pp.lib.update(st, pp.name)
 	var users []string
 	for _, t := range song.Tracks {
 		if t.Patch == pp.name {

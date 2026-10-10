@@ -1,0 +1,41 @@
+{
+	"Kind": "drums",
+	"Kit": {
+		"bd": {
+			"Tune": 2,
+			"Decay": 0.45,
+			"Tone": 0.6
+		},
+		"sn": {
+			"Tune": 3,
+			"Tone": 0.6,
+			"Decay": 0.7
+		},
+		"cp": {
+			"Tone": 0.3
+		},
+		"hh": {
+			"Tone": 0.35,
+			"Gain": 0.7
+		},
+		"oh": {
+			"Tone": 0.35,
+			"Decay": 0.5,
+			"Gain": 0.55
+		},
+		"cb": {
+			"Gain": 0.9
+		},
+		"syn1": {
+			"Pan": -0.45,
+			"Tone": 0.4
+		},
+		"syn2": {
+			"Tone": 0.4
+		},
+		"syn3": {
+			"Pan": 0.45,
+			"Tone": 0.4
+		}
+	}
+}

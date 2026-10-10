@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -82,6 +83,11 @@ type studio struct {
 	// editor is the editor the window is asked to show.
 	editor, editorTrack string
 	editorGen           int
+	// presets are the patches to try, backup each patch as it was before
+	// presets were tried on it, and trying the preset tried on it.
+	presets []preset
+	backup  map[string]*synth.Patch
+	trying  map[string]string
 }
 
 // newStudio returns the studio, playing through mix, with the song
@@ -106,6 +112,8 @@ func newStudio(c gunim.Client, mix *audio.Mixer, songName string) (*studio, erro
 	if len(s.songs) == 0 {
 		return nil, errors.New("studio: the library holds no songs made in code")
 	}
+	s.presets = loadPresets(s.songs)
+	s.backup, s.trying = map[string]*synth.Patch{}, map[string]string{}
 	s.open(s.i)
 	return s, nil
 }
@@ -114,6 +122,8 @@ func newStudio(c gunim.Client, mix *audio.Mixer, songName string) (*studio, erro
 func (s *studio) open(i int) {
 	s.i = i
 	s.song = s.songs[i].Clone()
+	clear(s.backup)
+	clear(s.trying)
 	clear(s.drafts)
 	clear(s.errs)
 	s.chordErr = ""
@@ -370,6 +380,14 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		if err != nil {
 			s.status = plain(err)
 		}
+	case PresetTry:
+		s.tryPreset(v.Patch, v.ID)
+	case PresetStep:
+		s.stepPreset(v.Patch, v.By)
+	case PresetKeep:
+		s.keepPreset(v.Patch)
+	case PresetRevert:
+		s.revertPreset(v.Patch)
 	case ClearValue:
 		if err := s.edit(func(song *synth.Song) { _ = setPath(song, v.Path, nil) }); err != nil {
 			s.status = plain(err)
@@ -619,6 +637,10 @@ func (s *studio) state() Studio {
 		}
 	}
 	st.Spans = spans(look, song, heard)
+	for _, p := range s.presets {
+		st.Presets = append(st.Presets, p.row)
+	}
+	st.Trying = maps.Clone(s.trying)
 	st.Doc = song
 	st.Editor, st.EditorTrack, st.EditorGen = s.editor, s.editorTrack, s.editorGen
 	st.PatternTrack, st.PatternSel, st.PatternSelGen = s.patternTrack, s.patternSel, s.patternSelGen

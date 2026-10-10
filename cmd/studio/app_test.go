@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"math"
 	"slices"
 	"strings"
@@ -417,5 +418,71 @@ func TestTheChorusSwitchPicksAKind(t *testing.T) {
 	got, ok := h.intent().(ChorusKind)
 	if !ok || got != (ChorusKind{Track: "hook", Type: "ensemble"}) {
 		t.Errorf("a click on the last lamp sent %#v", got)
+	}
+}
+
+func TestAPresetTriedIsAsLoudAndRevertsAndKeeps(t *testing.T) {
+	h := newHarness(t, music.RingMeTwice)
+	st := h.s.state()
+	if len(st.Presets) < 40 {
+		t.Fatalf("the studio offers %d presets", len(st.Presets))
+	}
+	orig := clonePatch(h.s.song.Patches["bass"])
+	h.do(PresetTry{Patch: "bass", ID: "Bass/Bright Juno bass"})
+	got := h.s.song.Patches["bass"]
+	if got.Filter.Cutoff != 520 || h.s.state().Trying["bass"] != "Bass/Bright Juno bass" {
+		t.Fatalf("the bass is not the preset tried: %+v", got.Filter)
+	}
+	// As loud as the bass was, at the octave its track plays in.
+	pitch := h.s.pitchOf("bass")
+	if a, b := levelOf(orig, pitch), levelOf(got, pitch); math.Abs(20*math.Log10(b/a)) > 0.5 {
+		t.Errorf("the preset plays %.2f dB from the bass it replaced", 20*math.Log10(b/a))
+	}
+	// On through the category, then back.
+	h.do(PresetStep{Patch: "bass", By: 1})
+	if id := h.s.state().Trying["bass"]; id != "Bass/Hi-NRG roller" {
+		t.Errorf("the next preset is %q", id)
+	}
+	h.do(PresetStep{Patch: "bass", By: -2})
+	if id := h.s.state().Trying["bass"]; id != "Bass/Juno octave bass" {
+		t.Errorf("two back is %q", id)
+	}
+	h.do(PresetStep{Patch: "bass"})
+	if id := h.s.state().Trying["bass"]; !strings.HasPrefix(id, "Bass/") || id == "Bass/Juno octave bass" {
+		t.Errorf("a preset at random is %q", id)
+	}
+	// A kit takes no synth's place.
+	h.do(PresetTry{Patch: "bass", ID: "Drum kits/TR-808"})
+	if h.s.song.Patches["bass"].Kind == "drums" {
+		t.Error("a kit took the bass's place")
+	}
+	h.do(PresetRevert{Patch: "bass"})
+	if a, b := jsonOf(h.s.song.Patches["bass"]), jsonOf(orig); a != b {
+		t.Errorf("reverted, the bass is\n%s\nnot\n%s", a, b)
+	}
+	if _, ok := h.s.state().Trying["bass"]; ok {
+		t.Error("the bass is still tried after Revert")
+	}
+	// A song's own patch, kept.
+	h.do(PresetTry{Patch: "kit", ID: "From the songs/Notte di Neon/kit"}, PresetKeep{Patch: "kit"})
+	if _, ok := h.s.state().Trying["kit"]; ok || h.s.song.Patches["kit"].Kit["syn1"].Pan != -0.45 {
+		t.Error("the kit kept is not Notte di Neon's, or is still tried")
+	}
+}
+
+func jsonOf(p *synth.Patch) string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+func TestTheTweaksSetAndReset(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(SetValue{Path: "Mix/Tweak/Tone", Num: 0.6}, SetValue{Path: "Mix/Tweak/LoFi", Num: 0.4})
+	if tw := h.s.song.Mix.Tweak; tw.Tone != 0.6 || tw.LoFi != 0.4 {
+		t.Fatalf("the tweaks are %+v", tw)
+	}
+	h.do(ClearValue{Path: "Mix/Tweak"})
+	if tw := h.s.song.Mix.Tweak; tw != (synth.Tweak{}) {
+		t.Errorf("reset, the tweaks are %+v", tw)
 	}
 }

@@ -379,7 +379,8 @@ changed, with no file to edit and nothing to reload:
 - **Kit.** A kit's drums as pads, which light as the song hits them and
   play as they are pressed, and the drum chosen: its type, tune, decay,
   tone, level and pan, and its hit drawn.
-- **Effects.** The reverb with its tail drawn, the delay with its
+- **Effects.** The tweaks, seven knobs that turn the whole song's
+  sound, dark to bright, dry to wet, and more, and Reset. The reverb with its tail drawn, the delay with its
   echoes, the compressor with its curve and where the mix sits on it,
   the master level, the swing, the sidechain's track, and the tier
   changes' riser and impact.
@@ -393,6 +394,15 @@ changed, with no file to edit and nothing to reload:
   share. Under it the pattern on a grid of steps, a row a drum or a
   note, where a click sets or clears a cell and Shift and a click holds
   the note before it. Each change writes the pattern back as text.
+
+The patch and kit editors browse a library of presets, in
+`patches/`: basses, leads, arps and plucks, brass, keys and bells, pads
+and strings, vocoders, effects and drum kits, and every patch of the
+songs made in code. A preset picked from the library's menu, or stepped
+to with its arrows, or picked at random, plays in place of the patch at
+once, as loud as the patch was, so the mix keeps its balance; Keep makes
+it the patch, and Revert puts the patch back as it was. A program reads
+the library with `music.Presets`.
 
 Patches and kits save to a file of their own, a `.patch.json`, and load
 from one, in place of a patch or as a new one; a new synth, pluck or kit
@@ -534,6 +544,14 @@ it by their `Gated`, as the 1980s gated a snare. `MonoBass` makes the
 mix mono below it, in hertz, as a record is cut; `Air` lifts the top
 above 10 kHz by decibels; and `Tape` rounds the peaks off, from 0 to 1,
 as a tape machine does.
+
+A mix's `Tweak` turns the whole song's sound by seven broad knobs, each
+0 for the song as mixed: `Tone`, from dark at -1 to bright at 1; `Bass`,
+cut or boosted; `Space`, the rooms and echoes from none to three times
+as much; `Width`, from mono to twice as wide; `Punch`, the compressor
+squeezing harder, its level made up; `Drive`, the mix pushed into a
+soft clip; and `LoFi`, an old radio's fewer bits, lower rate and narrow
+band. A song left untweaked spends nothing on them.
 
 The SID patches sound like a Commodore 64. An oscillator's `Wave` may be
 `noise`, pitched by the note as the SID's noise is, or a combined wave,

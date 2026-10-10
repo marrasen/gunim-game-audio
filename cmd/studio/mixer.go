@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/marrasen/gunim/icon"
 	"image/color"
 	"math"
 
@@ -231,6 +232,8 @@ type fxPane struct {
 	transOn *switcher
 	gated   []*knob
 	gateOn  *widget.Button
+	tweak   []*knob
+	untweak *widget.Button
 }
 
 func newFxPane() *fxPane {
@@ -273,6 +276,18 @@ func newFxPane() *fxPane {
 	}
 	f.gateOn = widget.NewButton("On")
 	f.gateOn.KeepFocus, f.gateOn.Tooltip = true, "A second room, cut off short by a gate each hit sent to it opens, as the 1980s gated a snare"
+	f.tweak = []*knob{
+		newKnob("Tone", b, "/Tweak/Tone", -1, 1, 0).center(),
+		newKnob("Bass", b, "/Tweak/Bass", -1, 1, 0).center(),
+		newKnob("Space", b, "/Tweak/Space", -1, 1, 0).center(),
+		newKnob("Width", b, "/Tweak/Width", -1, 1, 0).center(),
+		newKnob("Punch", b, "/Tweak/Punch", 0, 1, 0),
+		newKnob("Drive", b, "/Tweak/Drive", 0, 1, 0),
+		newKnob("Lo-fi", b, "/Tweak/LoFi", 0, 1, 0),
+	}
+	f.untweak = widget.NewButton("Reset")
+	f.untweak.Icon, f.untweak.Tooltip = icon.RotateCcw, "Turn every tweak back to 0, the song as mixed"
+	f.untweak.OnClick = widget.Sends(ClearValue{Path: "Mix/Tweak"})
 	f.tail = &tailView{}
 	f.echoes = &echoView{}
 	f.curve = &curveView{}
@@ -298,7 +313,10 @@ func newFxPane() *fxPane {
 	gated := panel("GATED REVERB · a big room, cut off short after each hit", f.gateOn, knobs(f.gated...))
 	low := widget.Row(mix, gated, f.transOn).Grow(mix, 1.4).Grow(gated, 1).Grow(f.transOn, 1)
 	low.Cross = widget.CrossStretch
-	col := widget.Column(top, low)
+	hint := small("Tone: dark to bright · Bass: cut to boost · Space: dry to wet · Width: mono to wide · Punch: squeezed harder · Drive: pushed into distortion · Lo-fi: an old radio")
+	hint.MaxLines = 2
+	tweak := panelWith(titled("TWEAK · turn the whole song's sound", f.untweak), widget.Row(knobs(f.tweak...), hint).Grow(hint, 1))
+	col := widget.Column(tweak, top, low)
 	col.Cross = widget.CrossStretch
 	f.Scroll = widget.NewScroll(widget.NewPad(col))
 	return f
@@ -315,6 +333,8 @@ func (f *fxPane) update(st Studio) {
 	showKnobs(song, f.mix...)
 	showKnobs(song, f.trans...)
 	showKnobs(song, f.gated...)
+	showKnobs(song, f.tweak...)
+	f.untweak.Disabled = song.Mix.Tweak == (synth.Tweak{})
 	f.gateOn.Active = song.Mix.Gated != nil
 	f.gateOn.OnClick = widget.Sends(ToggleValue{Path: "Mix/Gated", Seed: "Mix/Gated/Hold", Num: 0.3})
 	f.tail.song, f.echoes.song, f.curve.song = song, song, song
