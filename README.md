@@ -399,6 +399,14 @@ changed, with no file to edit and nothing to reload:
   share. Under it the pattern on a grid of steps, a row a drum or a
   note, where a click sets or clears a cell and Shift and a click holds
   the note before it. Each change writes the pattern back as text.
+- **Beat.** Every drum track at once, as a drum machine shows them: a
+  lane a track, with mute and solo, a row a drum it plays, on one time
+  line, a page of 1, 2, 4 or 8 bars at a time, at 8, 16 or 32 steps a
+  bar. Tracks of different lengths line up, each in the turn it plays
+  in those bars. Arrows turn the page through the song's arrangement,
+  and Follow turns it with the song. A click sets a hit or clears one,
+  a drag paints them, and a row adds a drum to a track; each edit
+  writes that track's pattern anew.
 
 The patch and kit editors browse a library of presets, in
 `patches/`: basses, leads, arps and plucks, brass, keys and bells, pads

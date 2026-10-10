@@ -57,6 +57,7 @@ type view struct {
 	kit       *kitPane
 	fx        *fxPane
 	pattern   *patternPane
+	beat      *beatPane
 	// focused is the focus last sent, and editorGen the studio's
 	// EditorGen last obeyed.
 	focused   Focus
@@ -129,8 +130,9 @@ func buildView(s Studio) *root {
 	v.kit = newKitPane(func(string, string) gunim.Intent { return v.focus() })
 	v.fx = newFxPane()
 	v.pattern = newPatternPane(func(string) gunim.Intent { return v.focus() })
-	v.tabs = widget.NewTabs(editorTabs, stagePage, v.mixer, v.patch, v.kit, v.fx, v.pattern)
-	v.tabs.Icons = []*icon.Icon{icon.Orbit, icon.SlidersHorizontal, icon.AudioWaveform, icon.Drum, icon.Waves, icon.Grid3x3}
+	v.beat = newBeatPane()
+	v.tabs = widget.NewTabs(editorTabs, stagePage, v.mixer, v.patch, v.kit, v.fx, v.pattern, v.beat)
+	v.tabs.Icons = []*icon.Icon{icon.Orbit, icon.SlidersHorizontal, icon.AudioWaveform, icon.Drum, icon.Waves, icon.Grid3x3, icon.Drumstick}
 	v.tabs.OnChange = func(int, *gunim.UI) gunim.Intent { return v.focus() }
 	left := v.tabs
 
@@ -261,6 +263,7 @@ func (v *view) update(s Studio, u *gunim.UI) {
 	v.kit.update(s)
 	v.fx.update(s)
 	v.pattern.update(s, u)
+	v.beat.update(s, u)
 	if f := v.focus(); f != v.focused {
 		v.focused = f
 		u.Send(v.root, f)
@@ -466,7 +469,7 @@ func (s *spectrum) Step(dt time.Duration) bool {
 }
 
 // The editors the middle of the window shows, by their tabs.
-var editorTabs = []string{"Stage", "Mixer", "Patch", "Kit", "Effects", "Pattern"}
+var editorTabs = []string{"Stage", "Mixer", "Patch", "Kit", "Effects", "Pattern", "Beat"}
 
 const (
 	tabStage = iota
@@ -475,6 +478,7 @@ const (
 	tabKit
 	tabEffects
 	tabPattern
+	tabBeat
 )
 
 // focus says what the editors show: the patch and the drum to render,

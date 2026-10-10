@@ -533,3 +533,83 @@ func TestAWaveLampSetsTheWave(t *testing.T) {
 		t.Errorf("a click on the pulse's lamp sent %#v", got)
 	}
 }
+
+func TestTheBeatEditsEveryDrumTrack(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Beat"})
+	h.settle()
+	g := h.v.beat.grid
+	var names []string
+	for _, l := range g.lanes {
+		names = append(names, l.track)
+	}
+	if !slices.Equal(names, []string{"kick", "snare", "hats", "toms", "crash", "cowbell"}) {
+		t.Fatalf("the beat shows the lanes %v", names)
+	}
+	if g.loop != 64 {
+		t.Errorf("the drums come round in %d bars, want 64", g.loop)
+	}
+	// The page of bars 33 and 34, the first chorus: the cowbell is out,
+	// and the snare plays on 2 and 4.
+	g.following = false
+	g.start = 32
+	h.frame()
+	snare := g.lanes[1]
+	sn := slices.Index(snare.rows, "sn")
+	for c := range g.cols() {
+		want := int8(0)
+		if c%16 == 4 || c%16 == 12 {
+			want = 1
+		}
+		if got := g.get(snare, sn, c); got != want {
+			t.Fatalf("the snare at step %d of bar 33 is %d, want %d", c, got, want)
+		}
+	}
+	at, ok := h.boundsOf(g)
+	if !ok {
+		t.Fatal("the beat is not on screen")
+	}
+	cw := (g.size.W - beatLabel) / float32(g.cols())
+	pos := func(lane, row, col int) geom.Point {
+		l := g.lanes[lane]
+		return geomPt(at.Min.X+beatLabel+(float32(col)+0.5)*cw, at.Min.Y+l.top+beatHead+(float32(row)+0.5)*beatRowH)
+	}
+	// A click on the kick's second step of bar 33 adds one hit there.
+	before := len(hitsOf(track(h.s.song, "kick").Pattern, 8))
+	p := pos(0, 0, 2)
+	h.w.Input(input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: p, Button: input.ButtonPrimary, Time: time.Now()})
+	got, ok := h.intent().(PatternEdited)
+	if !ok || got.Track != "kick" {
+		t.Fatalf("a click on the kick sent %#v", got)
+	}
+	hits := hitsOf(got.Text, 8)
+	// Bar 33 is the first bar of the kick's fifth turn: 2/128 of it.
+	if len(hits) != before+1 || !slices.Contains(hits, "4 0.0156 bd") {
+		t.Errorf("the kick has %d hits, from %d, and bar 33's second step is set: %v", len(hits), before, slices.Contains(hits, "4 0.0156 bd"))
+	}
+	h.do(got)
+	// A drag along the cowbell's row paints four hits.
+	cb := g.lanes[5]
+	from, to := pos(5, 0, 0), pos(5, 0, 3)
+	h.w.Input(input.PointerDown{Pos: from, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerMove{Pos: to, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: to, Button: input.ButtonPrimary, Time: time.Now()})
+	got, _ = h.intent().(PatternEdited)
+	if got.Track != "cowbell" {
+		t.Fatalf("a drag on the cowbell sent %#v", got)
+	}
+	for c := range 4 {
+		if g.get(cb, 0, c) != 1 {
+			t.Errorf("the drag left the cowbell's step %d empty", c)
+		}
+	}
+	// M mutes the hats.
+	hats := g.lanes[2]
+	m := geomPt(at.Min.X+(hats.muteAt.Min.X+hats.muteAt.Max.X)/2, at.Min.Y+(hats.muteAt.Min.Y+hats.muteAt.Max.Y)/2)
+	h.w.Input(input.PointerDown{Pos: m, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: m, Button: input.ButtonPrimary, Time: time.Now()})
+	if tv, ok := h.intent().(ToggleValue); !ok || tv.Path != "Tracks/hats/Mute" {
+		t.Errorf("a click on the hats' M sent %#v", tv)
+	}
+}
