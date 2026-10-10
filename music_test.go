@@ -168,7 +168,7 @@ func TestEverySongPlays(t *testing.T) {
 func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 	for _, name := range []string{KeypadRound, BossEntrance, MascotDance, BubbleBounce, SisterDreams, GraveyardGallop,
 		PocketKingdom, MeadowHop, HerosField, PalaceRun, UnderworldAscent, StarDrift, OrbitRound, AlienEntrance,
-		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound} {
+		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, SugarRush, SundaeShowdown, CandyLounge, FrostHollow, NeonAbyss, DreadSundae} {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)
@@ -239,6 +239,35 @@ func TestLabbetsSongsAreAsLoudAsTheOtherRooms(t *testing.T) {
 	if l < lo-1 || l > hi+1 {
 		t.Errorf("Tinker Round's tier 4 is %.1f LUFS, not within a decibel of %.1f to %.1f", l, lo, hi)
 	}
+}
+
+func TestSugarStormsSongsAreAsLoudAsTheirKinds(t *testing.T) {
+	if testing.Short() {
+		t.Skip("plays a few minutes of music")
+	}
+	// Each sits within a decibel and a half of the songs of its kind:
+	// the fight's tiers with Keypad Round's, the boss's with Boss
+	// Entrance's and Alien Entrance's, the menu's with the calm rooms.
+	near := func(name string, tier, bars int, peers ...string) {
+		lo, hi := math.Inf(1), math.Inf(-1)
+		for _, p := range peers {
+			l := loudness(t, p, tier, bars)
+			lo, hi = min(lo, l), max(hi, l)
+		}
+		l := loudness(t, name, tier, bars)
+		t.Logf("%s tier %d %.1f LUFS; peers %.1f to %.1f", name, tier, l, lo, hi)
+		if l < lo-1.5 || l > hi+1.5 {
+			t.Errorf("%s tier %d is %.1f LUFS, not within 1.5 dB of %.1f to %.1f", name, tier, l, lo, hi)
+		}
+	}
+	for _, tier := range []int{1, 4} {
+		near(SugarRush, tier, 8, KeypadRound, OrbitRound, BubbleBounce)
+		near(FrostHollow, tier, 8, KeypadRound, OrbitRound, BubbleBounce)
+		near(NeonAbyss, tier, 8, KeypadRound, OrbitRound, BubbleBounce)
+		near(SundaeShowdown, tier, 8, BossEntrance, AlienEntrance)
+		near(DreadSundae, tier, 8, BossEntrance, AlienEntrance)
+	}
+	near(CandyLounge, 1, 16, CandyClouds, CompassRose, MascotDance)
 }
 
 func TestSongSaysWhenThereIsNoSuchSong(t *testing.T) {
