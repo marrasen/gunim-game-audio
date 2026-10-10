@@ -71,6 +71,7 @@ type patchPane struct {
 	aeKnobs []*knob
 	vKnobs  []*knob
 	vowel   *widget.Dropdown
+	vocoder *widget.Button
 	note    *wave
 	cycle   *wave
 	live    *wave
@@ -166,6 +167,7 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		newKnob("Glide", pb, "/Glide", 0, 0.5, 0).units("s"),
 		newKnob("Drive", pb, "/Drive", 0, 1, 0),
 		newKnob("Noise", pb, "/Noise", 0, 1, 0),
+		newKnob("Drift", pb, "/Drift", 0, 20, 0).units("c"),
 		newKnob("Gain", pb, "/Gain", 0, 2, 1).unsetIs(1),
 	}
 	pp.vowel = widget.NewDropdown(widget.Labels(vowels...))
@@ -177,7 +179,9 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		}
 		return SetValue{Path: pp.base + "/Vowel", Str: v, IsStr: true}
 	}
-	voice := panelWith(titled("VOICE · sings", pp.vowel), knobs(pp.vKnobs...))
+	pp.vocoder = widget.NewButton("Vocoder")
+	pp.vocoder.KeepFocus, pp.vocoder.Tooltip = true, "Sing the vowel through a vocoder's ten bands, as a Roland VP-330's: a robot's voice"
+	voice := panelWith(titled("VOICE · sings", widget.Row(pp.vowel, pp.vocoder)), knobs(pp.vKnobs...))
 	lfoRow = append(lfoRow, voice)
 	pp.arpOn = widget.NewButton("On")
 	pp.arpOn.KeepFocus, pp.arpOn.Tooltip = true, "Arpeggiate: steps through notes fast, as a Commodore 64 plays a chord on one voice"
@@ -336,6 +340,8 @@ func (pp *patchPane) update(st Studio) {
 		vw = "off"
 	}
 	pp.vowel.SetSelected(segmentedIndex(vowels, vw), nil)
+	pp.vocoder.Active = p.Vocoder
+	pp.vocoder.OnClick = widget.Sends(SetValue{Path: pp.base + "/Vocoder", Num: boolNum(!p.Vocoder)})
 	pp.resp.song, pp.fenv.song, pp.aenv.song = song, song, song
 	if st.Preview.Patch == pp.name {
 		pp.note.data, pp.cycle.data = st.Preview.Wave, st.Preview.Cycle

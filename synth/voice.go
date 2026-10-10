@@ -48,6 +48,7 @@ type voice struct {
 	lfoR   []float32
 	frames int64
 	form   formant
+	voc    vocoder
 	// noise2 are the oscillators' SID noise, and nesN their NES noise.
 	noise2 [maxOsc][maxUnison]lfsr
 	nesN   [maxOsc][maxUnison]nesNoise
@@ -58,6 +59,9 @@ type voice struct {
 	noise *rng
 	// pan is where the note sits, LFO and all, this control block.
 	pan float32
+	// drift is how far the note is off its pitch, in semitones, as an
+	// analogue oscillator drifts.
+	drift float32
 	// hz is the pitch heard, from pitchAt, and cut and res the filter's
 	// tuning, kept to tune it again only once they move.
 	hz, pitchAt, cut, res float32
@@ -123,13 +127,26 @@ func (v *voice) start(p *patch, n note, age uint64) {
 		vowel = p.vowel
 	}
 	if vowel != 0 {
-		v.form.set(vowel)
-		v.vowel = vowel
+		v.aim(vowel)
+	}
+	v.drift = 0
+	if src.Drift > 0 {
+		v.drift = float32(src.Drift/100) * v.noise.bipolar()
 	}
 	if p.kind == kindPluck {
 		v.pluck()
 	}
 	v.on = true
+}
+
+// aim aims the voice's formants, or its vocoder's bands, at vowel.
+func (v *voice) aim(vowel byte) {
+	if v.p.vocoder {
+		v.voc.set(vowel)
+	} else {
+		v.form.set(vowel)
+	}
+	v.vowel = vowel
 }
 
 // pluck plucks the string afresh: a burst of noise as long as the
@@ -229,7 +246,7 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		if b := p.src.Bend; b != nil && b.Time > 0 {
 			lPitch += float32(b.Semis * max(0, 1-float64(v.frames)/(b.Time*rate)))
 		}
-		if pitch := v.pitch + lPitch; pitch != v.pitchAt || v.hz == 0 {
+		if pitch := v.pitch + lPitch + v.drift; pitch != v.pitchAt || v.hz == 0 {
 			v.pitchAt, v.hz = pitch, float32(noteHz(float64(pitch)))
 		}
 		hz := v.hz
@@ -273,10 +290,13 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		sing := vowel != 0
 		if sing {
 			if vowel != v.vowel {
-				v.form.set(vowel)
-				v.vowel = vowel
+				v.aim(vowel)
 			}
-			v.form.tune()
+			if p.vocoder {
+				v.voc.tune()
+			} else {
+				v.form.tune()
+			}
 		}
 		v.pan = min(max(v.n.pan+lPan, -1), 1)
 		pl, pr := panGains(v.pan)
@@ -309,7 +329,13 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		v.filter(bl, br)
 		if sing {
 			for i := range bl {
-				s := v.form.step((bl[i] + br[i]) * 0.5)
+				x := (bl[i] + br[i]) * 0.5
+				var s float32
+				if p.vocoder {
+					s = v.voc.step(x)
+				} else {
+					s = v.form.step(x)
+				}
 				bl[i], br[i] = s, s
 			}
 		}

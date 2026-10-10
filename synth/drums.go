@@ -126,6 +126,18 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 		h.decay(1, 1.1*decay)
 		h.decay(2, 0.09)
 		h.end = secs(6 * decay)
+	case drSynTom:
+		h.f1.set(1800+2400*tone, 0)
+		h.decay(0, 0.16*decay)
+		h.decay(1, 0.4*decay)
+		h.decay(2, 0.05)
+		h.decay(3, 0.0012)
+		h.end = secs(2.4 * decay)
+	case drCowbell:
+		h.f1.set(2000+1200*tone, 0.4)
+		h.decay(0, 0.009)
+		h.decay(1, 0.075*decay)
+		h.end = secs(0.6 * decay)
 	case drRiser, drDown:
 		h.end = dur + secs(0.03)
 	default:
@@ -226,6 +238,30 @@ func (h *hit) render(l, r []float32) {
 			lp, _, _ := h.f1.step(h.noise.bipolar())
 			s = sin1(h.ph[0])*e[1] + lp*e[2]*0.9
 			s = softClip(s * 1.4)
+		case drSynTom:
+			// A Simmons SDS-V's tom: a triangle bending down from twice
+			// its pitch, noise through a lowpass, and the stick's click.
+			f := 110 * tune * (1 + e[0])
+			h.ph[0] += f / rate
+			h.ph[0] -= float32(int(h.ph[0]))
+			lp, _, _ := h.f1.step(h.noise.bipolar())
+			s = (1-4*abs32(h.ph[0]-0.5))*e[1] + lp*e[2]*(0.4+0.6*tone) + h.noise.bipolar()*e[3]*0.5
+			s = softClip(s * 1.4)
+		case drCowbell:
+			// A TR-808's cowbell: squares at 540 and 800 Hz, through a
+			// bandpass, with a sharp strike and a short ring.
+			var m float32
+			for k, f := range [2]float32{540, 800} {
+				h.ph[k] += f * tune / rate
+				h.ph[k] -= float32(int(h.ph[k]))
+				if h.ph[k] < 0.5 {
+					m++
+				} else {
+					m--
+				}
+			}
+			_, bp, _ := h.f1.step(m * 0.5)
+			s = (bp*1.6 + m*0.12) * (0.6*e[0] + 0.4*e[1])
 		case drRiser, drDown:
 			s = h.sweep(tone)
 		default:

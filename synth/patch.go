@@ -32,9 +32,17 @@ type Patch struct {
 	Glide float64
 	// Drive saturates the oscillators before the filter, from 0.
 	Drive float64
+	// Drift detunes each note by up to that many cents, at random, as
+	// an analogue synth's oscillators drift: a chord's notes beat
+	// against each other, and no two notes are quite alike.
+	Drift float64
 	// Vowel makes the patch sing a vowel, a, e, i, o or u, as a voice
 	// does; a track's vowel parameter changes it note by note.
 	Vowel string
+	// Vocoder sings the vowel through a vocoder's ten bands, as a
+	// Roland VP-330's, in place of a voice's three resonances: the
+	// robot's voice of electronic pop, which a track's vowels make speak.
+	Vocoder bool `json:",omitempty"`
 	// Pluck is how a pluck patch's string sounds.
 	Pluck Pluck
 	// Arpeggio plays a chord as one voice, its notes in turn, fast, as a
@@ -47,7 +55,7 @@ type Patch struct {
 	// Kit is a drums patch's drums, by the names a pattern plays them
 	// by. A name the kit leaves out is a drum of the same name, as bd,
 	// sn, cp, hh, oh, rim, lt, mt, ht, cr, rd, sh, snap, tim, boom,
-	// riser or down; see Drum.
+	// riser, down, the syn-toms syn1 to syn3, or cb, a cowbell; see Drum.
 	Kit map[string]Drum
 	// Gain is the patch's level, 1 by default.
 	Gain float64
@@ -133,7 +141,9 @@ type Pluck struct {
 // Drum is a drum of a kit.
 type Drum struct {
 	// Type is what it is: kick, snare, clap, hat, ohat, rim, tom,
-	// crash, ride, shaker, snap, timpani, boom, riser or down; or the
+	// crash, ride, shaker, snap, timpani, boom, riser or down; syntom, an
+	// electronic tom as a Simmons drum's, its pitch diving; cowbell, a
+	// TR-808's; or the
 	// SID's, built a frame at a time as a Commodore 64's drums are:
 	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
 	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
@@ -168,11 +178,14 @@ var drumNames = map[string]string{
 	"sbd":   "sidkick", "ssn": "sidsnare", "scp": "sidclap", "shh": "sidhat", "soh": "sidohat",
 	"stom": "sidtom", "szap": "sidzap",
 	"nbd": "neskick", "nsn": "nessnare", "nhh": "neshat", "noh": "nesohat", "ntom": "nestom", "nclk": "nesmetal",
-	"ncp": "nesclap",
+	"ncp":  "nesclap",
+	"syn1": "syntom", "syn2": "syntom", "syn3": "syntom", "syntom": "syntom",
+	"cb": "cowbell", "cowbell": "cowbell",
 }
 
-// tomTune tunes the low and high toms either side of the middle one.
-var tomTune = map[string]float64{"lt": -5, "ht": 5}
+// tomTune tunes the low and high toms either side of the middle one,
+// and the syn-toms, syn1 the highest, as a kit numbers its toms.
+var tomTune = map[string]float64{"lt": -5, "ht": 5, "syn1": 5, "syn3": -5}
 
 // The types of drum.
 const (
@@ -205,6 +218,8 @@ const (
 	drNESTom
 	drNESMetal
 	drNESClap
+	drSynTom
+	drCowbell
 )
 
 var drumTypes = map[string]int{
@@ -215,6 +230,7 @@ var drumTypes = map[string]int{
 	"sidtom": drSIDTom, "sidzap": drSIDZap,
 	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
 	"nesclap": drNESClap,
+	"syntom":  drSynTom, "cowbell": drCowbell,
 }
 
 // The waves of an oscillator.
@@ -270,6 +286,7 @@ type patch struct {
 	filter     int
 	lfo        []lfo
 	vowel      byte
+	vocoder    bool
 	poly       int
 	kit        map[string]drum
 	gain       float32
@@ -486,6 +503,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 		}
 		c.vowel = p.Vowel[0]
 	}
+	c.vocoder = p.Vocoder
 	if c.kind == kindDrums {
 		c.kit = map[string]drum{}
 		for n, t := range drumNames {

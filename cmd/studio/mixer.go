@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"slices"
 
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audioui"
@@ -63,11 +64,15 @@ type channel struct {
 	mute   *widget.Button
 	solo   *widget.Button
 	ks     []*knob
+	chorus *widget.Dropdown
 	meter  *vu
 	fader  *audioui.Fader
 	swatch *swatch
 	gain   float32
 }
+
+// chorusTypes are the kinds of a track's chorus, as a tool lists them.
+var chorusTypes = []string{"soft", "juno1", "juno2", "juno12", "ensemble"}
 
 func newChannel() *channel {
 	c := &channel{name: widget.NewLabel(""), gainDB: small(""), meter: &vu{}, swatch: &swatch{}}
@@ -83,6 +88,16 @@ func newChannel() *channel {
 		newKnob("High cut", b, "/LPF", 200, 20000, 20000).logScale().small().unsetIs(20000),
 		newKnob("Drive", b, "/Shape", 0, 0.95, 0).small(),
 		newKnob("Chorus", b, "/Chorus", 0, 1, 0).small(),
+		newKnob("Gated", b, "/Gated", 0, 1, 0).small(),
+	}
+	c.chorus = widget.NewDropdown(widget.Labels(chorusTypes...))
+	c.chorus.Label = "Chorus"
+	c.chorus.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+		t := chorusTypes[i]
+		if t == "soft" {
+			t = ""
+		}
+		return SetValue{Path: c.base + "/ChorusType", Str: t, IsStr: true}
 	}
 	c.mute = widget.NewButton("M")
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
@@ -94,9 +109,14 @@ func newChannel() *channel {
 	})
 	c.fader.Range = 36
 	rows := make([]gunim.Node, 0, len(c.ks)/2)
-	for i := 0; i+1 < len(c.ks); i += 2 {
-		rows = append(rows, widget.Row(c.ks[i], c.ks[i+1]))
+	for i := 0; i < len(c.ks); i += 2 {
+		if i+1 < len(c.ks) {
+			rows = append(rows, widget.Row(c.ks[i], c.ks[i+1]))
+		} else {
+			rows = append(rows, widget.Row(c.ks[i]))
+		}
 	}
+	rows = append(rows, c.chorus)
 	kcol := widget.Column(rows...)
 	kcol.Cross = widget.CrossCenter
 	buttons := widget.Row(c.mute, c.solo)
@@ -122,6 +142,13 @@ func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	c.solo.OnClick = widget.Sends(SetValue{Path: c.base + "/Solo", Num: boolNum(!t.Solo)})
 	c.meter.m = t.Meter
 	showKnobs(st.Doc, c.ks...)
+	ct := "soft"
+	for _, tr := range st.Doc.Tracks {
+		if tr.Name == t.Name && tr.ChorusType != "" {
+			ct = tr.ChorusType
+		}
+	}
+	c.chorus.SetSelected(max(slices.Index(chorusTypes, ct), 0), nil)
 	col := hexColor(t.Color, i)
 	for _, k := range c.ks {
 		k.color = col
@@ -220,6 +247,8 @@ type fxPane struct {
 	duck    *widget.Dropdown
 	duckTo  []string
 	transOn *switcher
+	gated   []*knob
+	gateOn  *widget.Button
 }
 
 func newFxPane() *fxPane {
@@ -243,6 +272,9 @@ func newFxPane() *fxPane {
 	f.mix = []*knob{
 		newKnob("Master", b, "/Gain", -12, 12, 0).center().units("dB"),
 		newKnob("Swing", b, "/../Swing", 0, 0.5, 0),
+		newKnob("Mono bass", b, "/MonoBass", 0, 300, 0).units("Hz"),
+		newKnob("Air", b, "/Air", -6, 6, 0).center().units("dB"),
+		newKnob("Tape", b, "/Tape", 0, 1, 0),
 	}
 	// Swing is the song's, not the mix's.
 	f.mix[1].base = new(string)
@@ -252,6 +284,13 @@ func newFxPane() *fxPane {
 		newKnob("Level", b, "/Transitions/Gain", -24, 6, 0).units("dB"),
 		newKnob("Reverb", b, "/Transitions/Reverb", 0, 1, 0.3),
 	}
+	f.gated = []*knob{
+		newKnob("Size", b, "/Gated/Size", 0.3, 1.5, 1.2).unsetIs(1.2),
+		newKnob("Tone", b, "/Gated/Tone", 0, 1, 0.6).unsetIs(0.6),
+		newKnob("Hold", b, "/Gated/Hold", 0.05, 1, 0.3).units("s").unsetIs(0.3),
+	}
+	f.gateOn = widget.NewButton("On")
+	f.gateOn.KeepFocus, f.gateOn.Tooltip = true, "A second room, cut off short by a gate each hit sent to it opens, as the 1980s gated a snare"
 	f.tail = &tailView{}
 	f.echoes = &echoView{}
 	f.curve = &curveView{}
@@ -274,7 +313,8 @@ func newFxPane() *fxPane {
 	mix := panel("MIX", knobs(f.mix...), duckRow)
 	trans := panel("TRANSITIONS · a riser before the tier climbs, an impact as it lands", knobs(f.trans...))
 	f.transOn = newSwitcher(trans, panel("TRANSITIONS", small("This song marks no tier changes.")))
-	low := widget.Row(mix, f.transOn).Grow(mix, 1).Grow(f.transOn, 1)
+	gated := panel("GATED REVERB · a big room, cut off short after each hit", f.gateOn, knobs(f.gated...))
+	low := widget.Row(mix, gated, f.transOn).Grow(mix, 1.4).Grow(gated, 1).Grow(f.transOn, 1)
 	low.Cross = widget.CrossStretch
 	col := widget.Column(top, low)
 	col.Cross = widget.CrossStretch
@@ -292,6 +332,13 @@ func (f *fxPane) update(st Studio) {
 	showKnobs(song, f.comp...)
 	showKnobs(song, f.mix...)
 	showKnobs(song, f.trans...)
+	showKnobs(song, f.gated...)
+	f.gateOn.Active = song.Mix.Gated != nil
+	if f.gateOn.Active {
+		f.gateOn.OnClick = widget.Sends(ClearValue{Path: "Mix/Gated"})
+	} else {
+		f.gateOn.OnClick = widget.Sends(SetValue{Path: "Mix/Gated/Hold", Num: 0.3})
+	}
 	f.tail.song, f.echoes.song, f.curve.song = song, song, song
 	f.curve.db = st.Reduction
 	f.duckTo = []string{"none"}

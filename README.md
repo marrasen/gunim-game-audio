@@ -34,6 +34,7 @@ import music "github.com/marrasen/gunim-game-audio"
 | Summer Meadow | `summer-meadow` | A calm song of a summer meadow, made in code, at 88 BPM in G major, for a room and its map: a plucked harp, a soft pad, a round bass and a woody tick always, and an ocarina's tune, birdsong and a bumblebee's hum coming and going. |
 | Tinker Lab | `tinker-lab` | A curious, bouncy song of an inventor's workshop, made in code, at 96 BPM in A major, shuffled in triplets, for a room and its map: plucked strings, a plucked bass, a soft pad, a light groove and a clock's tick-tock always, and a marimba's tune, bubbly blips and a vibraphone coming and going. |
 | Tinker Round | `tinker-round` | A round song of the same workshop, made in code, at 112 BPM in A major, shuffled, in four tiers: plucked strings, a plucked bass and a pad; claps and a clock; a marimba's tune; drums and bubbly blips. The digit keys play the A major pentatonic over it. |
+| Notte di Neon | `notte-di-neon` | An Italo disco song, made in code, at 122 BPM in D minor, as a 12" mix of the 1980s plays it in 64 bars: a drum intro under an octave bass and an arpeggio, the synth hook, a vocoder's verses over a DX7's piano, choruses with a vocoder choir, string machine, orchestra hits, cowbell and laser zaps, and a break of Simmons toms. Its snare booms in a gated reverb, and its mix is mastered as for vinyl. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -185,7 +186,7 @@ tier 2. Mascot Dance's, Sister Dreams' and Underworld Ascent's come and
 go as those songs wander, and the game can hold them in with
 `SetPart`; Star Drift's bells always ring, as do Candy Clouds' soft
 snap, Compass Rose's rim, Summer Meadow's woody tick and Tinker Lab's
-snap, on beats 2 and 4. Pocket Kingdom claps twice, quick, every bar;
+snap, on beats 2 and 4, and Notte di Neon's clap, but for its first four bars. Pocket Kingdom claps twice, quick, every bar;
 Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent, Orbit
 Round, Alien Entrance, Meadow Hop and Tinker Round every other bar. The recorded songs, Greek Themes and A round song,
 tell their beat but not their drums: a character can clap on beats 2
@@ -512,6 +513,25 @@ patch plays drums by name: `bd`, `sn`, `cp`, `hh`, `oh`, `rim`, `lt`,
 `mt`, `ht`, `cr`, `rd`, `sh`, `snap`, `tim`, a timpani tuned to the
 chord, and the effects `boom`, `riser` and `down`.
 
+The 1980s' electronic pop has sounds of its own. `syn1`, `syn2` and
+`syn3` are a Simmons SDS-V's toms, high to low, of type `syntom`: a
+triangle bending down from twice its pitch, noise and a stick's click.
+`cb` is a TR-808's cowbell, of type `cowbell`: squares at 540 and 800 Hz
+through a bandpass. A patch's `Drift` detunes each of its notes by up to
+that many cents, at random, as an analogue synth's oscillators drift.
+Its `Vocoder` sings its vowel through a vocoder's ten bands, at a Roland
+VP-330's centres from 150 Hz to 5.2 kHz, in place of a voice's three
+resonances: a track's `vowel` parameter makes a chord speak, as a robot.
+A track's `ChorusType` is its chorus's kind: `soft`, the default;
+`juno1`, `juno2` or `juno12`, a Roland Juno-60's chorus I, II, and both
+buttons down, each side swept against the other; or `ensemble`, a string
+machine's three swaying copies. The mix's `Gated` is a second room, a
+big one cut off short a `Hold` after each hit of the tracks that send to
+it by their `Gated`, as the 1980s gated a snare. `MonoBass` makes the
+mix mono below it, in hertz, as a record is cut; `Air` lifts the top
+above 10 kHz by decibels; and `Tape` rounds the peaks off, from 0 to 1,
+as a tape machine does.
+
 The SID patches sound like a Commodore 64. An oscillator's `Wave` may be
 `noise`, pitched by the note as the SID's noise is, or a combined wave,
 `sawtri`, `pulsetri` or `pulsesaw`, two waves ANDed as the chip makes
@@ -544,8 +564,8 @@ A track's `Params` change each note, as TidalCycles' controls do: `vel`,
 `pan`, `cutoff`, `res`, `legato`, `octave`, `vowel` and `tune`, each a
 pattern of values, or a signal from lo to hi as `sine:400:2000:4`. Its
 mix is `Gain`, `Pan`, `Reverb`, `Delay`, a sidechain `Duck` to the
-song's kick, and the effects `HPF`, `LPF`, `Shape`, `Crush`, `Coarse`
-and `Chorus`.
+song's kick, a `Gated` send, and the effects `HPF`, `LPF`, `Shape`,
+`Crush`, `Coarse` and `Chorus`, of its `ChorusType`.
 
 `cmd/render` renders a song made in code to a WAV file and says how loud
 each tier is, and each track alone, octave by octave, for mixing without

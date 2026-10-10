@@ -134,12 +134,19 @@ type Track struct {
 	// duck track turns it down as it hits, from 0 to 1, as a sidechain
 	// pumps a dance track.
 	Gain, Pan, Reverb, Delay, Duck float64
+	// Gated is how much it sends to the song's gated reverb, from 0 to
+	// 1; each of its hits opens the gate.
+	Gated float64 `json:",omitempty"`
 	// HPF and LPF cut it below and above them, in hertz; Shape drives
 	// it, from 0 to 1; Crush takes it to that many bits; Coarse holds
 	// each sample that many frames; and Chorus thickens it, from 0 to 1.
 	HPF, LPF, Shape, Crush float64
 	Coarse                 int
 	Chorus                 float64
+	// ChorusType is the chorus's kind: soft, the default, two copies
+	// swaying slowly; juno1, juno2 or juno12, a Roland Juno-60's chorus
+	// I, II, or both buttons down; or ensemble, a string machine's.
+	ChorusType string `json:",omitempty"`
 	// Human moves each note a little in time and level, from 0 to 1, as
 	// a player's hands do.
 	Human float64
@@ -207,6 +214,19 @@ type Mix struct {
 	// Threshold and Ratio set the compressor that glues the mix, -10 dB
 	// and 2 by default.
 	Threshold, Ratio float64
+	// Gated is a second room, its sound cut off short by a gate that the
+	// hits of the tracks sending to it open, as the 1980s gated a
+	// snare's room; nil for none.
+	Gated *Gated `json:",omitempty"`
+	// MonoBass makes the mix mono below it, in hertz, as a record's
+	// cutting engineer does, so the needle tracks the bass.
+	MonoBass float64 `json:",omitempty"`
+	// Air lifts the mix above 10 kHz by that many decibels, as the
+	// mastering of the 1980s brightened a record.
+	Air float64 `json:",omitempty"`
+	// Tape saturates the mix as a tape machine does, from 0 to 1: the
+	// quiet as it was, the peaks rounded off.
+	Tape float64 `json:",omitempty"`
 	// Transitions names a drums patch to mark tier changes with: a riser
 	// in the bars before the tier climbs, an impact as it lands, and a
 	// down as it falls. Lift is how many bars the riser takes, 1 by
@@ -218,6 +238,13 @@ type Mix struct {
 // Tone from 0, dark, to 1, bright, and PreDelay in seconds.
 type Reverb struct {
 	Size, Decay, Tone, PreDelay float64
+}
+
+// Gated shapes a song's gated reverb: Size and Tone as a Reverb's, 1.2
+// and 0.6 by default, and Hold how long, in seconds, its gate stays open
+// after a hit, 0.3 by default, before it shuts in a few milliseconds.
+type Gated struct {
+	Size, Tone, Hold float64
 }
 
 // Echo times a song's delay: Beats between echoes, 0.75 by default,
@@ -649,6 +676,9 @@ func (c *compiled) compileTrack(t *Track, k key, progs [][]Chord, sting bool) (*
 		ct.arp = arpRandom
 	default:
 		return nil, fmt.Errorf("synth: track %s arpeggiates %q, not up, down, updown, downup, converge or random", t.Name, t.Arp)
+	}
+	if _, ok := chorusKinds[t.ChorusType]; !ok {
+		return nil, fmt.Errorf("synth: track %s has chorus %q, not soft, juno1, juno2, juno12 or ensemble", t.Name, t.ChorusType)
 	}
 	src := t.Pattern
 	if t.Melody != nil {

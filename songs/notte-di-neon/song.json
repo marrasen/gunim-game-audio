@@ -1,0 +1,258 @@
+{
+	"Kind": "synth",
+	"Title": "Notte di Neon",
+	"Category": "Grooves",
+	"Artist": "Marcus Johansson",
+	"BPM": 122,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "D",
+	"Scale": "minor",
+	"Chords": [
+		"Dm _ C _ Bb _ A _",
+		"Bb C Dm _ Bb C A _",
+		"Dm _ C _ Bb _ A _",
+		"Dm _ C _ Bb _ Gm A",
+		"Bb C Dm _ Bb C A _",
+		"Bb C Dm _ Bb C A _",
+		"Gm _ Dm _ Bb _ A _",
+		"Bb C Dm _ Bb C A _"
+	],
+	"Mode": "wander",
+	"Clap": {"Track": "snare", "Drum": "cp"},
+	"Patches": {
+		"bass": {
+			"Osc": [
+				{"Wave": "saw"},
+				{"Wave": "pulse", "Width": 0.5, "Octave": -1, "Level": 0.55}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 330, "Res": 0.3, "Env": 2.6, "Key": 0.4, "Vel": 0.6},
+			"Amp": {"Attack": 0.002, "Decay": 0.2, "Sustain": 0.75, "Release": 0.04},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.16, "Sustain": 0.12, "Release": 0.05},
+			"Poly": 1,
+			"Drift": 3,
+			"Drive": 0.2,
+			"Gain": 0.8
+		},
+		"arp": {
+			"Osc": [
+				{"Wave": "pulse", "Width": 0.32},
+				{"Wave": "saw", "Detune": 6, "Level": 0.35}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 900, "Res": 0.35, "Env": 2.2, "Key": 0.5, "Vel": 0.8},
+			"Amp": {"Attack": 0.001, "Decay": 0.16, "Sustain": 0, "Release": 0.06},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.1, "Sustain": 0, "Release": 0.05},
+			"Poly": 4,
+			"Drift": 2,
+			"Gain": 0.7
+		},
+		"lead": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 2, "Spread": 14},
+				{"Wave": "pulse", "Width": 0.3, "Octave": 1, "Level": 0.2}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 1300, "Res": 0.2, "Env": 1.6, "Key": 0.5, "Vel": 0.5},
+			"Amp": {"Attack": 0.005, "Decay": 0.3, "Sustain": 0.85, "Release": 0.2},
+			"FilterEnv": {"Attack": 0.02, "Decay": 0.45, "Sustain": 0.5, "Release": 0.2},
+			"LFO": [{"To": "pitch", "Wave": "tri", "Hz": 5.5, "Depth": 0.12, "Delay": 0.25}],
+			"Poly": 1,
+			"Glide": 0.015,
+			"Drift": 3,
+			"Gain": 0.55
+		},
+		"vocoder": {
+			"Osc": [
+				{"Wave": "saw"},
+				{"Wave": "pulse", "Width": 0.3, "Level": 0.5}
+			],
+			"Noise": 0.05,
+			"Vocoder": true,
+			"Vowel": "a",
+			"Amp": {"Attack": 0.012, "Decay": 0.2, "Sustain": 0.9, "Release": 0.12},
+			"Poly": 1,
+			"Glide": 0.03,
+			"Gain": 1
+		},
+		"choir": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 2, "Spread": 10},
+				{"Wave": "pulse", "Width": 0.4, "Level": 0.4}
+			],
+			"Noise": 0.04,
+			"Vocoder": true,
+			"Vowel": "a",
+			"Amp": {"Attack": 0.09, "Decay": 0.5, "Sustain": 0.85, "Release": 0.45},
+			"Poly": 6,
+			"Drift": 4,
+			"Gain": 0.8
+		},
+		"strings": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 3, "Spread": 12},
+				{"Wave": "saw", "Octave": 1, "Level": 0.4}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 3800, "Res": 0.05},
+			"Amp": {"Attack": 0.35, "Decay": 1, "Sustain": 0.9, "Release": 1},
+			"Poly": 8,
+			"Drift": 4,
+			"Gain": 0.5
+		},
+		"epiano": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 1, "Index": 1, "Decay": 1.2, "Sustain": 0.25},
+				{"Wave": "fm", "Ratio": 14, "Index": 2, "Decay": 0.04, "Sustain": 0, "Level": 0.35}
+			],
+			"Amp": {"Attack": 0.001, "Decay": 1.5, "Sustain": 0, "Release": 0.3},
+			"Poly": 8,
+			"Gain": 0.7
+		},
+		"orch": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 3, "Spread": 18},
+				{"Wave": "pulse", "Width": 0.5, "Octave": -1, "Level": 0.6}
+			],
+			"Noise": 0.15,
+			"Filter": {"Type": "lp", "Cutoff": 1800, "Res": 0.1, "Env": 1.6},
+			"Amp": {"Attack": 0.001, "Decay": 0.4, "Sustain": 0, "Release": 0.2},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.25, "Sustain": 0, "Release": 0.2},
+			"Poly": 8,
+			"Gain": 0.6
+		},
+		"zap": {
+			"Osc": [
+				{"Wave": "pulse", "Width": 0.5},
+				{"Wave": "sine", "Level": 0.6}
+			],
+			"Amp": {"Attack": 0.001, "Decay": 0.22, "Sustain": 0, "Release": 0.08},
+			"Bend": {"Semis": 48, "Time": 0.2},
+			"Poly": 2,
+			"Gain": 0.5
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {"Decay": 0.6, "Tone": 0.45},
+				"sn": {"Tune": 4, "Tone": 0.55, "Decay": 0.8},
+				"cp": {"Tone": 0.1, "Gain": 0.8},
+				"hh": {"Tone": 0.2, "Gain": 0.7},
+				"oh": {"Tone": 0.2, "Decay": 0.6, "Gain": 0.55},
+				"syn1": {"Pan": -0.45, "Tone": 0.4},
+				"syn2": {"Tone": 0.4},
+				"syn3": {"Pan": 0.45, "Tone": 0.4},
+				"cb": {"Gain": 0.8},
+				"cr": {"Gain": 0.6, "Tone": 0.3}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "kick", "Core": true, "Patch": "kit", "Color": "#ff5c5c",
+			"Pattern": "<bd*32 bd*32 bd*32 bd*32 bd*32 bd*32 [[bd ~ ~ ~] ~ ~ ~ [bd*4]!4] bd*32>",
+			"Bars": 8,
+			"Gain": -6
+		},
+		{
+			"Name": "snare", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "<[~ ~ ~ ~ [~ [sn,cp] ~ [sn,cp]]!4] [~ [sn,cp] ~ [sn,cp]]*8 [~ [sn,cp] ~ [sn,cp]]*8 [[~ [sn,cp] ~ [sn,cp]]!7 [~ [sn,cp] [sn sn] [sn sn sn sn]]] [~ [sn,cp] ~ [sn,cp]]*8 [~ [sn,cp] ~ [sn,cp]]*8 [[~ cp ~ cp]!4 [~ [sn,cp] ~ [sn,cp]]!3 [~ [sn,cp] [sn sn] [sn sn sn sn]]] [~ [sn,cp] ~ [sn,cp]]*8>",
+			"Bars": 8,
+			"Gain": -7, "Reverb": 0.12, "Gated": 0.6
+		},
+		{
+			"Name": "hats", "Core": true, "Patch": "kit", "Color": "#ffcf5c",
+			"Pattern": "<[hh hh oh hh]*32 [hh hh oh hh]*32 [hh hh oh hh]*32 [hh hh oh hh]*32 [hh hh oh hh]*32 [hh hh oh hh]*32 [[~ ~ oh ~]*16 [hh hh oh hh]*16] [hh hh oh hh]*32>",
+			"Bars": 8,
+			"Params": {"vel": "[0.6 0.4 0.85 0.45]*32"},
+			"Gain": -5, "Pan": 0.25
+		},
+		{
+			"Name": "toms", "Core": true, "Patch": "kit", "Color": "#ff6bd5",
+			"Pattern": "<[~ ~ ~ ~ ~ ~ ~ [~ ~ [syn1 syn1 syn2 syn2] [syn2 syn3 syn3 syn3]]] ~ ~ [~ ~ ~ ~ ~ ~ ~ [~ ~ ~ [syn1 syn2 syn3 syn3]]] ~ ~ [~ ~ ~ [~ ~ [syn1 syn1 syn2 syn2] [syn2 syn3 syn3 syn3]] ~ ~ ~ [~ ~ [syn1 syn1 syn2 syn2] [syn2 syn3 syn3 syn3]]] ~>",
+			"Bars": 8,
+			"Gain": -16, "Reverb": 0.15, "Gated": 0.5
+		},
+		{
+			"Name": "crash", "Core": true, "Patch": "kit", "Color": "#9aa3b5",
+			"Pattern": "<~ [cr ~ ~ ~ ~ ~ ~ ~] ~ ~ [cr ~ ~ ~ ~ ~ ~ ~] ~ [~ ~ ~ ~ cr ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~]>",
+			"Bars": 8,
+			"Gain": -13, "Reverb": 0.25
+		},
+		{
+			"Name": "cowbell", "Core": true, "Patch": "kit", "Color": "#ffe28a",
+			"Pattern": "<~ ~ ~ ~ ~ [~ cb ~ ~ ~ cb ~ ~ ~ cb ~ ~ ~ ~ cb ~]*8 [~ ~ ~ ~ [~ cb ~ ~ ~ cb ~ ~ ~ cb ~ ~ ~ ~ cb ~]!4] ~>",
+			"Bars": 8,
+			"Gain": -10, "Pan": -0.35, "Delay": 0.15
+		},
+		{
+			"Name": "bass", "Core": true, "Patch": "bass", "Color": "#3fd0c9",
+			"Pattern": "<[b b']*32 [b b']*32 [b b']*32 [b b']*32 [b b']*32 [b b']*32 [[b ~ ~ ~ ~ ~ b' ~]!4 [[b b']*4]!4] [b b']*32>",
+			"Bars": 8, "Octave": 2, "Legato": 0.6,
+			"Params": {"vel": "[1 0.8]*32"},
+			"Gain": -5
+		},
+		{
+			"Name": "arp", "Core": true, "Patch": "arp", "Color": "#5ce1a8",
+			"Pattern": "<[~ ~ ~ ~ [x*16]!4] x*128 x*128 x*128 x*128 x*128 x*128 x*128>",
+			"Bars": 8, "Arp": "up", "ArpOctaves": 2, "Octave": 4, "Legato": 0.5,
+			"Params": {"vel": "[1 0.6 0.8 0.6]*32", "cutoff": "sine:700:2200", "pan": "tri:-0.4:0.4:0.5"},
+			"Gain": -7, "Reverb": 0.1, "Delay": 0.35, "ChorusType": "juno2", "Chorus": 0.5
+		},
+		{
+			"Name": "hook", "Core": true, "Patch": "lead", "Color": "#ff6b9d",
+			"Pattern": "<~ [[F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ Bb5 A5] [A5 _ F5 _ D5 _ F5 A5] [D6 _ _ C6 A5 _ _ ~] [F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ D6 E6] [C#6 _ A5 _ E5 _ A5 C#6] [E6 _ _ _ D6 _ C#6 _]] ~ ~ [[F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ Bb5 A5] [A5 _ F5 _ D5 _ F5 A5] [D6 _ _ C6 A5 _ _ ~] [F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ D6 E6] [C#6 _ A5 _ E5 _ A5 C#6] [E6 _ _ _ D6 _ C#6 _]] [[F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ Bb5 A5] [A5 _ F5 _ D5 _ F5 A5] [D6 _ _ C6 A5 _ _ ~] [F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ D6 E6] [C#6 _ A5 _ E5 _ A5 C#6] [E6 _ _ _ D6 _ C#6 _]] ~ [[F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ Bb5 A5] [A5 _ F5 _ D5 _ F5 A5] [D6 _ _ C6 A5 _ _ ~] [F5 _ D5 F5 Bb5 _ A5 _] [G5 _ E5 G5 C6 _ D6 E6] [C#6 _ A5 _ E5 _ A5 C#6] [E6 _ _ _ D6 _ C#6 _]]>",
+			"Bars": 8, "Legato": 0.85,
+			"Params": {"vel": "[1 0.8 0.9 0.8]*16"},
+			"Gain": -4, "Reverb": 0.25, "Delay": 0.3, "ChorusType": "juno1", "Chorus": 0.6
+		},
+		{
+			"Name": "voice", "Core": true, "Patch": "vocoder", "Color": "#c58cff",
+			"Pattern": "<~ ~ [[~ ~ D5 D5 D5 _ C5 D5] [F5 _ D5 _ ~ ~ ~ ~] [~ ~ C5 C5 C5 _ Bb4 C5] [E5 _ C5 _ ~ ~ ~ ~] [~ ~ Bb4 Bb4 Bb4 _ A4 Bb4] [D5 _ F5 _ E5 _ D5 _] [C#5 _ _ _ A4 _ _ _] ~] [[~ ~ D5 D5 D5 _ C5 D5] [F5 _ D5 _ ~ ~ ~ ~] [~ ~ C5 C5 C5 _ Bb4 C5] [E5 _ C5 _ ~ ~ ~ ~] [~ ~ Bb4 Bb4 Bb4 _ A4 Bb4] [D5 _ F5 _ E5 _ D5 _] [Bb4 _ D5 _ G5 _ F5 _] [E5 _ _ _ C#5 _ _ _]] ~ ~ [[G5 _ _ _ F5 _ D5 _] [Bb4 _ _ _ ~ ~ ~ ~] [A4 _ D5 _ F5 _ A5 _] [G5 _ F5 _ D5 _ ~ ~] [F5 _ _ _ D5 _ Bb4 _] [D5 _ F5 _ G5 _ F5 _] [E5 _ _ _ C#5 _ _ _] [A4 _ _ _ ~ ~ ~ ~]] ~>",
+			"Bars": 8, "Legato": 0.9,
+			"Params": {"vowel": "[o a e a i a o u]*8"},
+			"Gain": -8.5, "Reverb": 0.3, "Delay": 0.2, "ChorusType": "juno2", "Chorus": 0.4
+		},
+		{
+			"Name": "choir", "Core": true, "Patch": "choir", "Color": "#a37cff",
+			"Pattern": "<~ ~ ~ ~ ch*8 ch*8 ch*8 ch*8>",
+			"Bars": 8, "Octave": 4, "Legato": 0.95,
+			"Params": {"vowel": "[a o]*4"},
+			"Gain": -17.5, "Reverb": 0.35, "ChorusType": "juno1", "Chorus": 0.7
+		},
+		{
+			"Name": "strings", "Core": true, "Patch": "strings", "Color": "#a3b4ff",
+			"Pattern": "<~ ch*8 ch*8 ch*8 ch*8 ch*8 ch*8 ch*8>",
+			"Bars": 8, "Octave": 4, "Legato": 1,
+			"Gain": -14, "HPF": 150, "Reverb": 0.35, "ChorusType": "ensemble", "Chorus": 0.9
+		},
+		{
+			"Name": "epiano", "Core": true, "Patch": "epiano", "Color": "#e9f27a",
+			"Pattern": "<~ ~ [~ ch]*32 [~ ch]*32 ~ ~ ~ ~>",
+			"Bars": 8, "Octave": 4, "Legato": 0.4,
+			"Params": {"vel": "[0.9 0.7]*16"},
+			"Gain": -12, "Pan": -0.3, "Reverb": 0.3, "ChorusType": "juno1", "Chorus": 0.5
+		},
+		{
+			"Name": "orch", "Core": true, "Patch": "orch", "Color": "#ffa36b",
+			"Pattern": "<~ ~ ~ [~ ~ ~ ~ ~ ~ ~ [~ ~ ~ ch]] [ch ~ ~ ~ ~ ~ ~ ~] ~ [~ ~ ~ ~ ~ ~ ~ [ch ~ ch ~]] [ch ~ ~ ~ ~ ~ ~ ~]>",
+			"Bars": 8, "Octave": 4, "Legato": 0.5,
+			"Gain": -10, "Reverb": 0.3, "Crush": 8, "Coarse": 2, "LPF": 9000
+		},
+		{
+			"Name": "zaps", "Core": true, "Patch": "zap", "Color": "#5cc8ff",
+			"Pattern": "<~ ~ ~ ~ ~ [[~ ~ ~ [~ B3]] ~]*4 [[~ ~ ~ [~ B3]] ~]*4 ~>",
+			"Bars": 8, "Legato": 0.5,
+			"Params": {"pan": "[-0.6 0.6]*2"},
+			"Gain": -10, "Delay": 0.4, "Reverb": 0.15
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 1.0, "Decay": 2.0, "Tone": 0.65, "PreDelay": 0.03},
+		"Delay": {"Beats": 0.75, "Feedback": 0.35, "Tone": 0.35},
+		"Gated": {"Size": 1.2, "Tone": 0.65, "Hold": 0.26},
+		"MonoBass": 120,
+		"Air": 2,
+		"Tape": 0.3,
+		"Threshold": -9,
+		"Gain": -1,
+		"Ratio": 2
+	}
+}

@@ -156,6 +156,12 @@ const (
 	// drums and bubbly blips. The digit keys play the A major
 	// pentatonic over it.
 	TinkerRound = "tinker-round"
+	// NotteDiNeon is an Italo disco song, made in code, at 122 BPM in D
+	// minor, as a 12" mix of the 1980s plays it in 64 bars: an octave
+	// bass, an arpeggio, a synth hook, a vocoder's verses and choir, a
+	// string machine, orchestra hits and Simmons toms, its snare in a
+	// gated reverb, mastered as for vinyl.
+	NotteDiNeon = "notte-di-neon"
 )
 
 // files holds the songs: a folder each, named for the song, with its

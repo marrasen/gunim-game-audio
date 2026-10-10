@@ -62,6 +62,19 @@ func newReverb() *reverb {
 	return r
 }
 
+// clear silences the reverb, its tail and all.
+func (r *reverb) clear() {
+	clear(r.pre)
+	for k := range r.ap {
+		clear(r.ap[k].buf)
+	}
+	for k := range r.line {
+		clear(r.line[k])
+	}
+	r.damp = [8]float32{}
+	r.in.z, r.out[0].z, r.out[1].z = 0, 0, 0
+}
+
 // set shapes the reverb: size from 0.3 to 1.5, decay in seconds to fall
 // 60 dB, tone from 0, dark, to 1, bright, and the pre-delay in seconds.
 func (r *reverb) set(size, decay, tone, pre float64) {
@@ -185,52 +198,149 @@ func (d *delay) process(l, r []float32) {
 	}
 }
 
-// chorus thickens a sound with two copies of it, each a few
-// milliseconds late, by a slowly moving amount, one each side.
+// chorus thickens a sound with copies of it, each a few milliseconds
+// late, by a slowly moving amount. Its kinds are:
+//
+//	chorusSoft      two copies, one each side, 9 ms late, moving at 0.45 Hz
+//	chorusJuno1     a Juno-60's chorus I: a bucket brigade's 1.7 to 5.4 ms,
+//	                swept by a triangle at 0.5 Hz, the right side swept
+//	                against the left
+//	chorusJuno2     its chorus II, the same sweep at 0.86 Hz
+//	chorusJuno12    both buttons down: a fast, shallow 9.75 Hz vibrato
+//	chorusEnsemble  a string machine's ensemble: three copies, each swept
+//	                by a slow and a fast sine a third of a cycle apart
+//
+// A bucket brigade's copies are darker than the sound, so the Juno's and
+// the ensemble's are.
 type chorus struct {
 	buf   [2][]float32
 	at    int
-	phase float32
+	phase [2]float32
 	mix   float32
+	kind  int
+	// delays are each copy's delay as the last block ended, in frames.
+	delays [3]float32
+	dark   [2]onePole
 }
 
-func newChorus() *chorus {
-	return &chorus{buf: [2][]float32{make([]float32, 2048), make([]float32, 2048)}}
+// The kinds of chorus.
+const (
+	chorusSoft = iota
+	chorusJuno1
+	chorusJuno2
+	chorusJuno12
+	chorusEnsemble
+)
+
+var chorusKinds = map[string]int{
+	"": chorusSoft, "soft": chorusSoft, "juno1": chorusJuno1, "juno2": chorusJuno2, "juno12": chorusJuno12,
+	"ensemble": chorusEnsemble,
+}
+
+const chorusSize = 2048
+
+func newChorus(kind int) *chorus {
+	c := &chorus{buf: [2][]float32{make([]float32, chorusSize), make([]float32, chorusSize)}, kind: kind}
+	for i := range c.dark {
+		c.dark[i].set(7500)
+	}
+	c.delays = c.targets()
+	return c
+}
+
+// targets returns where each copy's delay is bound now, in frames, and
+// moves the sweeps on a control block.
+func (c *chorus) targets() (d [3]float32) {
+	const ms = rate / 1000
+	step := func(i int, hz float32) {
+		c.phase[i] += hz * control / rate
+		if c.phase[i] >= 1 {
+			c.phase[i]--
+		}
+	}
+	tri := func(p float32) float32 { return 1 - 4*abs32(p-0.5) }
+	switch c.kind {
+	case chorusSoft:
+		step(0, 0.45)
+		d[0] = (9 + 3.5*sin1(c.phase[0])) * ms
+		d[1] = (9 + 3.5*sin1(wrap(c.phase[0]+0.25))) * ms
+	case chorusJuno1, chorusJuno2:
+		hz := float32(0.513)
+		if c.kind == chorusJuno2 {
+			hz = 0.863
+		}
+		step(0, hz)
+		x := tri(c.phase[0])
+		d[0] = (3.5 + 1.85*x) * ms
+		d[1] = (3.5 - 1.85*x) * ms
+	case chorusJuno12:
+		step(0, 9.75)
+		x := sin1(c.phase[0])
+		d[0] = (3.5 + 0.2*x) * ms
+		d[1] = (3.5 - 0.2*x) * ms
+	case chorusEnsemble:
+		step(0, 0.6)
+		step(1, 6)
+		for k := range 3 {
+			o := float32(k) / 3
+			d[k] = (6 + 1.6*sin1(wrap(c.phase[0]+o)) + 0.25*sin1(wrap(c.phase[1]+o))) * ms
+		}
+	}
+	return d
+}
+
+// read returns channel ch's sound d frames back from where it is written
+// next, between frames.
+func (c *chorus) read(ch int, d float32) float32 {
+	pos := float32(c.at) - d
+	if pos < 0 {
+		pos += chorusSize
+	}
+	j := int(pos)
+	f := pos - float32(j)
+	a := c.buf[ch][j&(chorusSize-1)]
+	b := c.buf[ch][(j+1)&(chorusSize-1)]
+	return a + (b-a)*f
 }
 
 func (c *chorus) process(l, r []float32) {
-	const size = 2048
-	var delays [2]float32
-	for i := range l {
-		c.buf[0][c.at] = l[i]
-		c.buf[1][c.at] = r[i]
-		if i%control == 0 {
-			// The delays move slowly, so once a control block will do.
-			c.phase += 0.45 * control / rate
-			if c.phase >= 1 {
-				c.phase--
-			}
-			delays[0] = (0.009 + 0.0035*sin1(c.phase)) * rate
-			delays[1] = (0.009 + 0.0035*sin1(wrap(c.phase+0.25))) * rate
+	dry := 1 - c.mix*0.5
+	for at := 0; at < len(l); at += control {
+		end := min(at+control, len(l))
+		// The delays glide from where they were to where they are bound,
+		// frame by frame, so the sweep makes no steps.
+		from, to := c.delays, c.targets()
+		var dd [3]float32
+		for k := range dd {
+			dd[k] = (to[k] - from[k]) / float32(end-at)
 		}
-		for ch := range 2 {
-			d := delays[ch]
-			pos := float32(c.at) - d
-			if pos < 0 {
-				pos += size
+		d := from
+		for i := at; i < end; i++ {
+			c.buf[0][c.at] = l[i]
+			c.buf[1][c.at] = r[i]
+			var wl, wr float32
+			switch c.kind {
+			case chorusSoft:
+				wl, wr = c.read(0, d[0]), c.read(1, d[1])
+			case chorusEnsemble:
+				// One sound, as a string machine's, into three lines.
+				m := (l[i] + r[i]) * 0.5
+				c.buf[0][c.at] = m
+				t0, t1, t2 := c.read(0, d[0]), c.read(0, d[1]), c.read(0, d[2])
+				wl = c.dark[0].lp(t0*0.7 + t1*0.45)
+				wr = c.dark[1].lp(t2*0.7 + t1*0.45)
+			default:
+				wl = c.dark[0].lp(c.read(0, d[0]))
+				wr = c.dark[1].lp(c.read(1, d[1]))
 			}
-			j := int(pos)
-			f := pos - float32(j)
-			a := c.buf[ch][j&(size-1)]
-			b := c.buf[ch][(j+1)&(size-1)]
-			wet := a + (b-a)*f
-			if ch == 0 {
-				l[i] = l[i]*(1-c.mix*0.5) + wet*c.mix
-			} else {
-				r[i] = r[i]*(1-c.mix*0.5) + wet*c.mix
+			l[i] = l[i]*dry + wl*c.mix
+			r[i] = r[i]*dry + wr*c.mix
+			c.at = (c.at + 1) & (chorusSize - 1)
+			for k := range d {
+				d[k] += dd[k]
 			}
 		}
-		c.at = (c.at + 1) & (size - 1)
+		c.delays = to
 	}
 }
 
@@ -266,8 +376,9 @@ func (in *inserts) set(t *Track) {
 	}
 	in.coarse = max(t.Coarse, 0)
 	if t.Chorus > 0 {
-		if in.chorus == nil {
-			in.chorus = newChorus()
+		kind := chorusKinds[t.ChorusType]
+		if in.chorus == nil || in.chorus.kind != kind {
+			in.chorus = newChorus(kind)
 		}
 		in.chorus.mix = float32(min(t.Chorus, 1))
 	} else {
