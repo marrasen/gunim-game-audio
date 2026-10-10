@@ -144,6 +144,16 @@
 					"About": "A thin pulse whose width sways, plucked short: a techno line that slithers."
 				},
 				{
+					"Name": "Fuzz strum guitar",
+					"File": "arp/fuzz-strum-guitar.patch.json",
+					"About": "A bright plucked string to strum chords on: give its track a Strum, a hall Wash and Distort to bury its reverb in fuzz, as noise pop does."
+				},
+				{
+					"Name": "Surf twang",
+					"File": "arp/surf-twang.patch.json",
+					"About": "A plucked string with a tremolo's wobble: give its track a spring Wash for a surf or spaghetti-western lead."
+				},
+				{
 					"Name": "Chip arp",
 					"File": "arp/chip-arp.patch.json",
 					"About": "A Commodore 64's chord on one voice, its notes stepping 50 times a second."
@@ -362,6 +372,11 @@
 					"Name": "Industrial kit",
 					"File": "drums/industrial-kit.patch.json",
 					"About": "A heavy kick and snare, gritty hats and struck metal, mtl: crush, distort, ring and smash them on their tracks."
+				},
+				{
+					"Name": "Noise pop kit",
+					"File": "drums/noise-pop-kit.patch.json",
+					"About": "No hi-hats: a big kick, a roomy snare, a floor tom to pulse eighths on and a tambourine, tamb, as the Raveonettes' records keep time."
 				},
 				{
 					"Name": "Commodore 64 kit",

@@ -193,6 +193,13 @@ const (
 	// doubled, a supersaw riff, a Commodore 64's interlude, and a robot
 	// girl's voice in its breakdown.
 	Parallax = "parallax"
+	// PhantomHighway is a noise pop song in the manner of the
+	// Raveonettes' Whip It On, made in code, at 144 BPM in B-flat minor,
+	// in three chords and 96 bars, with no hi-hats: a big kick and a
+	// roomy snare, a floor tom and a tambourine, strummed guitars whose
+	// reverb is buried in fuzz, a twanging surf lead on a spring, and a
+	// man's and a woman's voice droning together in the reverb.
+	PhantomHighway = "phantom-highway"
 )
 
 // files holds the songs: a folder each, named for the song, with its

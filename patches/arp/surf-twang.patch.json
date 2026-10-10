@@ -1,0 +1,23 @@
+{
+	"Kind": "pluck",
+	"Pluck": {
+		"Decay": 2.2,
+		"Bright": 0.75,
+		"Body": 0.4
+	},
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 1,
+		"Sustain": 1,
+		"Release": 0.15
+	},
+	"LFO": [
+		{
+			"To": "amp",
+			"Wave": "sine",
+			"Hz": 6,
+			"Depth": 0.45
+		}
+	],
+	"Poly": 4
+}

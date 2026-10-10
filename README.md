@@ -40,6 +40,7 @@ import music "github.com/marrasen/gunim-game-audio"
 | Mirror Shine | `mirror-shine` | A techno song in the manner of Tiga, made in code, at 124 BPM in G minor, in 128 bars for a DJ, one part in or out each 16: a 909 kick alone in the sub, an 808 snare, a scooping stab, a slithering pulse and a deadpan vocoder's slogan; a fuzzy buzz whose filter opens and shuts; and, held back till its drop, a TB-303's acid line, sliding and its accents stacking, over a rimshot groove. |
 | Meridian | `meridian` | A futurepop song in the manner of VNV Nation, made in code, at 138 BPM in B minor, in 96 bars: a choir, timpani and a piano open it; a 16th EBM bass and a supersaw arpeggio drive it; a baritone sings, clean, in a hall; its chorus lifts to the harmonic minor's V; and a supersaw lead soars over its break. |
 | Parallax | `parallax` | A futurepop song in the manner of Apoptygma Berzerk, made in code, at 132 BPM in F minor, in 96 bars: an arpeggio for its hook, an EBM bass, a supersaw pad chopped by a trance gate, a tenor sung and doubled, a supersaw riff, a Commodore 64's interlude, and a robot girl's voice in its breakdown. |
+| Phantom Highway | `phantom-highway` | A noise pop song in the manner of the Raveonettes' Whip It On, made in code, at 144 BPM in B-flat minor, in three chords and 96 bars, with no hi-hats: a big kick and a roomy snare, a floor tom's eighths and a tambourine; strummed guitars whose reverb is buried in fuzz, walls of them hard left and right in its choruses; a twanging surf lead on a spring; and a man's and a woman's voice droning together in the reverb. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -191,7 +192,7 @@ tier 2. Mascot Dance's, Sister Dreams' and Underworld Ascent's come and
 go as those songs wander, and the game can hold them in with
 `SetPart`; Star Drift's bells always ring, as do Candy Clouds' soft
 snap, Compass Rose's rim, Summer Meadow's woody tick and Tinker Lab's
-snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, Ring Me Twice's, but for its breakdown's first four, the snares of Wire Cathedral, but in its piano's quiet, and of Mirror Shine, but where its voice is alone, and the claps of Meridian and Parallax, but in their intros and breakdowns. Pocket Kingdom claps twice, quick, every bar;
+snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, Ring Me Twice's, but for its breakdown's first four, the snares of Wire Cathedral, but in its piano's quiet, and of Mirror Shine, but where its voice is alone, the claps of Meridian and Parallax, but in their intros and breakdowns, and Phantom Highway's snare. Pocket Kingdom claps twice, quick, every bar;
 Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent, Orbit
 Round, Alien Entrance, Meadow Hop and Tinker Round every other bar. The recorded songs, Greek Themes and A round song,
 tell their beat but not their drums: a character can clap on beats 2
@@ -552,6 +553,16 @@ by name, as `C4`. Each `'` after a note lifts it an octave. A drums
 patch plays drums by name: `bd`, `sn`, `cp`, `hh`, `oh`, `rim`, `lt`,
 `mt`, `ht`, `cr`, `rd`, `sh`, `snap`, `tim`, a timpani tuned to the
 chord, and the effects `boom`, `riser` and `down`.
+
+Noise pop wants a guitar's. A track's `Strum` spreads a chord's notes
+seconds apart, down low to high and up, on an offbeat eighth, high to
+low, as a pick crosses strings. Its `Wash`, from 0 to 1, is a reverb of
+its own put before its distortion, as a reverb pedal ahead of a fuzz,
+which then chews the reverb's tail into a wall: `WashType` `hall`, long
+and bright, or `spring`, a spring tank's twang and drip. `tamb` is a
+tambourine, its jingles clashing, of type `tambourine`. The mixer has a
+knob and two lamps for a track's wash, and the pattern editor a Strum
+knob.
 
 Futurepop has its own. A patch's `Singer`, `bass`, `baritone`,
 `tenor`, `alto` or `soprano`, sings its vowels through that voice's
