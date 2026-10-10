@@ -168,7 +168,7 @@ func TestEverySongPlays(t *testing.T) {
 func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 	for _, name := range []string{KeypadRound, BossEntrance, MascotDance, BubbleBounce, SisterDreams, GraveyardGallop,
 		PocketKingdom, MeadowHop, HerosField, PalaceRun, UnderworldAscent, StarDrift, OrbitRound, AlienEntrance,
-		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon} {
+		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon, RingMeTwice} {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)
@@ -241,18 +241,20 @@ func TestLabbetsSongsAreAsLoudAsTheOtherRooms(t *testing.T) {
 	}
 }
 
-func TestNotteDiNeonIsAsLoudAsARecordOfItsDay(t *testing.T) {
+func TestTheEightiesSongsAreAsLoudAsRecordsOfTheirDay(t *testing.T) {
 	if testing.Short() {
-		t.Skip("plays two minutes of music")
+		t.Skip("plays four minutes of music")
 	}
-	// The whole song, its 64 bars, sits where the mid-1980s' records
-	// did, -16 to -14, and within a decibel and a half of Mascot Dance,
-	// the other groove.
-	l := loudness(t, NotteDiNeon, 1, 64)
+	// Each whole song sits where the mid-1980s' records did, -16 to
+	// -14, and within a decibel and a half of Mascot Dance, the other
+	// groove.
 	m := loudness(t, MascotDance, 1, 16)
-	t.Logf("Notte di Neon %.1f LUFS; Mascot Dance %.1f", l, m)
-	if l < -16 || l > -14 || math.Abs(l-m) > 1.5 {
-		t.Errorf("Notte di Neon is %.1f LUFS; want -16 to -14, and within 1.5 dB of Mascot Dance's %.1f", l, m)
+	for name, bars := range map[string]int{NotteDiNeon: 64, RingMeTwice: 80} {
+		l := loudness(t, name, 1, bars)
+		t.Logf("%s %.1f LUFS; Mascot Dance %.1f", name, l, m)
+		if l < -16 || l > -14 || math.Abs(l-m) > 1.5 {
+			t.Errorf("%s is %.1f LUFS; want -16 to -14, and within 1.5 dB of Mascot Dance's %.1f", name, l, m)
+		}
 	}
 }
 

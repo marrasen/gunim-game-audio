@@ -35,6 +35,7 @@ import music "github.com/marrasen/gunim-game-audio"
 | Tinker Lab | `tinker-lab` | A curious, bouncy song of an inventor's workshop, made in code, at 96 BPM in A major, shuffled in triplets, for a room and its map: plucked strings, a plucked bass, a soft pad, a light groove and a clock's tick-tock always, and a marimba's tune, bubbly blips and a vibraphone coming and going. |
 | Tinker Round | `tinker-round` | A round song of the same workshop, made in code, at 112 BPM in A major, shuffled, in four tiers: plucked strings, a plucked bass and a pad; claps and a clock; a marimba's tune; drums and bubbly blips. The digit keys play the A major pentatonic over it. |
 | Notte di Neon | `notte-di-neon` | An Italo disco song, made in code, at 122 BPM in D minor, as a 12" mix of the 1980s plays it in 64 bars: a drum intro under an octave bass and an arpeggio, the synth hook, a vocoder's verses over a DX7's piano, choruses with a vocoder choir, string machine, orchestra hits, cowbell and laser zaps, and a break of Simmons toms. Its snare booms in a gated reverb, and its mix is mastered as for vinyl. |
+| Ring Me Twice | `ring-me-twice` | A Hi-NRG song of 1984, made in code, at 124 BPM in F minor, in 80 bars: a phone rings twice, then a rolling 16th bass, claps and a cowbell drive it; a brass riff answers a deep, half-spoken vocoder's verses, a choir chants back, a wordless "oo" rises into a chorus that hangs on its sixth, and the phone rings again in the breakdown. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -186,7 +187,7 @@ tier 2. Mascot Dance's, Sister Dreams' and Underworld Ascent's come and
 go as those songs wander, and the game can hold them in with
 `SetPart`; Star Drift's bells always ring, as do Candy Clouds' soft
 snap, Compass Rose's rim, Summer Meadow's woody tick and Tinker Lab's
-snap, on beats 2 and 4, and Notte di Neon's clap, but for its first four bars. Pocket Kingdom claps twice, quick, every bar;
+snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, and Ring Me Twice's, but for its breakdown's first four. Pocket Kingdom claps twice, quick, every bar;
 Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent, Orbit
 Round, Alien Entrance, Meadow Hop and Tinker Round every other bar. The recorded songs, Greek Themes and A round song,
 tell their beat but not their drums: a character can clap on beats 2

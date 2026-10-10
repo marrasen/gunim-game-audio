@@ -162,6 +162,12 @@ const (
 	// string machine, orchestra hits and Simmons toms, its snare in a
 	// gated reverb, mastered as for vinyl.
 	NotteDiNeon = "notte-di-neon"
+	// RingMeTwice is a Hi-NRG song of 1984, made in code, at 124 BPM in
+	// F minor, in 80 bars: a phone rings twice, a rolling 16th bass and
+	// a cowbell drive it, a brass riff answers a deep, half-spoken
+	// vocoder's verses, a choir chants back, and a chorus hangs on its
+	// sixth before the phone rings again in the breakdown.
+	RingMeTwice = "ring-me-twice"
 )
 
 // files holds the songs: a folder each, named for the song, with its
