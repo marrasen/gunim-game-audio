@@ -392,3 +392,30 @@ func TestPickingAChorusKindIsHeard(t *testing.T) {
 		t.Errorf("the bass's chorus is %q at %.2f; want ensemble, at 0.2 as it was", b.ChorusType, b.Chorus)
 	}
 }
+
+func TestTheChorusSwitchPicksAKind(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Mixer"})
+	h.settle()
+	var sw *chorusSwitch
+	for i, r := range h.s.state().Tracks {
+		if r.Name == "hook" {
+			sw = h.v.mixer.strips[i].chorus.sw
+		}
+	}
+	if sw == nil || sw.kind != 2 || !sw.on {
+		t.Fatalf("the hook's chorus switch shows %+v; want Juno II, on", sw)
+	}
+	at, ok := h.boundsOf(sw)
+	if !ok {
+		t.Fatal("the hook's chorus switch is not on screen")
+	}
+	// The fifth lamp, the ensemble's.
+	c := geomPt(at.Max.X-(at.Max.X-at.Min.X)/10, at.Min.Y+6)
+	h.w.Input(input.PointerDown{Pos: c, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: c, Button: input.ButtonPrimary, Time: time.Now()})
+	got, ok := h.intent().(ChorusKind)
+	if !ok || got != (ChorusKind{Track: "hook", Type: "ensemble"}) {
+		t.Errorf("a click on the last lamp sent %#v", got)
+	}
+}

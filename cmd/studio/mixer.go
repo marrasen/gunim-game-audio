@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"slices"
 
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audioui"
@@ -64,15 +63,12 @@ type channel struct {
 	mute   *widget.Button
 	solo   *widget.Button
 	ks     []*knob
-	chorus *widget.Dropdown
+	chorus *chorusUnit
 	meter  *vu
 	fader  *audioui.Fader
 	swatch *swatch
 	gain   float32
 }
-
-// chorusTypes are the kinds of a track's chorus, as a tool lists them.
-var chorusTypes = []string{"soft", "juno1", "juno2", "juno12", "ensemble"}
 
 func newChannel() *channel {
 	c := &channel{name: widget.NewLabel(""), gainDB: small(""), meter: &vu{}, swatch: &swatch{}}
@@ -87,19 +83,9 @@ func newChannel() *channel {
 		newKnob("Low cut", b, "/HPF", 20, 2000, 20).logScale().small().unsetIs(20),
 		newKnob("High cut", b, "/LPF", 200, 20000, 20000).logScale().small().unsetIs(20000),
 		newKnob("Drive", b, "/Shape", 0, 0.95, 0).small(),
-		newKnob("Chorus", b, "/Chorus", 0, 1, 0).small(),
 		newKnob("Gated", b, "/Gated", 0, 1, 0).small(),
 	}
-	c.chorus = widget.NewDropdown(widget.Labels(chorusTypes...))
-	c.chorus.Label = "Chorus kind"
-	c.chorus.Tooltip = "The chorus's kind: soft; a Juno-60's chorus I, II or both; or a string machine's ensemble. Picking one turns a silent chorus up."
-	c.chorus.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
-		t := chorusTypes[i]
-		if t == "soft" {
-			t = ""
-		}
-		return ChorusKind{Track: c.name.Text, Type: t}
-	}
+	c.chorus = newChorusUnit(b)
 	c.mute = widget.NewButton("M")
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
 	c.solo = widget.NewButton("S")
@@ -110,12 +96,8 @@ func newChannel() *channel {
 	})
 	c.fader.Range = 36
 	rows := make([]gunim.Node, 0, len(c.ks)/2)
-	for i := 0; i < len(c.ks); i += 2 {
-		if i+1 < len(c.ks) {
-			rows = append(rows, widget.Row(c.ks[i], c.ks[i+1]))
-		} else {
-			rows = append(rows, widget.Row(c.ks[i]))
-		}
+	for i := 0; i+1 < len(c.ks); i += 2 {
+		rows = append(rows, widget.Row(c.ks[i], c.ks[i+1]))
 	}
 	rows = append(rows, c.chorus)
 	kcol := widget.Column(rows...)
@@ -143,16 +125,15 @@ func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	c.solo.OnClick = widget.Sends(ToggleValue{Path: c.base + "/Solo"})
 	c.meter.m = t.Meter
 	showKnobs(st.Doc, c.ks...)
-	ct := "soft"
-	for _, tr := range st.Doc.Tracks {
-		if tr.Name == t.Name && tr.ChorusType != "" {
-			ct = tr.ChorusType
-		}
-	}
-	c.chorus.SetSelected(max(slices.Index(chorusTypes, ct), 0), nil)
 	col := hexColor(t.Color, i)
 	for _, k := range c.ks {
 		k.color = col
+	}
+	showKnobs(st.Doc, c.chorus.k)
+	c.chorus.k.color = col
+	c.chorus.sw.track = t.Name
+	if tr := track(st.Doc, t.Name); tr != nil {
+		c.chorus.show(tr.Chorus, tr.ChorusType, col)
 	}
 	_ = u
 }
