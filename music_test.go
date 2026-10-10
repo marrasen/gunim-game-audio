@@ -168,7 +168,7 @@ func TestEverySongPlays(t *testing.T) {
 func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 	for _, name := range []string{KeypadRound, BossEntrance, MascotDance, BubbleBounce, SisterDreams, GraveyardGallop,
 		PocketKingdom, MeadowHop, HerosField, PalaceRun, UnderworldAscent, StarDrift, OrbitRound, AlienEntrance,
-		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon, RingMeTwice} {
+		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon, RingMeTwice, WireCathedral, MirrorShine} {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)
@@ -254,6 +254,22 @@ func TestTheEightiesSongsAreAsLoudAsRecordsOfTheirDay(t *testing.T) {
 		t.Logf("%s %.1f LUFS; Mascot Dance %.1f", name, l, m)
 		if l < -16 || l > -14 || math.Abs(l-m) > 1.5 {
 			t.Errorf("%s is %.1f LUFS; want -16 to -14, and within 1.5 dB of Mascot Dance's %.1f", name, l, m)
+		}
+	}
+}
+
+func TestTheLoudSongsAreLouderThanTheRest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("plays six minutes of music")
+	}
+	// Industrial and club techno are mastered louder than the rest of
+	// the library: each whole song from -15 to -12 LUFS, short of their
+	// records' -12 to -9, so a game's volume suits them all.
+	for name, bars := range map[string]int{WireCathedral: 64, MirrorShine: 128} {
+		l := loudness(t, name, 1, bars)
+		t.Logf("%s %.1f LUFS", name, l)
+		if l < -15 || l > -12 {
+			t.Errorf("%s is %.1f LUFS; want -15 to -12", name, l)
 		}
 	}
 }

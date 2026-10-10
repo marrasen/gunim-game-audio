@@ -1,0 +1,30 @@
+{
+	"Noise": 1,
+	"Filter": {
+		"Type": "bp",
+		"Cutoff": 70,
+		"Res": 0.8
+	},
+	"Amp": {
+		"Attack": 0.3,
+		"Decay": 1,
+		"Sustain": 1,
+		"Release": 0.8
+	},
+	"LFO": [
+		{
+			"To": "amp",
+			"Wave": "square",
+			"Hz": 7,
+			"Depth": 0.6
+		},
+		{
+			"To": "cutoff",
+			"Wave": "tri",
+			"Beats": 16,
+			"Depth": 0.6
+		}
+	],
+	"Poly": 1,
+	"Gain": 1.5
+}

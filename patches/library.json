@@ -31,7 +31,12 @@
 				{
 					"Name": "Acid line",
 					"File": "bass/acid-303.patch.json",
-					"About": "A saw through a screaming resonant filter that slides, as a TB-303's."
+					"About": "A TB-303: a saw through a screaming filter, sliding only into tied notes, its accents stacking. Accent notes of velocity 1, the rest under."
+				},
+				{
+					"Name": "Industrial buzz bass",
+					"File": "bass/industrial-buzz-bass.patch.json",
+					"About": "Two saws and a square an octave down, buzzing: set its track's Distort to fold and cut under 140 Hz, with a sub under it."
 				},
 				{
 					"Name": "FM slap bass",
@@ -74,6 +79,16 @@
 					"About": "Seven saws spread wide: a lead the size of a wall."
 				},
 				{
+					"Name": "Siren stab",
+					"File": "lead/siren-stab.patch.json",
+					"About": "A short, bright stab that scoops up into its note, for a techno hook."
+				},
+				{
+					"Name": "Power chord guitar",
+					"File": "lead/power-chord-guitar.patch.json",
+					"About": "Saws to chug power chords with, c0, c2 and c0': set its track's Distort to amp, or fuzz, and pan two of them hard apart."
+				},
+				{
 					"Name": "Chip lead",
 					"File": "lead/chip-lead.patch.json",
 					"About": "A NES pulse, its level stepped: a game's tune."
@@ -112,6 +127,11 @@
 					"Name": "Harp pluck",
 					"File": "arp/harp-pluck.patch.json",
 					"About": "A bright plucked string, as a harp's or a guitar's."
+				},
+				{
+					"Name": "Slither pulse",
+					"File": "arp/slither-pulse.patch.json",
+					"About": "A thin pulse whose width sways, plucked short: a techno line that slithers."
 				},
 				{
 					"Name": "Chip arp",
@@ -164,6 +184,11 @@
 					"About": "A small, high FM bell, struck."
 				},
 				{
+					"Name": "Tape piano",
+					"File": "keys/tape-piano.patch.json",
+					"About": "A quiet, detuned piano wobbling as worn tape does, for a sparse motif in a long room."
+				},
+				{
 					"Name": "Drawbar organ",
 					"File": "keys/organ.patch.json",
 					"About": "Sines at the drawbars' footages, a rotary's wobble on them."
@@ -214,6 +239,21 @@
 					"About": "A deep, half-spoken vocoder, for verses low in the voice, as Fancy sings."
 				},
 				{
+					"Name": "Whisper",
+					"File": "voice/whisper.patch.json",
+					"About": "The vocoder fed only noise: a voice that whispers its vowels, its notes only its rhythm."
+				},
+				{
+					"Name": "Scream",
+					"File": "voice/scream.patch.json",
+					"About": "A raw vocoder of saws and noise, drifting: set its track's Distort to amp and it screams."
+				},
+				{
+					"Name": "Deadpan voice",
+					"File": "voice/deadpan-voice.patch.json",
+					"About": "A low, flat vocoder for talking a slogan, doubled by a Juno's chorus."
+				},
+				{
 					"Name": "Vocoder choir",
 					"File": "voice/vocoder-choir.patch.json",
 					"About": "Chords through the vocoder: a choir of robots for chants and pads."
@@ -237,6 +277,16 @@
 					"Name": "Wind sweep",
 					"File": "fx/wind-sweep.patch.json",
 					"About": "Noise through a resonant filter swept by a slow LFO: a whoosh to hold under a build."
+				},
+				{
+					"Name": "Machine drone",
+					"File": "fx/machine-drone.patch.json",
+					"About": "Noise through a low, resonant bandpass, chopped seven times a second: a machine turning in another room."
+				},
+				{
+					"Name": "Fuzz buzz",
+					"File": "fx/fuzz-buzz.patch.json",
+					"About": "Saws and noise held as a drone: play it in tied 16ths and sweep its cutoff, its track's Distort turned up."
 				},
 				{
 					"Name": "Theremin",
@@ -267,6 +317,16 @@
 					"Name": "Simmons kit",
 					"File": "drums/simmons-kit.patch.json",
 					"About": "Electronic toms that dive, a snappy snare and a hard kick, as a Simmons SDS-V's."
+				},
+				{
+					"Name": "TR-909 techno",
+					"File": "drums/tr-909.patch.json",
+					"About": "A 909's kick falling fast with its click, an 808 snare and rim, crisp hats and a dark ride: play bd9."
+				},
+				{
+					"Name": "Industrial kit",
+					"File": "drums/industrial-kit.patch.json",
+					"About": "A heavy kick and snare, gritty hats and struck metal, mtl: crush, distort, ring and smash them on their tracks."
 				},
 				{
 					"Name": "Commodore 64 kit",

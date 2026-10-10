@@ -36,6 +36,8 @@ import music "github.com/marrasen/gunim-game-audio"
 | Tinker Round | `tinker-round` | A round song of the same workshop, made in code, at 112 BPM in A major, shuffled, in four tiers: plucked strings, a plucked bass and a pad; claps and a clock; a marimba's tune; drums and bubbly blips. The digit keys play the A major pentatonic over it. |
 | Notte di Neon | `notte-di-neon` | An Italo disco song, made in code, at 122 BPM in D minor, as a 12" mix of the 1980s plays it in 64 bars: a drum intro under an octave bass and an arpeggio, the synth hook, a vocoder's verses over a DX7's piano, choruses with a vocoder choir, string machine, orchestra hits, cowbell and laser zaps, and a break of Simmons toms. Its snare booms in a gated reverb, and its mix is mastered as for vinyl. |
 | Ring Me Twice | `ring-me-twice` | A Hi-NRG song of 1984, made in code, at 124 BPM in F minor, in 80 bars: a phone rings twice, then a rolling 16th bass, claps and a cowbell drive it; a brass riff answers a deep, half-spoken vocoder's verses, a choir chants back, a wordless "oo" rises into a chorus that hangs on its sixth, and the phone rings again in the breakdown. |
+| Wire Cathedral | `wire-cathedral` | An industrial song in the manner of Nine Inch Nails, made in code, at 94 BPM in E minor, in 64 bars: a detuned piano wobbling as worn tape does over a drone and a machine's hum; then a crushed kick, a snare ringing and smashed, gritty hats, a folded bass over a clean sub and a whisper; choruses of amp-distorted guitars hard left and right, a screaming vocoder, noise and struck metal, on the flat second and the tritone; and a dead stop. |
+| Mirror Shine | `mirror-shine` | A techno song in the manner of Tiga, made in code, at 124 BPM in G minor, in 128 bars for a DJ, one part in or out each 16: a 909 kick alone in the sub, an 808 snare, a scooping stab, a slithering pulse and a deadpan vocoder's slogan; a fuzzy buzz whose filter opens and shuts; and, held back till its drop, a TB-303's acid line, sliding and its accents stacking, over a rimshot groove. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -187,7 +189,7 @@ tier 2. Mascot Dance's, Sister Dreams' and Underworld Ascent's come and
 go as those songs wander, and the game can hold them in with
 `SetPart`; Star Drift's bells always ring, as do Candy Clouds' soft
 snap, Compass Rose's rim, Summer Meadow's woody tick and Tinker Lab's
-snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, and Ring Me Twice's, but for its breakdown's first four. Pocket Kingdom claps twice, quick, every bar;
+snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, Ring Me Twice's, but for its breakdown's first four, and the snares of Wire Cathedral, but in its piano's quiet, and of Mirror Shine, but where its voice is alone. Pocket Kingdom claps twice, quick, every bar;
 Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent, Orbit
 Round, Alien Entrance, Meadow Hop and Tinker Round every other bar. The recorded songs, Greek Themes and A round song,
 tell their beat but not their drums: a character can clap on beats 2
@@ -538,6 +540,21 @@ by name, as `C4`. Each `'` after a note lifts it an octave. A drums
 patch plays drums by name: `bd`, `sn`, `cp`, `hh`, `oh`, `rim`, `lt`,
 `mt`, `ht`, `cr`, `rd`, `sh`, `snap`, `tim`, a timpani tuned to the
 chord, and the effects `boom`, `riser` and `down`.
+
+Industrial music and techno have theirs. A patch's `Slide` glides
+only into a note tied to the one before, a track's legato over 1 tying
+them, as a TB-303 slides; its `Accent` opens the filter by octaves on a
+note of velocity 1, the filter's envelope falling in 0.2 s, accents
+close together stacking as the 303's do. A track's `Distort`, from 0
+to 1, distorts it as its `DistortType` says: `fuzz`, clipped hard;
+`amp`, a guitar's amplifier and cabinet; or `fold`, a wavefolder. Its
+`Ring` ring-modulates it with a sine at `RingHz`, and its `Smash` mixes
+under it a copy crushed by a compressor with every ratio's button in,
+so it pumps. `bd9` is a TR-909's kick, its pitch falling fast from high
+with a click, of type `kick909`, and `mtl` a struck piece of metal, its
+partials clanging, of type `metal`. The studio's mixer has a knob and
+three lamps for a track's distortion, and knobs for its ring and smash;
+its patch editor a Slide button and an Accent knob.
 
 The 1980s' electronic pop has sounds of its own. `syn1`, `syn2` and
 `syn3` are a Simmons SDS-V's toms, high to low, of type `syntom`: a
