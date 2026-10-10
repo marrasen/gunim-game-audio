@@ -368,12 +368,17 @@ changed, with no file to edit and nothing to reload:
   master's strip has the mix's meter, its fader, its compressor with a
   bar of how far it turns the mix down, and its loudness in LUFS. The
   track panel slides away to give the desk the window's width.
-- **Patch.** A synth's oscillators, up to four, each with its wave drawn
-  (a click on it turns to the next wave), its octave, tuning, level,
-  unison voices and spread, and its pulse width or FM ratio and index;
-  its filter with its response drawn; its filter and amp envelopes,
-  drawn; two LFOs; its voices, glide, drive, noise and the vowel it
-  sings. A plucked string's decay, brightness and body. Under them a
+- **Patch.** On its left, the strip of the track playing the patch, as
+  the mixer's, and arrows to step to the track before or after, its
+  patch shown in turn. A synth's oscillators, up to four, each with its
+  wave picked from a panel of lamps, an analogue synth's waves over the
+  chips', and drawn (a click on it turns to the next wave), its octave,
+  tuning, level, unison voices and spread, and its pulse width or FM
+  ratio and index; its filter, its type picked from lamps, with its
+  response drawn; its filter and amp envelopes, drawn; two LFOs, what
+  each moves and its wave picked from lamps; its voices, glide, drive,
+  noise, drift and the vowel it sings. A plucked string's decay,
+  brightness and body. Under them a
   note of the patch drawn whole and close up, the track playing it on a
   scope as it plays, and a keyboard that plays it over the song.
 - **Kit.** A kit's drums as pads, which light as the song hits them and

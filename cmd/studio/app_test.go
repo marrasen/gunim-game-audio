@@ -398,13 +398,13 @@ func TestTheChorusSwitchPicksAKind(t *testing.T) {
 	h := newHarness(t, music.NotteDiNeon)
 	h.do(OpenEditor{Editor: "Mixer"})
 	h.settle()
-	var sw *chorusSwitch
+	var sw *selector
 	for i, r := range h.s.state().Tracks {
 		if r.Name == "hook" {
 			sw = h.v.mixer.strips[i].chorus.sw
 		}
 	}
-	if sw == nil || sw.kind != 2 || !sw.on {
+	if sw == nil || sw.sel != 2 || sw.off {
 		t.Fatalf("the hook's chorus switch shows %+v; want Juno II, on", sw)
 	}
 	at, ok := h.boundsOf(sw)
@@ -484,5 +484,52 @@ func TestTheTweaksSetAndReset(t *testing.T) {
 	h.do(ClearValue{Path: "Mix/Tweak"})
 	if tw := h.s.song.Mix.Tweak; tw != (synth.Tweak{}) {
 		t.Errorf("reset, the tweaks are %+v", tw)
+	}
+}
+
+func TestThePatchPageStepsThroughTheTracks(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	pp := h.v.patch
+	if pp.name != "bass" || pp.track != "bass" || pp.stripSw.which != 0 {
+		t.Fatalf("the patch page shows %s, played by %s, its strip %d", pp.name, pp.track, pp.stripSw.which)
+	}
+	// On past the drums, which the kit editor edits, to the next synth.
+	want := []string{"arp", "hook", "voice", "choir", "strings", "epiano", "orch", "zaps", "bass"}
+	for _, w := range want {
+		f, _ := pp.stepTrack(1).(Focus)
+		h.frame()
+		if pp.track != w || pp.name != track(h.s.song, w).Patch || f.Track != w {
+			t.Fatalf("a step on shows the track %s and the patch %s, the scope on %q; want %s", pp.track, pp.name, f.Track, w)
+		}
+	}
+	pp.stepTrack(-1)
+	h.frame()
+	if pp.track != "zaps" {
+		t.Errorf("a step back shows %s, want zaps", pp.track)
+	}
+}
+
+func TestAWaveLampSetsTheWave(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	sel := h.v.patch.oscs[0].wave
+	if waves[sel.Selected()] != "saw" {
+		t.Fatalf("the bass's first wave shows %s", waves[sel.Selected()])
+	}
+	at, ok := h.boundsOf(sel)
+	if !ok {
+		t.Fatal("the wave lamps are not on screen")
+	}
+	// The second lamp, the pulse's.
+	c := sel.cells[1]
+	p := geomPt(at.Min.X+(c.Min.X+c.Max.X)/2, at.Min.Y+(c.Min.Y+c.Max.Y)/2)
+	h.w.Input(input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: p, Button: input.ButtonPrimary, Time: time.Now()})
+	got, ok := h.intent().(SetValue)
+	if !ok || got.Path != "Patches/bass/Osc/0/Wave" || got.Str != "pulse" {
+		t.Errorf("a click on the pulse's lamp sent %#v", got)
 	}
 }

@@ -496,6 +496,11 @@ func (v *view) focus() Focus {
 	switch v.tabs.Selected() {
 	case tabPatch:
 		f.Track = firstPlaying(v.patch.name)
+		if song != nil {
+			if t := track(song, v.patch.track); t != nil && t.Patch == v.patch.name {
+				f.Track = t.Name
+			}
+		}
 	case tabKit:
 		f.Track = firstPlaying(v.kit.name)
 	case tabPattern:
@@ -527,6 +532,7 @@ func (v *view) open(s Studio, u *gunim.UI) {
 				v.kit.choose(t.Patch)
 			} else {
 				v.patch.choose(t.Patch)
+				v.patch.track = t.Name
 			}
 		}
 	}

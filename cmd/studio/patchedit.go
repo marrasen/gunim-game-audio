@@ -25,6 +25,12 @@ var (
 	lfoTargets = []string{"pitch", "cutoff", "amp", "width", "pan"}
 	lfoWaves   = []string{"sine", "tri", "saw", "square", "random"}
 	vowels     = []string{"off", "a", "e", "i", "o", "u"}
+	// waveNames and filterNames are what the selectors print for each:
+	// the waves of an analogue synth, then the chips'; the usual
+	// filters, then the SID's.
+	waveNames = []string{"saw", "pulse", "tri", "sine", "fm", "noise",
+		"saw·tri", "pulse·tri", "pulse·saw", "nes pulse", "nes tri", "nes noise", "nes metal", "gb wave"}
+	filterNames = []string{"off", "lp 12", "lp 24", "hp", "bp", "sid lp", "sid bp", "sid hp", "sid notch"}
 )
 
 // maxOsc and maxLFO are the oscillators and LFOs a patch editor shows.
@@ -54,7 +60,7 @@ type patchPane struct {
 	oscRow  *widget.Flex
 	lfos    [maxLFO]*lfoSlot
 	pluckKs []*knob
-	filter  *widget.Dropdown
+	filter  *selector
 	arpKs   []*knob
 	arpOn   *widget.Button
 	arpChrd *widget.Button
@@ -70,13 +76,20 @@ type patchPane struct {
 	feKnobs []*knob
 	aeKnobs []*knob
 	vKnobs  []*knob
-	vowel   *widget.Dropdown
+	vowel   *selector
 	vocoder *widget.Button
 	lib     *libraryBar
-	note    *wave
-	cycle   *wave
-	live    *wave
-	keys    *keyboard
+	// track is the track whose strip shows, one that plays the patch,
+	// and tracks those that play a synth or a pluck, to step through.
+	track     string
+	tracks    []string
+	trackName *widget.Label
+	strip     *channel
+	stripSw   *switcher
+	note      *wave
+	cycle     *wave
+	live      *wave
+	keys      *keyboard
 	// changed tells the root the patch chosen changed, and returns the
 	// intent that says so.
 	changed func(name string) gunim.Intent
@@ -127,11 +140,9 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pluck := panel("STRING · plucked, as Karplus and Strong pluck one", knobs(pp.pluckKs...))
 	pp.body = newSwitcher(oscs, pluck)
 
-	pp.filter = widget.NewDropdown(widget.Labels(filters...))
-	pp.filter.Label = "Filter"
-	pp.filter.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+	pp.filter = newSelector(filterNames, func(i int) gunim.Intent {
 		return SetValue{Path: pp.base + "/Filter/Type", Str: filters[i], IsStr: true}
-	}
+	}).group(5)
 	pp.resp = &response{base: pb}
 	pp.fKnobs = []*knob{
 		newKnob("Cutoff", pb, "/Filter/Cutoff", 20, 20000, 2000).logScale().unsetIs(20000),
@@ -140,7 +151,7 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		newKnob("Key", pb, "/Filter/Key", 0, 1, 0),
 		newKnob("Vel", pb, "/Filter/Vel", 0, 3, 0),
 	}
-	filter := panelWith(titled("FILTER", pp.filter), sized(pp.resp, 0, 70), knobs(pp.fKnobs...))
+	filter := panelWith(small("FILTER"), pp.filter, sized(pp.resp, 0, 70), knobs(pp.fKnobs...))
 	envKnobs := func(rel string) []*knob {
 		return []*knob{
 			newKnob("Attack", pb, rel+"/Attack", 0.001, 4, 0.01).logScale().units("s"),
@@ -171,19 +182,16 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		newKnob("Drift", pb, "/Drift", 0, 20, 0).units("c"),
 		newKnob("Gain", pb, "/Gain", 0, 2, 1).unsetIs(1),
 	}
-	pp.vowel = widget.NewDropdown(widget.Labels(vowels...))
-	pp.vowel.Label = "Vowel"
-	pp.vowel.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+	pp.vowel = newSelector(vowels, func(i int) gunim.Intent {
 		v := vowels[i]
 		if v == "off" {
 			v = ""
 		}
 		return SetValue{Path: pp.base + "/Vowel", Str: v, IsStr: true}
-	}
+	})
 	pp.vocoder = widget.NewButton("Vocoder")
 	pp.vocoder.KeepFocus, pp.vocoder.Tooltip = true, "Sing the vowel through a vocoder's ten bands, as a Roland VP-330's: a robot's voice"
-	voice := panelWith(titled("VOICE · sings", widget.Row(pp.vowel, pp.vocoder)), knobs(pp.vKnobs...))
-	lfoRow = append(lfoRow, voice)
+	voice := panelWith(small("VOICE · sings a vowel"), pp.vowel, widget.Row(pp.vocoder), knobs(pp.vKnobs[:3]...), knobs(pp.vKnobs[3:]...))
 	pp.arpOn = widget.NewButton("On")
 	pp.arpOn.KeepFocus, pp.arpOn.Tooltip = true, "Arpeggiate: steps through notes fast, as a Commodore 64 plays a chord on one voice"
 	pp.arpChrd = widget.NewButton("Chords")
@@ -194,7 +202,6 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pp.arpStep.Placeholder = "0 4 7"
 	pp.arpStep.OnChange = func(s string, _ *gunim.UI) gunim.Intent { return ArpSteps{Patch: pp.name, Steps: s} }
 	arp := panel("CHIP ARPEGGIO", widget.Row(pp.arpOn, pp.arpChrd), knobs(pp.arpKs...), pp.arpStep)
-	lfoRow = append(lfoRow, arp)
 	pp.chipOn = widget.NewButton("Stepped")
 	pp.chipOn.KeepFocus, pp.chipOn.Tooltip = true, "Step the level as a console does: in 16 steps, set 60 times a second"
 	pp.chipKs = []*knob{
@@ -206,11 +213,16 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		newKnob("Slide", pb, "/Bend/Time", 0, 0.5, 0).units("s"),
 	}
 	chip := panel("CHIP · NES and Game Boy", pp.chipOn, knobs(pp.chipKs...), knobs(pp.bendKs...))
-	lfoRow = append(lfoRow, chip)
-	low := widget.Row(lfoRow...)
+	// The LFOs in a row of their own, and how the patch plays in one
+	// under them.
+	lfos := widget.Row(lfoRow...)
 	for _, n := range lfoRow {
-		low.Grow(n, 1)
+		lfos.Grow(n, 1)
 	}
+	lfos.Cross = widget.CrossStretch
+	plays := widget.Row(voice, arp, chip).Grow(voice, 1.4).Grow(arp, 1).Grow(chip, 1)
+	plays.Cross = widget.CrossStretch
+	low := widget.Column(lfos, plays)
 	low.Cross = widget.CrossStretch
 
 	pp.note = &wave{spans: true, label: "a note of C4, held and let go", fit: true}
@@ -225,7 +237,23 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pp.lib = newLibraryBar(false)
 	col := widget.Column(head, pp.lib, pp.body, mid, low, out)
 	col.Cross = widget.CrossStretch
-	pp.Scroll = widget.NewScroll(widget.NewPad(col))
+	// The track playing the patch, its strip as the mixer's, and a step
+	// to the track before or after.
+	pp.strip = newChannel()
+	pp.trackName = small("")
+	pp.trackName.MaxLines = 1
+	prev := widget.NewIconButton(icon.ChevronLeft, "The track before: edit its patch")
+	prev.OnClick = func(*gunim.UI) gunim.Intent { return pp.stepTrack(-1) }
+	next := widget.NewIconButton(icon.ChevronRight, "The next track: edit its patch")
+	next.OnClick = func(*gunim.UI) gunim.Intent { return pp.stepTrack(1) }
+	nav := widget.Row(prev, pp.trackName, next).Grow(pp.trackName, 1)
+	nav.Cross = widget.CrossCenter
+	pp.stripSw = newSwitcher(widget.NewSized(pp.strip, 0, 600), small("No track plays this patch."))
+	left := widget.Column(small("TRACK"), nav, pp.stripSw)
+	left.Cross = widget.CrossStretch
+	page := widget.Row(widget.NewSized(left, 124, 0), col).Grow(col, 1)
+	page.Cross = widget.CrossStart
+	pp.Scroll = widget.NewScroll(widget.NewPad(page))
 	return pp
 }
 
@@ -267,6 +295,7 @@ func (pp *patchPane) update(st Studio) {
 		return
 	}
 	pp.lib.update(st, pp.name)
+	pp.showTrack(st)
 	var users []string
 	for _, t := range song.Tracks {
 		if t.Patch == pp.name {
@@ -333,12 +362,12 @@ func (pp *patchPane) update(st Studio) {
 	if ft == "" {
 		ft = "none"
 	}
-	pp.filter.SetSelected(segmentedIndex(filters, ft), nil)
+	pp.filter.SetSelected(segmentedIndex(filters, ft))
 	vw := p.Vowel
 	if vw == "" {
 		vw = "off"
 	}
-	pp.vowel.SetSelected(segmentedIndex(vowels, vw), nil)
+	pp.vowel.SetSelected(segmentedIndex(vowels, vw))
 	pp.vocoder.Active = p.Vocoder
 	pp.vocoder.OnClick = widget.Sends(ToggleValue{Path: pp.base + "/Vocoder"})
 	pp.resp.song, pp.fenv.song, pp.aenv.song = song, song, song
@@ -369,7 +398,7 @@ type oscSlot struct {
 	i      int
 	base   string
 	sw     *switcher
-	wave   *widget.Dropdown
+	wave   *selector
 	shape  *wave
 	ks     []*knob
 	extra  *switcher
@@ -386,11 +415,9 @@ type oscSlot struct {
 func newOscSlot(pp *patchPane, i int) *oscSlot {
 	o := &oscSlot{pp: pp, i: i}
 	b := &o.base
-	o.wave = widget.NewDropdown(widget.Labels(waves...))
-	o.wave.Label = "Wave"
-	o.wave.OnChange = func(k int, _ *gunim.UI) gunim.Intent {
+	o.wave = newSelector(waveNames, func(k int) gunim.Intent {
 		return SetValue{Path: o.base + "/Wave", Str: waves[k], IsStr: true}
-	}
+	}).group(6)
 	o.remove = widget.NewIconButton(icon.X, "Take this oscillator out")
 	o.shape = &wave{}
 	// A click on the wave drawn turns to the next wave.
@@ -419,14 +446,12 @@ func newOscSlot(pp *patchPane, i int) *oscSlot {
 	o.sync.KeepFocus, o.sync.Ghost, o.sync.Tooltip = true, true, "Restart with each cycle of the oscillator before, as the SID's hard sync"
 	o.ring = widget.NewButton("Ring")
 	o.ring.KeepFocus, o.ring.Ghost, o.ring.Tooltip = true, true, "Turn over with each half cycle of the oscillator before, as the SID's ring modulation"
-	head := widget.Row(small(fmt.Sprintf("OSC %d", i+1)), o.wave, widget.NewSpacer(), o.remove)
-	head.Grow(head.Children()[2], 1)
-	head.Cross = widget.CrossCenter
+	head := titled(fmt.Sprintf("OSC %d", i+1), o.remove)
 	links := widget.Row(o.sync, o.ring)
 	o.table = &tableEdit{}
 	o.table.set = func(steps []int) gunim.Intent { return SetInts{Path: o.base + "/Table", Values: steps} }
 	o.look = newSwitcher(o.shape, o.table)
-	editor := panelWith(head, sized(o.look, 0, 48), links, knobs(o.ks[:4]...), widget.Row(knobs(unison...), o.extra))
+	editor := panelWith(head, o.wave, sized(o.look, 0, 48), links, knobs(o.ks[:4]...), widget.Row(knobs(unison...), o.extra))
 	o.add = widget.NewButton("Add")
 	o.add.Tooltip = "Add an oscillator"
 	o.add.Icon, o.add.Ghost = icon.Plus, true
@@ -460,7 +485,7 @@ func (o *oscSlot) update(song *synth.Song, p *synth.Patch) {
 	if w == "" {
 		w = "saw"
 	}
-	o.wave.SetSelected(segmentedIndex(waves, w), nil)
+	o.wave.SetSelected(segmentedIndex(waves, w))
 	o.shape.data = synth.OscCycle(osc, 96)
 	o.look.which = 0
 	if osc.Wave == "gbwave" {
@@ -490,8 +515,8 @@ type lfoSlot struct {
 	i      int
 	base   string
 	sw     *switcher
-	target *widget.Dropdown
-	wave   *widget.Dropdown
+	target *selector
+	wave   *selector
 	ks     []*knob
 	remove *widget.IconButton
 	add    *widget.Button
@@ -500,16 +525,12 @@ type lfoSlot struct {
 func newLFOSlot(pp *patchPane, i int) *lfoSlot {
 	l := &lfoSlot{pp: pp, i: i}
 	b := &l.base
-	l.target = widget.NewDropdown(widget.Labels(lfoTargets...))
-	l.target.Label = "Moves"
-	l.target.OnChange = func(k int, _ *gunim.UI) gunim.Intent {
+	l.target = newSelector(lfoTargets, func(k int) gunim.Intent {
 		return SetValue{Path: l.base + "/To", Str: lfoTargets[k], IsStr: true}
-	}
-	l.wave = widget.NewDropdown(widget.Labels(lfoWaves...))
-	l.wave.Label = "Wave"
-	l.wave.OnChange = func(k int, _ *gunim.UI) gunim.Intent {
+	})
+	l.wave = newSelector(lfoWaves, func(k int) gunim.Intent {
 		return SetValue{Path: l.base + "/Wave", Str: lfoWaves[k], IsStr: true}
-	}
+	})
 	l.remove = widget.NewIconButton(icon.X, "Take this LFO out")
 	l.ks = []*knob{
 		newKnob("Rate", b, "/Hz", 0.05, 20, 2).logScale().units("Hz"),
@@ -517,10 +538,12 @@ func newLFOSlot(pp *patchPane, i int) *lfoSlot {
 		newKnob("Depth", b, "/Depth", 0, 4, 0.5),
 		newKnob("Delay", b, "/Delay", 0, 2, 0).units("s"),
 	}
-	head := widget.Row(small(fmt.Sprintf("LFO %d", i+1)), l.target, l.wave, widget.NewSpacer(), l.remove)
-	head.Grow(head.Children()[3], 1)
-	head.Cross = widget.CrossCenter
-	editor := panelWith(head, knobs(l.ks...))
+	head := titled(fmt.Sprintf("LFO %d", i+1), l.remove)
+	moves := widget.Column(small("MOVES"), l.target)
+	shape := widget.Column(small("WAVE"), l.wave)
+	pick := widget.Row(moves, shape).Grow(moves, 1).Grow(shape, 1)
+	pick.Cross = widget.CrossStart
+	editor := panelWith(head, pick, knobs(l.ks...))
 	l.add = widget.NewButton("Add an LFO")
 	l.add.Icon, l.add.Ghost = icon.Plus, true
 	empty := widget.NewCard(widget.Column(small(fmt.Sprintf("LFO %d", i+1)), l.add))
@@ -540,12 +563,12 @@ func (l *lfoSlot) update(song *synth.Song, p *synth.Patch) {
 	}
 	l.sw.which = 0
 	lf := p.LFO[l.i]
-	l.target.SetSelected(segmentedIndex(lfoTargets, lf.To), nil)
+	l.target.SetSelected(segmentedIndex(lfoTargets, lf.To))
 	w := lf.Wave
 	if w == "rand" {
 		w = "random"
 	}
-	l.wave.SetSelected(segmentedIndex(lfoWaves, w), nil)
+	l.wave.SetSelected(segmentedIndex(lfoWaves, w))
 	showKnobs(song, l.ks...)
 }
 
@@ -687,4 +710,56 @@ func joinNames(names []string) string {
 		return names[0]
 	}
 	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
+// stepTrack moves to the track by places from the one shown, of those
+// playing a synth or a pluck, round from the last to the first, and
+// shows its patch.
+func (pp *patchPane) stepTrack(by int) gunim.Intent {
+	n := len(pp.tracks)
+	if n == 0 || pp.song == nil {
+		return nil
+	}
+	i := slices.Index(pp.tracks, pp.track)
+	if i < 0 {
+		i = 0
+		if by < 0 {
+			i = 1
+		}
+	}
+	pp.track = pp.tracks[((i+by)%n+n)%n]
+	if t := track(pp.song, pp.track); t != nil {
+		pp.choose(t.Patch)
+	}
+	return pp.changed(pp.name)
+}
+
+// showTrack shows the strip of the track playing the patch: the one
+// stepped to, or else the first that plays it.
+func (pp *patchPane) showTrack(st Studio) {
+	song := st.Doc
+	pp.tracks = pp.tracks[:0]
+	first := ""
+	for _, t := range song.Tracks {
+		if p := song.Patches[t.Patch]; p != nil && p.Kind != "drums" {
+			pp.tracks = append(pp.tracks, t.Name)
+		}
+		if t.Patch == pp.name && first == "" {
+			first = t.Name
+		}
+	}
+	if t := track(song, pp.track); t == nil || t.Patch != pp.name {
+		pp.track = first
+	}
+	pp.trackName.Text = pp.track
+	pp.stripSw.which = 1
+	for i, r := range st.Tracks {
+		if r.Name == pp.track {
+			pp.strip.update(st, r, i, nil)
+			pp.stripSw.which = 0
+		}
+	}
+	if pp.track == "" {
+		pp.trackName.Text = "none"
+	}
 }

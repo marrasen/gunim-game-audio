@@ -132,9 +132,8 @@ func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	}
 	showKnobs(st.Doc, c.chorus.k)
 	c.chorus.k.color = col
-	c.chorus.sw.track = t.Name
 	if tr := track(st.Doc, t.Name); tr != nil {
-		c.chorus.show(tr.Chorus, tr.ChorusType, col)
+		c.chorus.show(t.Name, tr.Chorus, tr.ChorusType, col)
 	}
 	_ = u
 }
