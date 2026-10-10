@@ -189,6 +189,10 @@ func buildView(s Studio) *root {
 
 func (r *root) update(s Studio, u *gunim.UI) { r.view.update(s, u) }
 
+// Overhear tells the wheel's guard of each move and turn of the wheel,
+// wherever it lands.
+func (r *root) Overhear(e input.Event, _ *gunim.UI) { wheel.overhear(e) }
+
 // update shows s.
 func (v *view) update(s Studio, u *gunim.UI) {
 	v.s = s

@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/marrasen/gunim/icon"
 	"image/color"
 	"math"
+
+	"github.com/marrasen/gunim/icon"
 
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audioui"
@@ -67,7 +68,7 @@ type channel struct {
 	chorus  *kindUnit
 	distort *kindUnit
 	meter   *vu
-	fader   *audioui.Fader
+	fader   *fader
 	swatch  *swatch
 	gain    float32
 }
@@ -95,7 +96,7 @@ func newChannel() *channel {
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
 	c.solo = widget.NewButton("S")
 	c.solo.KeepFocus, c.solo.Tooltip = true, "Solo"
-	c.fader = audioui.NewFader(func() float32 { return c.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
+	c.fader = newFader(func() float32 { return c.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
 		c.gain = v
 		return SetValue{Path: c.base + "/Gain", Num: float64(v)}
 	})
@@ -156,7 +157,7 @@ type masterStrip struct {
 	*widget.Card
 	base   string
 	meter  *vu
-	fader  *audioui.Fader
+	fader  *fader
 	gain   float32
 	gr     *reduction
 	lufs   *widget.Label
@@ -171,7 +172,7 @@ func newMasterStrip() *masterStrip {
 		newKnob("Threshold", b, "/Threshold", -30, 0, -10).units("dB").unsetIs(-10).small(),
 		newKnob("Ratio", b, "/Ratio", 1, 10, 2).unsetIs(2).small(),
 	}
-	m.fader = audioui.NewFader(func() float32 { return m.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
+	m.fader = newFader(func() float32 { return m.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
 		m.gain = v
 		return SetValue{Path: "Mix/Gain", Num: float64(v)}
 	})

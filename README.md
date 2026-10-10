@@ -374,7 +374,7 @@ changed, with no file to edit and nothing to reload:
   track panel slides away to give the desk the window's width.
 - **Patch.** On its left, the strip of the track playing the patch, as
   the mixer's, and arrows to step to the track before or after, its
-  patch shown in turn; beside it the patch library, open. The page
+  patch shown in turn, sliding in from the side it comes from; beside it the patch library, open. The page
   takes the window's width, as the mixer does. A synth's oscillators, up to four, each with its
   wave picked from a panel of lamps, an analogue synth's waves over the
   chips', and drawn (a click on it turns to the next wave), its octave,
@@ -422,6 +422,14 @@ A preset picked in it, or stepped to with the arrows over the editor,
 or picked at random, plays in place of the patch at once, as loud as the patch was, so the mix keeps its balance; Keep makes
 it the patch, and Revert puts the patch back as it was. A program reads
 the library with `music.Presets`.
+
+The wheel scrolls a page, and turns a knob, a fader or a row of lamps
+only when that is meant, so looking round a page changes nothing. A
+turn of the wheel belongs to what its first notch lands on: begun on
+the page, it scrolls the page to its end, though knobs pass under the
+pointer. A control takes it only where the pointer moved onto the
+control and rested there for 0.4 s, or the control was just pressed
+or dragged; Ctrl with the wheel turns it always.
 
 Patches and kits save to a file of their own, a `.patch.json`, and load
 from one, in place of a patch or as a new one; a new synth, pluck or kit

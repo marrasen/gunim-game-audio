@@ -656,3 +656,104 @@ func TestTheDockedLibraryOpensAndTries(t *testing.T) {
 		}
 	}
 }
+
+func TestTheWheelScrollsThePageUnlessAKnobIsMeant(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	k := h.v.patch.fKnobs[0] // the filter's cutoff
+	at, ok := h.boundsOf(k)
+	if !ok {
+		t.Fatal("the cutoff knob is not on screen")
+	}
+	mid := func(r geom.Rect) geom.Point { return geomPt((r.Min.X+r.Max.X)/2, (r.Min.Y+r.Max.Y)/2) }
+	before := num(h.s.song, k.path())
+	drain := func() (sent bool) {
+		for {
+			select {
+			case ev := <-h.w.Client().Intents():
+				if sv, ok := ev.Intent.(SetValue); ok && sv.Path == k.path() {
+					sent = true
+				}
+			default:
+				return sent
+			}
+		}
+	}
+	t0 := time.Now()
+	wheelAt := func(p geom.Point, at time.Time, mods input.Mods) {
+		h.w.Input(input.Scroll{Pos: p, Delta: geomPt(0, -40), Notches: geomPt(0, -1), Mods: mods, Time: at})
+		h.frame()
+	}
+	// Arriving on the knob and turning the wheel at once scrolls the
+	// page: the pointer has not rested there.
+	h.w.Input(input.PointerMove{Pos: mid(at), Time: t0})
+	wheelAt(mid(at), t0.Add(100*time.Millisecond), 0)
+	if drain() {
+		t.Error("the wheel turned a knob the pointer had only passed onto")
+	}
+	h.settle()
+	moved, _ := h.boundsOf(k)
+	if moved.Min.Y == at.Min.Y {
+		t.Fatal("the wheel did not scroll the page")
+	}
+	// The pointer rests on the knob, and a fresh turn of the wheel
+	// turns it, and goes on turning it through the gesture.
+	h.w.Input(input.PointerMove{Pos: mid(moved), Time: t0.Add(2 * time.Second)})
+	wheelAt(mid(moved), t0.Add(2600*time.Millisecond), 0)
+	wheelAt(mid(moved), t0.Add(2700*time.Millisecond), 0)
+	if !drain() {
+		t.Error("the wheel did not turn a knob the pointer rested on")
+	}
+	if still, _ := h.boundsOf(k); still.Min.Y != moved.Min.Y {
+		t.Error("the page scrolled as the wheel turned the knob")
+	}
+	// A gesture begun on the page goes on scrolling it over a knob.
+	h.w.Input(input.PointerMove{Pos: geomPt(mid(moved).X, 20), Time: t0.Add(5 * time.Second)})
+	wheelAt(geomPt(mid(moved).X, 20), t0.Add(6*time.Second), 0)
+	wheelAt(mid(moved), t0.Add(6100*time.Millisecond), 0)
+	if drain() {
+		t.Error("a scroll of the page turned a knob it passed over")
+	}
+	// Ctrl with the wheel turns the knob under the pointer, always.
+	now, _ := h.boundsOf(k)
+	wheelAt(mid(now), t0.Add(6200*time.Millisecond), input.ModControl)
+	if !drain() {
+		t.Error("Ctrl and the wheel did not turn the knob")
+	}
+	_ = before
+}
+
+func TestSteppingTrackSlidesThePatchPageIn(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	pp := h.v.patch
+	for _, s := range pp.slides {
+		if s.t != 1 {
+			t.Fatalf("the patch page is sliding before any step: %v", s.t)
+		}
+	}
+	pp.stepTrack(1)
+	for _, s := range pp.slides {
+		if s.t != 0 || s.dir != 1 {
+			t.Fatalf("a step on slides from %v at %v; want from the right, begun", s.dir, s.t)
+		}
+	}
+	// Midway it is moving, drawn; in a second it rests.
+	h.w.Frame(slideDur / 2)
+	if s := pp.slides[1]; s.t <= 0 || s.t >= 1 {
+		t.Errorf("halfway, the slide is at %v", s.t)
+	}
+	h.settle()
+	pp.stepTrack(-1)
+	if pp.slides[0].dir != -1 {
+		t.Error("a step back does not slide from the left")
+	}
+	h.settle()
+	for _, s := range pp.slides {
+		if s.t != 1 {
+			t.Errorf("a second on, the slide is at %v, not at rest", s.t)
+		}
+	}
+}

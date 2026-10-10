@@ -185,6 +185,7 @@ func (k *knob) set(v float64, u *gunim.UI) {
 func (k *knob) Handle(e input.Event, u *gunim.UI) bool {
 	switch e := e.(type) {
 	case input.PointerDown:
+		wheel.touch(k)
 		if e.Clicks == 2 {
 			k.set(k.def, u)
 			return true
@@ -209,6 +210,9 @@ func (k *knob) Handle(e input.Event, u *gunim.UI) bool {
 			return true
 		}
 	case input.Scroll:
+		if !wheel.allows(k, e) {
+			return false
+		}
 		d := -float64(e.Delta.Y) / 600
 		if k.step > 0 {
 			d = math.Copysign(max(math.Abs(d), k.step/(k.hi-k.lo)*1.01), d)

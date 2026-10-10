@@ -211,8 +211,12 @@ func (s *selector) Handle(e input.Event, u *gunim.UI) bool {
 		if e.Button != input.ButtonPrimary {
 			return false
 		}
+		wheel.touch(s)
 		s.choose(s.at(e.Pos), u)
 	case input.Scroll:
+		if !wheel.allows(s, e) {
+			return false
+		}
 		step := 1
 		if e.Delta.Y > 0 {
 			step = -1

@@ -90,10 +90,12 @@ type patchPane struct {
 	trackName *widget.Label
 	strip     *channel
 	stripSw   *switcher
-	note      *wave
-	cycle     *wave
-	live      *wave
-	keys      *keyboard
+	// slides slide the strip and the editor in as a step changes track.
+	slides []*slider
+	note   *wave
+	cycle  *wave
+	live   *wave
+	keys   *keyboard
 	// changed tells the root the patch chosen changed, and returns the
 	// intent that says so.
 	changed func(name string) gunim.Intent
@@ -268,7 +270,9 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pp.tree = newPresetTree(false)
 	shelf := widget.Column(small("PATCH LIBRARY"), widget.NewSized(widget.NewScroll(pp.tree), 0, 720))
 	shelf.Cross = widget.CrossStretch
-	page := widget.Row(widget.NewSized(left, 124, 0), widget.NewSized(shelf, 196, 0), col).Grow(col, 1)
+	stripSlide, editSlide := newSlider(widget.NewSized(left, 124, 0)), newSlider(col)
+	pp.slides = []*slider{stripSlide, editSlide}
+	page := widget.Row(stripSlide, widget.NewSized(shelf, 196, 0), editSlide).Grow(editSlide, 1)
 	page.Cross = widget.CrossStart
 	pp.Scroll = widget.NewScroll(widget.NewPad(page))
 	return pp
@@ -751,6 +755,15 @@ func (pp *patchPane) stepTrack(by int) gunim.Intent {
 	pp.track = pp.tracks[((i+by)%n+n)%n]
 	if t := track(pp.song, pp.track); t != nil {
 		pp.choose(t.Patch)
+	}
+	// The next track comes in from the right, the one before from the
+	// left.
+	dir := float32(1)
+	if by < 0 {
+		dir = -1
+	}
+	for _, s := range pp.slides {
+		s.start(dir)
 	}
 	return pp.changed(pp.name)
 }
