@@ -1030,8 +1030,16 @@ func (p *Player) scheduleTrack(t *track, bar int, k key) {
 				p.queueNote(t, frame, n, v[0])
 				break
 			}
-			for _, pitch := range v {
-				p.queueNote(t, frame, n, pitch)
+			strum := int64(ct.t.Strum * rate)
+			up := math.Mod(inBar*8+1e-9, 2) >= 1
+			for i, pitch := range v {
+				// A strum, as a guitarist's hand: down, low to high, and
+				// up, on an offbeat eighth, high to low.
+				k := int64(i)
+				if up {
+					k = int64(len(v) - 1 - i)
+				}
+				p.queueNote(t, frame+k*strum, n, pitch)
 			}
 		case actArp:
 			p.queueNote(t, frame, n, p.arp(t, chord, ci, oct))

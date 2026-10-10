@@ -398,3 +398,83 @@ func TestTheTranceGateChopsInTime(t *testing.T) {
 		t.Errorf("a gate of a bad step: %v", err)
 	}
 }
+
+func TestTheTambourineJinglesAndStrumsSpread(t *testing.T) {
+	x := renderHit(t, "tamb", rate)
+	if rms(x[:rate/20]) < 0.02 || rms(x[rate/2:]) > 1e-4 {
+		t.Errorf("the tambourine sounds at %.4f, then %.5f", rms(x[:rate/20]), rms(x[rate/2:]))
+	}
+	// Bright: little of it under 3 kHz.
+	var lp [2]svf
+	lp[0].set(3000, 0.3)
+	lp[1].set(3000, 0.3)
+	low := make([]float32, rate/10)
+	for i := range low {
+		v, _, _ := lp[0].step(x[i])
+		low[i], _, _ = lp[1].step(v)
+	}
+	if share := rms(low) / rms(x[:rate/10]); share > 0.2 {
+		t.Errorf("%.2f of the tambourine lies under 3 kHz", share)
+	}
+	// A chord strummed down starts its notes low to high, 10 ms apart.
+	s := &Song{Title: "strum", BPM: 120, Key: "C", Mode: "wander",
+		Patches: map[string]*Patch{"gtr": {Kind: "pluck"}},
+		Tracks:  []*Track{{Name: "gtr", Core: true, Patch: "gtr", Pattern: "ch ~", Strum: 0.01}},
+	}
+	p := NewPlayer(s, 1)
+	if err := p.Err(); err != nil {
+		t.Fatal(err)
+	}
+	play := make([]float32, 2*rate)
+	p.Read(play)
+	var notes []Note
+	notes = p.Notes(notes, 0)
+	if len(notes) < 3 {
+		t.Fatalf("the chord plays %d notes", len(notes))
+	}
+	for i := 1; i < 3; i++ {
+		if d := notes[i].Frame - notes[i-1].Frame; d != rate/100 || notes[i].Pitch <= notes[i-1].Pitch {
+			t.Errorf("note %d of the strum starts %d frames after the one before, at pitch %d after %d", i, d, notes[i].Pitch, notes[i-1].Pitch)
+		}
+	}
+}
+
+func TestTheWashesRing(t *testing.T) {
+	for _, kind := range []string{"hall", "spring"} {
+		w := newWash(kind)
+		w.mix = 1
+		n := 4 * rate
+		l, r := make([]float32, n), make([]float32, n)
+		l[0], r[0] = 1, 1
+		for at := 0; at < n; at += maxBlock {
+			w.process(l[at:at+maxBlock], r[at:at+maxBlock])
+		}
+		for i := range l {
+			if math.IsNaN(float64(l[i])) || math.Abs(float64(l[i])) > 2 {
+				t.Fatalf("the %s wash makes %v at %d", kind, l[i], i)
+			}
+		}
+		ring, end := rms(l[rate/2:rate]), rms(l[3*rate:])
+		if ring < 1e-4 || end > ring/50 {
+			t.Errorf("the %s wash rings at %.5f half a second on, and %.6f at its end", kind, ring, end)
+		}
+		var diff float64
+		for i := range l {
+			diff += math.Abs(float64(l[i] - r[i]))
+		}
+		if diff < 1e-3 {
+			t.Errorf("the %s wash leaves its sides alike", kind)
+		}
+	}
+	// The spring's first echo comes back off its line, 33 ms on.
+	w := newWash("spring")
+	w.mix = 1
+	l, r := make([]float32, rate/10), make([]float32, rate/10)
+	l[0], r[0] = 1, 1
+	w.process(l[:maxBlock*16], r[:maxBlock*16])
+	before := rms(l[rate/100 : rate*3/100])
+	after := rms(l[rate*33/1000 : rate*40/1000])
+	if after < 4*before {
+		t.Errorf("the spring is %.5f before its echo and %.5f in it; want the echo far louder", before, after)
+	}
+}

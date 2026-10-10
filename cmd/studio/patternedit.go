@@ -42,6 +42,7 @@ type patternPane struct {
 	gate    *gateRow
 	gateKs  []*knob
 	gateOff *widget.Button
+	strumK  *knob
 	gateOf  string
 	shownOf string
 	gen     int
@@ -172,12 +173,16 @@ func newPatternPane(changed func(string) gunim.Intent) *patternPane {
 
 	pp.gate = &gateRow{hot: -1}
 	pp.gateKs = []*knob{newKnob("Depth", &pp.gateOf, "/GateDepth", 0, 1, 1).unsetIs(1).small()}
+	pp.strumK = newKnob("Strum", &pp.gateOf, "/Strum", 0, 0.05, 0).units("s").small()
 	pp.gateOff = widget.NewButton("Clear")
 	pp.gateOff.Icon, pp.gateOff.Ghost, pp.gateOff.Tooltip = icon.X, true, "Take the gate off: the track sounds through the bar"
 	gateRow := widget.Row(pp.gate, knobs(pp.gateKs...), pp.gateOff).Grow(pp.gate, 1)
 	gateRow.Cross = widget.CrossCenter
 	gate := panel("TRANCE GATE · the track chopped in time, a step a 16th: click a step to shut it or open it", gateRow)
-	col := widget.Column(head, pp.err, grid, gate, structure)
+	strum := panel("STRUM · a chord's notes spread, as a pick crosses strings", pp.strumK)
+	gateStrum := widget.Row(gate, strum).Grow(gate, 1)
+	gateStrum.Cross = widget.CrossStretch
+	col := widget.Column(head, pp.err, grid, gateStrum, structure)
 	col.Cross = widget.CrossStretch
 	pp.Scroll = widget.NewScroll(widget.NewPad(col))
 	return pp
@@ -254,6 +259,7 @@ func (pp *patternPane) update(st Studio, u *gunim.UI) {
 	pp.gateOf = "Tracks/" + t.Name
 	pp.gate.show(t.Name, t.Gate, hexColor(t.Color, max(slices.Index(names, t.Name), 0)))
 	showKnobs(song, pp.gateKs...)
+	showKnobs(song, pp.strumK)
 	pp.gateOff.OnClick = widget.Sends(SetValue{Path: pp.gateOf + "/Gate", Str: "", IsStr: true})
 	pp.gateOff.Disabled = t.Gate == ""
 	src := t.Pattern

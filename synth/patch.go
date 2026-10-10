@@ -71,7 +71,7 @@ type Patch struct {
 	// by. A name the kit leaves out is a drum of the same name, as bd,
 	// sn, cp, hh, oh, rim, lt, mt, ht, cr, rd, sh, snap, tim, boom,
 	// riser, down, the syn-toms syn1 to syn3, cb, a cowbell, bd9, a
-	// TR-909's kick, or mtl, a metal hit; see Drum.
+	// TR-909's kick, mtl, a metal hit, or tamb, a tambourine; see Drum.
 	Kit map[string]Drum
 	// Gain is the patch's level, 1 by default.
 	Gain float64
@@ -162,7 +162,7 @@ type Drum struct {
 	// electronic tom as a Simmons drum's, its pitch diving; cowbell, a
 	// TR-808's; kick909, a TR-909's kick, its pitch falling fast from
 	// high with a click; metal, a struck piece of metal, its partials
-	// clanging; or the
+	// clanging; tambourine, its jingles clashing; or the
 	// SID's, built a frame at a time as a Commodore 64's drums are:
 	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
 	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
@@ -202,6 +202,7 @@ var drumNames = map[string]string{
 	"cb": "cowbell", "cowbell": "cowbell",
 	"bd9": "kick909", "kick909": "kick909",
 	"mtl": "metal", "metal": "metal",
+	"tamb": "tambourine", "tambourine": "tambourine",
 }
 
 // tomTune tunes the low and high toms either side of the middle one,
@@ -243,6 +244,7 @@ const (
 	drCowbell
 	drKick909
 	drMetal
+	drTambourine
 )
 
 var drumTypes = map[string]int{
@@ -253,7 +255,7 @@ var drumTypes = map[string]int{
 	"sidtom": drSIDTom, "sidzap": drSIDZap,
 	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
 	"nesclap": drNESClap,
-	"syntom":  drSynTom, "cowbell": drCowbell, "kick909": drKick909, "metal": drMetal,
+	"syntom":  drSynTom, "cowbell": drCowbell, "kick909": drKick909, "metal": drMetal, "tambourine": drTambourine,
 }
 
 // The waves of an oscillator.

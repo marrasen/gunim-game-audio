@@ -380,6 +380,18 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		if err != nil {
 			s.status = plain(err)
 		}
+	case WashKind:
+		err := s.edit(func(song *synth.Song) {
+			if t := track(song, v.Track); t != nil {
+				t.WashType = v.Type
+				if t.Wash == 0 {
+					t.Wash = 0.5
+				}
+			}
+		})
+		if err != nil {
+			s.status = plain(err)
+		}
 	case DistortKind:
 		err := s.edit(func(song *synth.Song) {
 			if t := track(song, v.Track); t != nil {

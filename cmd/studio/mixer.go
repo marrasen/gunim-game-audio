@@ -66,6 +66,7 @@ type channel struct {
 	solo    *widget.Button
 	ks      []*knob
 	chorus  *kindUnit
+	wash    *kindUnit
 	distort *kindUnit
 	meter   *vu
 	fader   *fader
@@ -91,6 +92,7 @@ func newChannel() *channel {
 		newKnob("Smash", b, "/Smash", 0, 1, 0).small(),
 	}
 	c.chorus = newChorusUnit(b)
+	c.wash = newWashUnit(b)
 	c.distort = newDistortUnit(b)
 	c.mute = widget.NewButton("M")
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
@@ -105,7 +107,7 @@ func newChannel() *channel {
 	for i := 0; i+1 < len(c.ks); i += 2 {
 		rows = append(rows, widget.Row(c.ks[i], c.ks[i+1]))
 	}
-	rows = append(rows, c.chorus, c.distort)
+	rows = append(rows, c.chorus, c.wash, c.distort)
 	kcol := widget.Column(rows...)
 	kcol.Cross = widget.CrossCenter
 	buttons := widget.Row(c.mute, c.solo)
@@ -135,10 +137,11 @@ func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	for _, k := range c.ks {
 		k.color = col
 	}
-	showKnobs(st.Doc, c.chorus.k, c.distort.k)
-	c.chorus.k.color, c.distort.k.color = col, col
+	showKnobs(st.Doc, c.chorus.k, c.wash.k, c.distort.k)
+	c.chorus.k.color, c.wash.k.color, c.distort.k.color = col, col, col
 	if tr := track(st.Doc, t.Name); tr != nil {
 		c.chorus.show(t.Name, tr.Chorus, tr.ChorusType, col)
+		c.wash.show(t.Name, tr.Wash, tr.WashType, col)
 		c.distort.show(t.Name, tr.Distort, tr.DistortType, col)
 	}
 	_ = u

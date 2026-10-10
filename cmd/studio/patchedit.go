@@ -264,7 +264,7 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	next.OnClick = func(*gunim.UI) gunim.Intent { return pp.stepTrack(1) }
 	nav := widget.Row(prev, pp.trackName, next).Grow(pp.trackName, 1)
 	nav.Cross = widget.CrossCenter
-	pp.stripSw = newSwitcher(widget.NewSized(pp.strip, 0, 750), small("No track plays this patch."))
+	pp.stripSw = newSwitcher(widget.NewSized(pp.strip, 0, 840), small("No track plays this patch."))
 	left := widget.Column(small("TRACK"), nav, pp.stripSw)
 	left.Cross = widget.CrossStretch
 	pp.tree = newPresetTree(false)

@@ -143,6 +143,12 @@ type Track struct {
 	HPF, LPF, Shape, Crush float64
 	Coarse                 int
 	Chorus                 float64
+	// Wash puts a reverb of its own on it, from 0 to 1, before its
+	// distortion, as a reverb pedal ahead of a fuzz, which then chews its
+	// tail into a wall: WashType hall, the default, long and bright, or
+	// spring, a spring tank's twang and drip.
+	Wash     float64 `json:",omitempty"`
+	WashType string  `json:",omitempty"`
 	// Distort distorts it, from 0 to 1, as DistortType says: fuzz, the
 	// default, clipped hard; amp, a guitar's amplifier and its speaker's
 	// cabinet; or fold, a wavefolder's metallic folds.
@@ -167,6 +173,10 @@ type Track struct {
 	// swaying slowly; juno1, juno2 or juno12, a Roland Juno-60's chorus
 	// I, II, or both buttons down; or ensemble, a string machine's.
 	ChorusType string `json:",omitempty"`
+	// Strum spreads a chord's notes that many seconds apart, as a
+	// guitarist's pick crosses the strings: down, low to high, and up,
+	// on an offbeat eighth, high to low.
+	Strum float64 `json:",omitempty"`
 	// Human moves each note a little in time and level, from 0 to 1, as
 	// a player's hands do.
 	Human float64
@@ -728,6 +738,9 @@ func (c *compiled) compileTrack(t *Track, k key, progs [][]Chord, sting bool) (*
 		ct.arp = arpRandom
 	default:
 		return nil, fmt.Errorf("synth: track %s arpeggiates %q, not up, down, updown, downup, converge or random", t.Name, t.Arp)
+	}
+	if t.WashType != "" && t.WashType != "hall" && t.WashType != "spring" {
+		return nil, fmt.Errorf("synth: track %s washes as %q, not hall or spring", t.Name, t.WashType)
 	}
 	if _, ok := distortKinds[t.DistortType]; !ok {
 		return nil, fmt.Errorf("synth: track %s distorts as %q, not fuzz, amp or fold", t.Name, t.DistortType)

@@ -351,6 +351,7 @@ type inserts struct {
 	hp, lp     [2]svf
 	hpOn, lpOn bool
 	shape      float32
+	wash       *wash
 	dist       distortion
 	ring       float32
 	ringDt     float32
@@ -375,6 +376,14 @@ func (in *inserts) set(t *Track) {
 		in.lp[1].set(float32(t.LPF), 0.1)
 	}
 	in.shape = float32(min(max(t.Shape, 0), 0.99))
+	if t.Wash > 0 {
+		if in.wash == nil || in.wash.spring != (t.WashType == "spring") {
+			in.wash = newWash(t.WashType)
+		}
+		in.wash.mix = float32(min(t.Wash, 1))
+	} else {
+		in.wash = nil
+	}
 	in.dist.set(t.Distort, t.DistortType)
 	in.ring = float32(min(max(t.Ring, 0), 1))
 	hz := t.RingHz
@@ -426,6 +435,9 @@ func (in *inserts) process(l, r []float32) {
 			l[i] = (1 + k) * l[i] / (1 + k*abs32(l[i]))
 			r[i] = (1 + k) * r[i] / (1 + k*abs32(r[i]))
 		}
+	}
+	if in.wash != nil {
+		in.wash.process(l, r)
 	}
 	if in.dist.on {
 		in.dist.process(l, r)
@@ -823,5 +835,115 @@ func (s *smasher) process(l, r []float32) {
 		wl, wr := softClip(l[i]*w), softClip(r[i]*w)
 		l[i] += (wl*0.6 - l[i]*0.4) * s.mix
 		r[i] += (wr*0.6 - r[i]*0.4) * s.mix
+	}
+}
+
+// wash is a track's own reverb, put before its distortion, as a reverb
+// pedal ahead of a fuzz: a hall, four combs and two allpasses a side,
+// long and bright; or a spring, a delay whose echoes run round through
+// a chain of allpasses that smear their highs from their lows, so each
+// returns as a chirp, as a spring tank's drip.
+type wash struct {
+	spring bool
+	mix    float32
+	combs  [2][4]washComb
+	ap     [2][2]allpass
+	// The spring: its line, where it is written, its taps, and the
+	// chain of allpasses its echoes pass through.
+	line    []float32
+	at      int
+	taps    [2]int
+	disp    [12]disperse
+	damp    onePole
+	springG float32
+}
+
+type washComb struct {
+	buf  []float32
+	at   int
+	g, d float32
+	z    float32
+}
+
+func (c *washComb) step(x float32) float32 {
+	y := c.buf[c.at]
+	c.z += (y - c.z) * c.d
+	c.buf[c.at] = x + c.z*c.g
+	c.at++
+	if c.at == len(c.buf) {
+		c.at = 0
+	}
+	return y
+}
+
+// disperse is a first-order allpass, which delays the highs less than
+// the lows.
+type disperse struct{ x1, y1 float32 }
+
+func (d *disperse) step(x, a float32) float32 {
+	y := -a*x + d.x1 + a*d.y1
+	d.x1, d.y1 = x, y
+	return y
+}
+
+// washCombMs are the hall's combs' lengths, in milliseconds, the right
+// side's a little longer, so the sides differ.
+var washCombMs = [4]float64{25.3, 26.9, 29.0, 30.7}
+
+func newWash(kind string) *wash {
+	w := &wash{spring: kind == "spring"}
+	if w.spring {
+		w.line = make([]float32, rate/10)
+		w.taps = [2]int{int(0.033 * rate), int(0.041 * rate)}
+		w.damp.set(4200)
+		// Each trip round loses as much as falls 60 dB in 2.2 s.
+		w.springG = float32(math.Pow(10, -3*float64(w.taps[0])/(2.2*rate)))
+		return w
+	}
+	// A decay of about 2.5 s: each comb loses as much a trip.
+	for ch := range 2 {
+		for k, ms := range washCombMs {
+			n := int((ms + float64(ch)*0.53) * rate / 1000)
+			g := float32(math.Pow(10, -3*float64(n)/(2.5*rate)))
+			w.combs[ch][k] = washComb{buf: make([]float32, n), g: g, d: 0.55}
+		}
+		for k, ms := range []float64{5.0, 1.7} {
+			w.ap[ch][k] = allpass{buf: make([]float32, int((ms+float64(ch)*0.23)*rate/1000)), g: 0.5}
+		}
+	}
+	return w
+}
+
+func (w *wash) process(l, r []float32) {
+	dry := 1 - w.mix*0.4
+	for i := range l {
+		x := (l[i] + r[i]) * 0.5
+		var wl, wr float32
+		if w.spring {
+			// The echo comes back off the spring's line, is darkened and
+			// smeared into a chirp, and goes round again with the sound.
+			n := len(w.line)
+			back := w.line[(w.at-w.taps[0]+n)%n]
+			wr = w.line[(w.at-w.taps[1]+n)%n]
+			y := x + w.damp.lp(back)*w.springG
+			for k := range w.disp {
+				y = w.disp[k].step(y, 0.62)
+			}
+			w.line[w.at] = y + 1e-18
+			w.at = (w.at + 1) % n
+			wl = back
+		} else {
+			for k := range 4 {
+				wl += w.combs[0][k].step(x)
+				wr += w.combs[1][k].step(x)
+			}
+			wl, wr = wl*0.25, wr*0.25
+			for k := range 2 {
+				wl = w.ap[0][k].step(wl)
+				wr = w.ap[1][k].step(wr)
+			}
+		}
+		l[i] = l[i]*dry + wl*w.mix
+		r[i] = r[i]*dry + wr*w.mix
 	}
 }

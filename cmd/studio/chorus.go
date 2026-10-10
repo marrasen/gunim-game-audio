@@ -16,6 +16,8 @@ var (
 	chorusNames  = []string{"soft", "Juno I", "Juno II", "Juno I+II", "ensemble"}
 	distortTypes = []string{"fuzz", "amp", "fold"}
 	distortNames = []string{"fuzz", "amp", "fold"}
+	washTypes    = []string{"hall", "spring"}
+	washNames    = []string{"hall", "spring"}
 )
 
 // kindUnit is an effect of a track's as one control, as a synth's
@@ -52,6 +54,14 @@ func newKindUnit(label string, base *string, rel string, types, names []string, 
 func newChorusUnit(base *string) *kindUnit {
 	return newKindUnit("Chorus", base, "/Chorus", chorusTypes, chorusNames, func(track, kind string) gunim.Intent {
 		return ChorusKind{Track: track, Type: kind}
+	})
+}
+
+// newWashUnit returns a track's wash, the reverb before its distortion,
+// as a unit.
+func newWashUnit(base *string) *kindUnit {
+	return newKindUnit("Wash", base, "/Wash", washTypes, washNames, func(track, kind string) gunim.Intent {
+		return WashKind{Track: track, Type: kind}
 	})
 }
 

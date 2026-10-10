@@ -151,6 +151,12 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 		h.decay(6, 0.006)
 		h.f1.set(3200+3000*tone, 0.4)
 		h.end = secs(1.6 * decay)
+	case drTambourine:
+		h.f1.set(7500+2500*tone, 0.35)
+		h.hp.set(5000)
+		h.decay(0, 0.003)
+		h.decay(1, 0.07*decay)
+		h.end = secs(0.6 * decay)
 	case drRiser, drDown:
 		h.end = dur + secs(0.03)
 	default:
@@ -286,6 +292,16 @@ func (h *hit) render(l, r []float32) {
 			s = softClip(sin1(h.ph[0])*e[1]*1.8) + hp*e[2]*(0.4+0.5*tone)
 		case drMetal:
 			s = h.metalHit(tune, tone)
+		case drTambourine:
+			// A tambourine: its jingles clash three times a few
+			// milliseconds apart as it is struck, then ring a moment,
+			// bright metal and noise above 5 kHz.
+			if h.t < 3*tambGap && h.t%tambGap == 0 {
+				e[0] = 1
+			}
+			m := h.metal(4.2*tune)/6 + 0.6*h.noise.bipolar()
+			_, bp, _ := h.f1.step(m)
+			s = h.hp.hp(bp) * (e[0] + 0.55*e[1]) * 3.2
 		case drRiser, drDown:
 			s = h.sweep(tone)
 		default:
@@ -338,6 +354,7 @@ func (h *hit) silent() bool {
 }
 
 const (
+	tambGap    = rate * 6 / 1000
 	clapGap    = rate * 105 / 10000
 	shakerRise = rate * 12 / 1000
 )
