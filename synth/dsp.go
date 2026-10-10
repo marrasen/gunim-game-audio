@@ -373,12 +373,12 @@ func (vc *vocoder) set(v byte) {
 		peak = max(peak, float32(g))
 	}
 	for b := range vc.to {
-		vc.to[b] = 0.04 + 0.96*vc.to[b]/peak
+		vc.to[b] = 0.06 + 0.94*vc.to[b]/peak
 	}
 	if !vc.ready {
 		vc.gain = vc.to
 		for b, hz := range vocoderBands {
-			vc.f[b].set(hz, 0.82)
+			vc.f[b].set(hz, 0.76)
 		}
 		vc.ready = true
 	}
@@ -400,5 +400,5 @@ func (vc *vocoder) step(x float32) float32 {
 		y += bp * vc.f[b].k * vc.gain[b]
 	}
 	// As loud as the formants make a saw, over the vowels.
-	return y * 1.15
+	return y * 0.94
 }
