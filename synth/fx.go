@@ -351,6 +351,11 @@ type inserts struct {
 	hp, lp     [2]svf
 	hpOn, lpOn bool
 	shape      float32
+	dist       distortion
+	ring       float32
+	ringDt     float32
+	ringPh     float32
+	smash      *smasher
 	crush      float32
 	coarse     int
 	hold       [2]float32
@@ -370,6 +375,21 @@ func (in *inserts) set(t *Track) {
 		in.lp[1].set(float32(t.LPF), 0.1)
 	}
 	in.shape = float32(min(max(t.Shape, 0), 0.99))
+	in.dist.set(t.Distort, t.DistortType)
+	in.ring = float32(min(max(t.Ring, 0), 1))
+	hz := t.RingHz
+	if hz <= 0 {
+		hz = 440
+	}
+	in.ringDt = float32(hz / rate)
+	if t.Smash > 0 {
+		if in.smash == nil {
+			in.smash = &smasher{}
+		}
+		in.smash.mix = float32(min(t.Smash, 1))
+	} else {
+		in.smash = nil
+	}
 	in.crush = 0
 	if t.Crush > 0 {
 		in.crush = float32(math.Exp2(t.Crush - 1))
@@ -406,6 +426,23 @@ func (in *inserts) process(l, r []float32) {
 			l[i] = (1 + k) * l[i] / (1 + k*abs32(l[i]))
 			r[i] = (1 + k) * r[i] / (1 + k*abs32(r[i]))
 		}
+	}
+	if in.dist.on {
+		in.dist.process(l, r)
+	}
+	if in.ring > 0 {
+		for i := range l {
+			m := 1 - in.ring + in.ring*sin1(in.ringPh)
+			l[i] *= m
+			r[i] *= m
+			in.ringPh += in.ringDt
+			if in.ringPh >= 1 {
+				in.ringPh--
+			}
+		}
+	}
+	if in.smash != nil {
+		in.smash.process(l, r)
 	}
 	if in.crush > 0 {
 		for i := range l {
@@ -660,5 +697,131 @@ func (tw *tweaker) post(l, r []float32, reduction float32) {
 				}
 			}
 		}
+	}
+}
+
+// The kinds of distortion.
+const (
+	distFuzz = iota
+	distAmp
+	distFold
+)
+
+var distortKinds = map[string]int{"": distFuzz, "fuzz": distFuzz, "amp": distAmp, "fold": distFold}
+
+// distortion is a track's distortion: a fuzz's hard clip, a guitar
+// amplifier's and its cabinet's, or a wavefolder's.
+type distortion struct {
+	on    bool
+	kind  int
+	gain  float32
+	level float32
+	// The amp's: tight takes the lows out before the valves, and dc
+	// what their lean leaves; the cabinet cuts the lows and the highs
+	// and sings at 1.6 kHz.
+	tight, dc  [2]onePole
+	cabLP      [2][2]svf
+	cabHP, mid [2]svf
+}
+
+func (d *distortion) set(amount float64, kind string) {
+	amount = min(max(amount, 0), 1)
+	d.on = amount > 0
+	if !d.on {
+		return
+	}
+	k := distortKinds[kind]
+	if k != d.kind || d.gain == 0 {
+		*d = distortion{kind: k}
+		for ch := range 2 {
+			d.tight[ch].set(320)
+			d.dc[ch].set(18)
+			d.cabLP[ch][0].set(4500, 0.2)
+			d.cabLP[ch][1].set(4500, 0.2)
+			d.cabHP[ch].set(85, 0.1)
+			d.mid[ch].set(1600, 0.5)
+		}
+	}
+	d.on = true
+	a := float32(amount)
+	switch k {
+	case distFuzz:
+		d.gain, d.level = 1+80*a*a, 1-0.5*a
+	case distAmp:
+		d.gain, d.level = 1+50*a*a, 0.75-0.3*a
+	case distFold:
+		d.gain, d.level = 1+6*a, 0.8
+	}
+}
+
+func (d *distortion) process(l, r []float32) {
+	for ch, x := range [2][]float32{l, r} {
+		switch d.kind {
+		case distFuzz:
+			for i, v := range x {
+				v *= d.gain
+				x[i] = min(max(v, -1), 1) * d.level
+			}
+		case distAmp:
+			const lean = 0.25
+			bias := softClip(lean)
+			for i, v := range x {
+				// The lows tightened, so the chug stays clear.
+				v = (v - 0.7*d.tight[ch].lp(v)) * d.gain
+				// Valves clip one way sooner than the other.
+				v = softClip(v+lean) - bias
+				v -= d.dc[ch].lp(v)
+				_, _, v = d.cabHP[ch].step(v)
+				v, _, _ = d.cabLP[ch][0].step(v)
+				v, _, _ = d.cabLP[ch][1].step(v)
+				_, m, _ := d.mid[ch].step(v)
+				x[i] = (v + 0.6*m) * d.level
+			}
+		case distFold:
+			for i, v := range x {
+				// A sine of the sound folds it back on itself each
+				// time it passes full scale.
+				x[i] = sin1(wrap(v*d.gain*0.25)) * d.level
+			}
+		}
+	}
+}
+
+// smasher mixes a smashed copy of a track under it: compressed as an
+// 1176 is with every ratio's button in, its attack near instant and its
+// release quick, so it pumps, and then driven.
+type smasher struct {
+	mix  float32
+	env  float32
+	gain float32
+}
+
+func (s *smasher) process(l, r []float32) {
+	const (
+		threshold = 0.05
+		att       = 0.5
+		rel       = 0.0004
+	)
+	if s.gain == 0 {
+		s.gain = 1
+	}
+	for i := range l {
+		x := max(abs32(l[i]), abs32(r[i]))
+		if x > s.env {
+			s.env += (x - s.env) * att
+		} else {
+			s.env += (x - s.env) * rel * 4
+		}
+		// Far over the threshold, at a ratio of 20 or more: the level
+		// held near the threshold, and made up to near full scale.
+		g := float32(1)
+		if s.env > threshold {
+			g = threshold / s.env
+		}
+		s.gain += (g - s.gain) * 0.02
+		w := s.gain * 24
+		wl, wr := softClip(l[i]*w), softClip(r[i]*w)
+		l[i] += (wl*0.6 - l[i]*0.4) * s.mix
+		r[i] += (wr*0.6 - r[i]*0.4) * s.mix
 	}
 }

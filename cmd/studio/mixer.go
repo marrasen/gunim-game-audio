@@ -58,17 +58,18 @@ func (m *mixerPane) update(st Studio, u *gunim.UI) {
 // channel is a track's strip on the desk.
 type channel struct {
 	*widget.Card
-	base   string
-	name   *widget.Label
-	gainDB *widget.Label
-	mute   *widget.Button
-	solo   *widget.Button
-	ks     []*knob
-	chorus *chorusUnit
-	meter  *vu
-	fader  *audioui.Fader
-	swatch *swatch
-	gain   float32
+	base    string
+	name    *widget.Label
+	gainDB  *widget.Label
+	mute    *widget.Button
+	solo    *widget.Button
+	ks      []*knob
+	chorus  *kindUnit
+	distort *kindUnit
+	meter   *vu
+	fader   *audioui.Fader
+	swatch  *swatch
+	gain    float32
 }
 
 func newChannel() *channel {
@@ -85,8 +86,11 @@ func newChannel() *channel {
 		newKnob("High cut", b, "/LPF", 200, 20000, 20000).logScale().small().unsetIs(20000),
 		newKnob("Drive", b, "/Shape", 0, 0.95, 0).small(),
 		newKnob("Gated", b, "/Gated", 0, 1, 0).small(),
+		newKnob("Ring", b, "/Ring", 0, 1, 0).small(),
+		newKnob("Smash", b, "/Smash", 0, 1, 0).small(),
 	}
 	c.chorus = newChorusUnit(b)
+	c.distort = newDistortUnit(b)
 	c.mute = widget.NewButton("M")
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
 	c.solo = widget.NewButton("S")
@@ -100,7 +104,7 @@ func newChannel() *channel {
 	for i := 0; i+1 < len(c.ks); i += 2 {
 		rows = append(rows, widget.Row(c.ks[i], c.ks[i+1]))
 	}
-	rows = append(rows, c.chorus)
+	rows = append(rows, c.chorus, c.distort)
 	kcol := widget.Column(rows...)
 	kcol.Cross = widget.CrossCenter
 	buttons := widget.Row(c.mute, c.solo)
@@ -130,10 +134,11 @@ func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	for _, k := range c.ks {
 		k.color = col
 	}
-	showKnobs(st.Doc, c.chorus.k)
-	c.chorus.k.color = col
+	showKnobs(st.Doc, c.chorus.k, c.distort.k)
+	c.chorus.k.color, c.distort.k.color = col, col
 	if tr := track(st.Doc, t.Name); tr != nil {
 		c.chorus.show(t.Name, tr.Chorus, tr.ChorusType, col)
+		c.distort.show(t.Name, tr.Distort, tr.DistortType, col)
 	}
 	_ = u
 }

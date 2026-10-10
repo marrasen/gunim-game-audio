@@ -221,11 +221,11 @@ func lcm(a, b int) int { return a / gcd(a, b) * b }
 // DrumNames are the drums a drums patch plays by name, in the order a
 // tool lists them.
 var DrumNames = []string{"bd", "sn", "cp", "rim", "hh", "oh", "sh", "snap", "lt", "mt", "ht", "cr", "rd", "tim", "boom", "riser", "down",
-	"syn1", "syn2", "syn3", "cb", "sbd", "ssn", "scp", "shh", "soh", "stom", "szap", "nbd", "nsn", "ncp", "nhh", "noh", "ntom", "nclk"}
+	"syn1", "syn2", "syn3", "cb", "bd9", "mtl", "sbd", "ssn", "scp", "shh", "soh", "stom", "szap", "nbd", "nsn", "ncp", "nhh", "noh", "ntom", "nclk"}
 
 // DrumTypes are the types of drum, in the order a tool lists them.
 var DrumTypes = []string{"kick", "snare", "clap", "hat", "ohat", "rim", "tom", "crash", "ride", "shaker", "snap", "timpani", "boom", "riser", "down",
-	"syntom", "cowbell", "sidkick", "sidsnare", "sidclap", "sidhat", "sidohat", "sidtom", "sidzap",
+	"syntom", "cowbell", "kick909", "metal", "sidkick", "sidsnare", "sidclap", "sidhat", "sidohat", "sidtom", "sidzap",
 	"neskick", "nessnare", "nesclap", "neshat", "nesohat", "nestom", "nesmetal"}
 
 // DrumType returns the type of the drum named name in p, as the kit

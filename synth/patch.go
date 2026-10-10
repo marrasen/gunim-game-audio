@@ -30,6 +30,17 @@ type Patch struct {
 	// gliding from note to note over Glide seconds.
 	Poly  int
 	Glide float64
+	// Slide glides only into a note that starts while the one before is
+	// still held, as a TB-303 slides between tied notes; a note after a
+	// rest jumps to its pitch. A track's legato over 1 ties its notes.
+	Slide bool `json:",omitempty"`
+	// Accent is how many octaves an accented note opens the filter by,
+	// as a TB-303's accent sweeps it: a note of velocity 1 is accented,
+	// its filter envelope falling in 0.2 s, and accents close together
+	// stack, each opening it further, as the 303's capacitor charges
+	// before it has drained. Give the notes not accented a velocity
+	// under 1.
+	Accent float64 `json:",omitempty"`
 	// Drive saturates the oscillators before the filter, from 0.
 	Drive float64
 	// Drift detunes each note by up to that many cents, at random, as
@@ -55,7 +66,8 @@ type Patch struct {
 	// Kit is a drums patch's drums, by the names a pattern plays them
 	// by. A name the kit leaves out is a drum of the same name, as bd,
 	// sn, cp, hh, oh, rim, lt, mt, ht, cr, rd, sh, snap, tim, boom,
-	// riser, down, the syn-toms syn1 to syn3, or cb, a cowbell; see Drum.
+	// riser, down, the syn-toms syn1 to syn3, cb, a cowbell, bd9, a
+	// TR-909's kick, or mtl, a metal hit; see Drum.
 	Kit map[string]Drum
 	// Gain is the patch's level, 1 by default.
 	Gain float64
@@ -143,7 +155,9 @@ type Drum struct {
 	// Type is what it is: kick, snare, clap, hat, ohat, rim, tom,
 	// crash, ride, shaker, snap, timpani, boom, riser or down; syntom, an
 	// electronic tom as a Simmons drum's, its pitch diving; cowbell, a
-	// TR-808's; or the
+	// TR-808's; kick909, a TR-909's kick, its pitch falling fast from
+	// high with a click; metal, a struck piece of metal, its partials
+	// clanging; or the
 	// SID's, built a frame at a time as a Commodore 64's drums are:
 	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
 	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
@@ -181,6 +195,8 @@ var drumNames = map[string]string{
 	"ncp":  "nesclap",
 	"syn1": "syntom", "syn2": "syntom", "syn3": "syntom", "syntom": "syntom",
 	"cb": "cowbell", "cowbell": "cowbell",
+	"bd9": "kick909", "kick909": "kick909",
+	"mtl": "metal", "metal": "metal",
 }
 
 // tomTune tunes the low and high toms either side of the middle one,
@@ -220,6 +236,8 @@ const (
 	drNESClap
 	drSynTom
 	drCowbell
+	drKick909
+	drMetal
 )
 
 var drumTypes = map[string]int{
@@ -230,7 +248,7 @@ var drumTypes = map[string]int{
 	"sidtom": drSIDTom, "sidzap": drSIDZap,
 	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
 	"nesclap": drNESClap,
-	"syntom":  drSynTom, "cowbell": drCowbell,
+	"syntom":  drSynTom, "cowbell": drCowbell, "kick909": drKick909, "metal": drMetal,
 }
 
 // The waves of an oscillator.

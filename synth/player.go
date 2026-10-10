@@ -1503,7 +1503,11 @@ func (t *track) meter(l, r []float32) {
 	for ch, x := range [2][]float32{l, r} {
 		var pk, ms float32
 		for _, s := range x {
-			pk = max(pk, abs32(s))
+			// A comparison, not max, which minds NaNs and signed zeros
+			// and costs a meter on every track dearly.
+			if a := abs32(s); a > pk {
+				pk = a
+			}
 			ms += s * s
 		}
 		if len(x) > 0 {

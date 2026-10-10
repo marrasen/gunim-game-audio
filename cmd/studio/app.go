@@ -380,6 +380,18 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		if err != nil {
 			s.status = plain(err)
 		}
+	case DistortKind:
+		err := s.edit(func(song *synth.Song) {
+			if t := track(song, v.Track); t != nil {
+				t.DistortType = v.Type
+				if t.Distort == 0 {
+					t.Distort = 0.5
+				}
+			}
+		})
+		if err != nil {
+			s.status = plain(err)
+		}
 	case PresetTry:
 		s.tryPreset(v.Patch, v.ID)
 	case PresetStep:

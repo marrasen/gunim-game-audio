@@ -78,6 +78,7 @@ type patchPane struct {
 	vKnobs  []*knob
 	vowel   *selector
 	vocoder *widget.Button
+	slide   *widget.Button
 	lib     *libraryBar
 	// track is the track whose strip shows, one that plays the patch,
 	// and tracks those that play a synth or a pluck, to step through.
@@ -180,6 +181,7 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 		newKnob("Drive", pb, "/Drive", 0, 1, 0),
 		newKnob("Noise", pb, "/Noise", 0, 1, 0),
 		newKnob("Drift", pb, "/Drift", 0, 20, 0).units("c"),
+		newKnob("Accent", pb, "/Accent", 0, 4, 0).units(" oct"),
 		newKnob("Gain", pb, "/Gain", 0, 2, 1).unsetIs(1),
 	}
 	pp.vowel = newSelector(vowels, func(i int) gunim.Intent {
@@ -191,7 +193,9 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	})
 	pp.vocoder = widget.NewButton("Vocoder")
 	pp.vocoder.KeepFocus, pp.vocoder.Tooltip = true, "Sing the vowel through a vocoder's ten bands, as a Roland VP-330's: a robot's voice"
-	voice := panelWith(small("VOICE · sings a vowel"), pp.vowel, widget.Row(pp.vocoder), knobs(pp.vKnobs[:3]...), knobs(pp.vKnobs[3:]...))
+	pp.slide = widget.NewButton("Slide")
+	pp.slide.KeepFocus, pp.slide.Tooltip = true, "Glide only into a note tied to the one before, as a TB-303 slides; a note after a rest jumps"
+	voice := panelWith(small("VOICE · sings a vowel"), pp.vowel, widget.Row(pp.vocoder, pp.slide), knobs(pp.vKnobs[:4]...), knobs(pp.vKnobs[4:]...))
 	pp.arpOn = widget.NewButton("On")
 	pp.arpOn.KeepFocus, pp.arpOn.Tooltip = true, "Arpeggiate: steps through notes fast, as a Commodore 64 plays a chord on one voice"
 	pp.arpChrd = widget.NewButton("Chords")
@@ -248,7 +252,7 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	next.OnClick = func(*gunim.UI) gunim.Intent { return pp.stepTrack(1) }
 	nav := widget.Row(prev, pp.trackName, next).Grow(pp.trackName, 1)
 	nav.Cross = widget.CrossCenter
-	pp.stripSw = newSwitcher(widget.NewSized(pp.strip, 0, 600), small("No track plays this patch."))
+	pp.stripSw = newSwitcher(widget.NewSized(pp.strip, 0, 750), small("No track plays this patch."))
 	left := widget.Column(small("TRACK"), nav, pp.stripSw)
 	left.Cross = widget.CrossStretch
 	page := widget.Row(widget.NewSized(left, 124, 0), col).Grow(col, 1)
@@ -370,6 +374,8 @@ func (pp *patchPane) update(st Studio) {
 	pp.vowel.SetSelected(segmentedIndex(vowels, vw))
 	pp.vocoder.Active = p.Vocoder
 	pp.vocoder.OnClick = widget.Sends(ToggleValue{Path: pp.base + "/Vocoder"})
+	pp.slide.Active = p.Slide
+	pp.slide.OnClick = widget.Sends(ToggleValue{Path: pp.base + "/Slide"})
 	pp.resp.song, pp.fenv.song, pp.aenv.song = song, song, song
 	if st.Preview.Patch == pp.name {
 		pp.note.data, pp.cycle.data = st.Preview.Wave, st.Preview.Cycle

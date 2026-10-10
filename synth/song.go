@@ -143,6 +143,20 @@ type Track struct {
 	HPF, LPF, Shape, Crush float64
 	Coarse                 int
 	Chorus                 float64
+	// Distort distorts it, from 0 to 1, as DistortType says: fuzz, the
+	// default, clipped hard; amp, a guitar's amplifier and its speaker's
+	// cabinet; or fold, a wavefolder's metallic folds.
+	Distort     float64 `json:",omitempty"`
+	DistortType string  `json:",omitempty"`
+	// Ring ring-modulates it, from 0 to 1, with a sine at RingHz, 440 by
+	// default: the clangorous, metallic voice of a ring modulator, as
+	// industrial records put on their snares and their voices.
+	Ring   float64 `json:",omitempty"`
+	RingHz float64 `json:",omitempty"`
+	// Smash mixes under it, from 0 to 1, a copy of it crushed by a
+	// compressor with every ratio's button in and driven, as a room's
+	// drums are smashed so they pump.
+	Smash float64 `json:",omitempty"`
 	// ChorusType is the chorus's kind: soft, the default, two copies
 	// swaying slowly; juno1, juno2 or juno12, a Roland Juno-60's chorus
 	// I, II, or both buttons down; or ensemble, a string machine's.
@@ -704,6 +718,9 @@ func (c *compiled) compileTrack(t *Track, k key, progs [][]Chord, sting bool) (*
 		ct.arp = arpRandom
 	default:
 		return nil, fmt.Errorf("synth: track %s arpeggiates %q, not up, down, updown, downup, converge or random", t.Name, t.Arp)
+	}
+	if _, ok := distortKinds[t.DistortType]; !ok {
+		return nil, fmt.Errorf("synth: track %s distorts as %q, not fuzz, amp or fold", t.Name, t.DistortType)
 	}
 	if _, ok := chorusKinds[t.ChorusType]; !ok {
 		return nil, fmt.Errorf("synth: track %s has chorus %q, not soft, juno1, juno2, juno12 or ensemble", t.Name, t.ChorusType)

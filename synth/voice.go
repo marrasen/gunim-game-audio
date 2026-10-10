@@ -4,6 +4,10 @@ import (
 	"math"
 )
 
+// accentDrain is how much of an accent's charge is left after a control
+// block: it drains to a third in 0.3 s.
+var accentDrain = float32(math.Exp(-float64(control) / (0.3 * rate)))
+
 // The most oscillators a patch plays, and copies of each.
 const (
 	maxOsc     = 4
@@ -62,6 +66,9 @@ type voice struct {
 	// drift is how far the note is off its pitch, in semitones, as an
 	// analogue oscillator drifts.
 	drift float32
+	// accent is the charge of the voice's accents, which each accented
+	// note adds to and which drains, opening the filter as it stands.
+	accent float32
 	// hz is the pitch heard, from pitchAt, and cut and res the filter's
 	// tuning, kept to tune it again only once they move.
 	hz, pitchAt, cut, res float32
@@ -89,7 +96,7 @@ func (v *voice) start(p *patch, n note, age uint64) {
 	src := p.src
 	v.amp.set(src.Amp)
 	v.fenv.set(src.FilterEnv)
-	if !v.on || p.poly > 1 || src.Glide <= 0 {
+	if !v.on || p.poly > 1 || src.Glide <= 0 || src.Slide && retrig {
 		v.pitch = n.pitch
 	}
 	v.glide = 1
@@ -128,6 +135,14 @@ func (v *voice) start(p *patch, n note, age uint64) {
 	}
 	if vowel != 0 {
 		v.aim(vowel)
+	}
+	if src.Accent > 0 && n.vel >= 0.95 {
+		// Accented: the filter's envelope falls in 0.2 s, and the charge
+		// stacks on what is left of the last accent's.
+		e := src.FilterEnv
+		e.Decay = 0.2
+		v.fenv.set(e)
+		v.accent = min(v.accent+1, 2.5)
 	}
 	v.drift = 0
 	if src.Drift > 0 {
@@ -263,6 +278,13 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 				cut = 20000
 			}
 			oct := v.fenv.v*float32(f.Env) + lCut + float32(f.Key)*(v.pitch-60)/12 + float32(f.Vel)*(v.n.vel-1)
+			if v.accent > 0 {
+				oct += float32(src.Accent) * v.accent
+				v.accent *= accentDrain
+				if v.accent < 1e-3 {
+					v.accent = 0
+				}
+			}
 			cut *= exp2(oct)
 			res := float32(f.Res)
 			if v.n.res >= 0 {

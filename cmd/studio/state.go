@@ -199,6 +199,9 @@ type (
 	// ChorusKind sets Track's chorus to Type, and turns its chorus up
 	// where it was silent, so the kind picked is heard.
 	ChorusKind struct{ Track, Type string }
+	// DistortKind sets Track's distortion to Type, and turns it up where
+	// it was off, so the kind picked is heard.
+	DistortKind struct{ Track, Type string }
 	// SetInts sets the list of whole numbers at Path, as a wave table.
 	SetInts struct {
 		Path   string
@@ -304,6 +307,7 @@ func init() {
 	gunim.RegisterType[ClearValue]("studio.clear")
 	gunim.RegisterType[ToggleValue]("studio.toggle")
 	gunim.RegisterType[ChorusKind]("studio.chorus")
+	gunim.RegisterType[DistortKind]("studio.distort")
 	gunim.RegisterType[PresetTry]("studio.preset.try")
 	gunim.RegisterType[PresetStep]("studio.preset.step")
 	gunim.RegisterType[PresetKeep]("studio.preset.keep")
