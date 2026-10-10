@@ -181,6 +181,18 @@ const (
 	// buzz whose filter opens and closes, and, held back till its drop,
 	// a TB-303's acid line.
 	MirrorShine = "mirror-shine"
+	// Meridian is a futurepop song in the manner of VNV Nation, made in
+	// code, at 138 BPM in B minor, in 96 bars: a choir, timpani and a
+	// piano, a 16th EBM bass and a supersaw arpeggio, a sung baritone
+	// in a hall, a chorus lifting to the harmonic minor's V, and a
+	// soaring supersaw lead.
+	Meridian = "meridian"
+	// Parallax is a futurepop song in the manner of Apoptygma Berzerk,
+	// made in code, at 132 BPM in F minor, in 96 bars: an arpeggio for
+	// a hook, an EBM bass, a trance-gated supersaw pad, a sung tenor
+	// doubled, a supersaw riff, a Commodore 64's interlude, and a robot
+	// girl's voice in its breakdown.
+	Parallax = "parallax"
 )
 
 // files holds the songs: a folder each, named for the song, with its

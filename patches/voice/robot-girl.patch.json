@@ -1,0 +1,16 @@
+{
+	"Osc": [
+		{
+			"Wave": "glottal"
+		}
+	],
+	"Amp": {
+		"Attack": 0.005,
+		"Decay": 0.1,
+		"Sustain": 0.9,
+		"Release": 0.05
+	},
+	"Vowel": "a",
+	"Singer": "alto",
+	"Poly": 1
+}

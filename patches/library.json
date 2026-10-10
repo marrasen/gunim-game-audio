@@ -39,6 +39,11 @@
 					"About": "Two saws and a square an octave down, buzzing: set its track's Distort to fold and cut under 140 Hz, with a sub under it."
 				},
 				{
+					"Name": "EBM bass",
+					"File": "bass/ebm-bass.patch.json",
+					"About": "A saw and a square an octave down, plucked short for 16ths whose offbeats you accent: the throb under futurepop."
+				},
+				{
 					"Name": "FM slap bass",
 					"File": "bass/fm-slap-bass.patch.json",
 					"About": "A DX7's bass: an FM tone with a bright slap on its attack."
@@ -112,6 +117,11 @@
 					"Name": "Resonant blip",
 					"File": "arp/resonant-blip.patch.json",
 					"About": "A square through a filter on the edge of whistling, short as a drop: Moroder's sequencer."
+				},
+				{
+					"Name": "Futurepop arp",
+					"File": "arp/futurepop-arp.patch.json",
+					"About": "Three detuned saws and an octave, plucked: a trance arpeggio for 16ths, through a dotted-eighth delay."
 				},
 				{
 					"Name": "Glass FM arp",
@@ -209,6 +219,11 @@
 					"About": "A warm saw and pulse pad, its filter breathing slowly, under a Juno's chorus."
 				},
 				{
+					"Name": "Gated supersaw",
+					"File": "pad/gated-supersaw.patch.json",
+					"About": "Seven saws and three an octave up, held: give its track a Gate, as x.xx x.x. x.xx x.x., and it chops as a trance pad."
+				},
+				{
 					"Name": "Glass pad",
 					"File": "pad/glass-pad.patch.json",
 					"About": "A bright, glassy pad of FM and saws, as a PPG Wave's."
@@ -228,6 +243,26 @@
 		{
 			"Name": "Vocoders & voices",
 			"Presets": [
+				{
+					"Name": "Baritone singer",
+					"File": "voice/baritone-singer.patch.json",
+					"About": "A voice's buzz through a baritone's five formants, its vibrato coming in late: a clean, low lead to sing vowels with."
+				},
+				{
+					"Name": "Tenor singer",
+					"File": "voice/tenor-singer.patch.json",
+					"About": "A tenor's voice, brighter and higher, its vibrato a little quicker."
+				},
+				{
+					"Name": "Sung choir",
+					"File": "voice/sung-choir.patch.json",
+					"About": "Voices and saws singing an alto's aah together, slow to swell: a choir for chords."
+				},
+				{
+					"Name": "Robot girl",
+					"File": "voice/robot-girl.patch.json",
+					"About": "An alto's voice with no vibrato and no glide, as a computer speaks: crush its track to 8 bits and coarse it 2."
+				},
 				{
 					"Name": "Vocoder voice",
 					"File": "voice/vp330-voice.patch.json",

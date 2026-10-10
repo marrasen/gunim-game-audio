@@ -168,7 +168,7 @@ func TestEverySongPlays(t *testing.T) {
 func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 	for _, name := range []string{KeypadRound, BossEntrance, MascotDance, BubbleBounce, SisterDreams, GraveyardGallop,
 		PocketKingdom, MeadowHop, HerosField, PalaceRun, UnderworldAscent, StarDrift, OrbitRound, AlienEntrance,
-		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon, RingMeTwice, WireCathedral, MirrorShine} {
+		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon, RingMeTwice, WireCathedral, MirrorShine, Meridian, Parallax} {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)
@@ -241,15 +241,16 @@ func TestLabbetsSongsAreAsLoudAsTheOtherRooms(t *testing.T) {
 	}
 }
 
-func TestTheEightiesSongsAreAsLoudAsRecordsOfTheirDay(t *testing.T) {
+func TestTheGroovesAreAsLoudAsEachOther(t *testing.T) {
 	if testing.Short() {
-		t.Skip("plays four minutes of music")
+		t.Skip("plays ten minutes of music")
 	}
 	// Each whole song sits where the mid-1980s' records did, -16 to
 	// -14, and within a decibel and a half of Mascot Dance, the other
-	// groove.
+	// groove; the futurepop songs, louder on record, are held there too,
+	// so a game's volume suits them all.
 	m := loudness(t, MascotDance, 1, 16)
-	for name, bars := range map[string]int{NotteDiNeon: 64, RingMeTwice: 80} {
+	for name, bars := range map[string]int{NotteDiNeon: 64, RingMeTwice: 80, Meridian: 96, Parallax: 96} {
 		l := loudness(t, name, 1, bars)
 		t.Logf("%s %.1f LUFS; Mascot Dance %.1f", name, l, m)
 		if l < -16 || l > -14 || math.Abs(l-m) > 1.5 {
