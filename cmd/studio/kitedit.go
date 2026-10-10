@@ -27,6 +27,7 @@ type kitPane struct {
 	names   []string
 	picker  *widget.Dropdown
 	lib     *libraryBar
+	tree    *presetTree
 	about   *widget.Label
 	copy    *widget.IconButton
 	load    *widget.IconButton
@@ -96,10 +97,15 @@ func newKitPane(changed func(kit, drum string) gunim.Intent) *kitPane {
 	padPanel := panel("PADS · press one to play it and edit it", sized(kp.pads, 0, 340))
 	body := widget.Row(padPanel, editor).Grow(padPanel, 1.1).Grow(editor, 1)
 	body.Cross = widget.CrossStretch
-	kp.lib = newLibraryBar(true)
+	kp.lib = newLibraryBar()
 	col := widget.Column(head, kp.lib, body)
 	col.Cross = widget.CrossStretch
-	kp.Scroll = widget.NewScroll(widget.NewPad(col))
+	kp.tree = newPresetTree(true)
+	shelf := widget.Column(small("KIT LIBRARY"), widget.NewSized(widget.NewScroll(kp.tree), 0, 560))
+	shelf.Cross = widget.CrossStretch
+	page := widget.Row(widget.NewSized(shelf, 196, 0), col).Grow(col, 1)
+	page.Cross = widget.CrossStart
+	kp.Scroll = widget.NewScroll(widget.NewPad(page))
 	return kp
 }
 
@@ -136,6 +142,7 @@ func (kp *kitPane) update(st Studio) {
 		return
 	}
 	kp.lib.update(st, kp.name)
+	kp.tree.update(st, kp.name)
 	var users []string
 	for _, t := range song.Tracks {
 		if t.Patch == kp.name {

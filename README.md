@@ -372,7 +372,8 @@ changed, with no file to edit and nothing to reload:
   track panel slides away to give the desk the window's width.
 - **Patch.** On its left, the strip of the track playing the patch, as
   the mixer's, and arrows to step to the track before or after, its
-  patch shown in turn. A synth's oscillators, up to four, each with its
+  patch shown in turn; beside it the patch library, open. The page
+  takes the window's width, as the mixer does. A synth's oscillators, up to four, each with its
   wave picked from a panel of lamps, an analogue synth's waves over the
   chips', and drawn (a click on it turns to the next wave), its octave,
   tuning, level, unison voices and spread, and its pulse width or FM
@@ -413,9 +414,10 @@ changed, with no file to edit and nothing to reload:
 The patch and kit editors browse a library of presets, in
 `patches/`: basses, leads, arps and plucks, brass, keys and bells, pads
 and strings, vocoders, effects and drum kits, and every patch of the
-songs made in code. A preset picked from the library's menu, or stepped
-to with its arrows, or picked at random, plays in place of the patch at
-once, as loud as the patch was, so the mix keeps its balance; Keep makes
+songs made in code. The library stays open as a tree beside the
+editor, its categories folders, and the songs' patches a folder a song.
+A preset picked in it, or stepped to with the arrows over the editor,
+or picked at random, plays in place of the patch at once, as loud as the patch was, so the mix keeps its balance; Keep makes
 it the patch, and Revert puts the patch back as it was. A program reads
 the library with `music.Presets`.
 

@@ -6,7 +6,6 @@ import (
 	"math/rand/v2"
 	"slices"
 
-	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/widget"
 
@@ -213,39 +212,20 @@ func levelOf(p *synth.Patch, pitch int) float64 {
 	return math.Sqrt(sum / float64(max(len(x), 1)))
 }
 
-// libraryBar browses the patch library for the patch an editor shows: a
-// menu of the presets by category, a step back and on through the
-// category, a pick at random, and Keep and Revert for the preset tried.
+// libraryBar steps through the patch library, which its tree, docked
+// beside the editor, opens: a step back and on through the category of
+// the preset tried, a pick at random, Keep and Revert for the preset
+// tried, and what it sounds like.
 type libraryBar struct {
 	*widget.Flex
-	pick         *widget.Dropdown
 	prev, next   *widget.IconButton
 	dice         *widget.IconButton
 	keep, revert *widget.Button
 	about        *widget.Label
-	// patch is the patch it tries presets on, drums whether it is a
-	// kit, and ids the presets in the menu, at paths.
-	patch string
-	drums bool
-	ids   []string
-	paths [][]int
-	built int
 }
 
-// tryLabel is the menu's first item, shown while no preset is tried.
-const tryLabel = "Try a preset…"
-
-func newLibraryBar(drums bool) *libraryBar {
-	lb := &libraryBar{drums: drums, built: -1}
-	lb.pick = widget.NewDropdown(widget.Labels(tryLabel))
-	lb.pick.Label = "Patch library"
-	lb.pick.OnChangeSub = func(path []int, _ *gunim.UI) gunim.Intent {
-		i := slices.IndexFunc(lb.paths, func(q []int) bool { return slices.Equal(q, path) })
-		if i < 0 {
-			return nil
-		}
-		return PresetTry{Patch: lb.patch, ID: lb.ids[i]}
-	}
+func newLibraryBar() *libraryBar {
+	lb := &libraryBar{}
 	lb.prev = widget.NewIconButton(icon.ChevronLeft, "Try the preset before this one")
 	lb.next = widget.NewIconButton(icon.ChevronRight, "Try the next preset")
 	lb.dice = widget.NewIconButton(icon.Dices, "Try a preset of this category at random")
@@ -255,30 +235,21 @@ func newLibraryBar(drums bool) *libraryBar {
 	lb.revert.Icon, lb.revert.Tooltip = icon.Undo2, "Put back the patch as it was before you tried presets"
 	lb.about = small("")
 	lb.about.MaxLines = 2
-	title := small("LIBRARY")
-	lb.Flex = widget.Row(title, lb.pick, lb.prev, lb.next, lb.dice, lb.keep, lb.revert, lb.about).Grow(lb.about, 1)
+	lb.Flex = widget.Row(small("LIBRARY"), lb.prev, lb.next, lb.dice, lb.keep, lb.revert, lb.about).Grow(lb.about, 1)
 	lb.Flex.Cross = widget.CrossCenter
 	return lb
 }
 
 // update shows the library for the patch name, from st.
 func (lb *libraryBar) update(st Studio, name string) {
-	lb.patch = name
-	if lb.built != len(st.Presets) {
-		lb.build(st.Presets)
-	}
 	id, trying := st.Trying[name]
-	at := slices.Index(lb.ids, id)
-	if trying && at >= 0 {
-		lb.pick.SetSelectedPath(lb.paths[at], nil)
+	lb.about.Text = "Pick a sound in the library to try in place of " + name + ", as loud as it is; Revert puts it back."
+	if trying {
 		for _, p := range st.Presets {
 			if p.ID == id {
 				lb.about.Text = p.About
 			}
 		}
-	} else {
-		lb.pick.SetSelectedPath([]int{0}, nil)
-		lb.about.Text = "Browse sounds to try in place of " + name + ", as loud as it is; Revert puts it back."
 	}
 	lb.prev.OnClick = widget.Sends(PresetStep{Patch: name, By: -1})
 	lb.next.OnClick = widget.Sends(PresetStep{Patch: name, By: 1})
@@ -286,40 +257,4 @@ func (lb *libraryBar) update(st Studio, name string) {
 	lb.keep.OnClick = widget.Sends(PresetKeep{Patch: name})
 	lb.revert.OnClick = widget.Sends(PresetRevert{Patch: name})
 	lb.keep.Disabled, lb.revert.Disabled = !trying, !trying
-}
-
-// build lays the presets of the bar's kind out in the menu: a submenu a
-// category, and the songs' a submenu a song in theirs.
-func (lb *libraryBar) build(rows []PresetRow) {
-	lb.built = len(rows)
-	items := []widget.MenuItem{{Label: tryLabel}}
-	lb.ids, lb.paths = lb.ids[:0], lb.paths[:0]
-	subs := map[string]*widget.Submenu{}
-	at := map[string]int{}
-	for _, r := range rows {
-		if r.Drums != lb.drums {
-			continue
-		}
-		top := r.Path[0]
-		if _, ok := subs[top]; !ok {
-			subs[top] = &widget.Submenu{}
-			at[top] = len(items)
-			items = append(items, widget.MenuItem{Label: top, Sub: subs[top], Break: top == fromSongs})
-		}
-		sub, path := subs[top], []int{at[top]}
-		if len(r.Path) > 1 {
-			key := top + "/" + r.Path[1]
-			if _, ok := subs[key]; !ok {
-				subs[key] = &widget.Submenu{}
-				at[key] = len(sub.Items)
-				sub.Items = append(sub.Items, widget.MenuItem{Label: r.Path[1], Sub: subs[key]})
-			}
-			path = append(path, at[key])
-			sub = subs[key]
-		}
-		lb.ids = append(lb.ids, r.ID)
-		lb.paths = append(lb.paths, append(path, len(sub.Items)))
-		sub.Items = append(sub.Items, widget.MenuItem{Label: r.Name})
-	}
-	lb.pick.SetItems(items)
 }

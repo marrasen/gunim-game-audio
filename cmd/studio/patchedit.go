@@ -80,6 +80,7 @@ type patchPane struct {
 	vocoder *widget.Button
 	slide   *widget.Button
 	lib     *libraryBar
+	tree    *presetTree
 	// track is the track whose strip shows, one that plays the patch,
 	// and tracks those that play a synth or a pluck, to step through.
 	track     string
@@ -238,7 +239,7 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	readouts.Cross = widget.CrossStretch
 	out := panel("OUTPUT · play the keys to hear the patch over the song", sized(readouts, 0, 96), sized(pp.keys, 0, 70))
 
-	pp.lib = newLibraryBar(false)
+	pp.lib = newLibraryBar()
 	col := widget.Column(head, pp.lib, pp.body, mid, low, out)
 	col.Cross = widget.CrossStretch
 	// The track playing the patch, its strip as the mixer's, and a step
@@ -255,7 +256,10 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pp.stripSw = newSwitcher(widget.NewSized(pp.strip, 0, 750), small("No track plays this patch."))
 	left := widget.Column(small("TRACK"), nav, pp.stripSw)
 	left.Cross = widget.CrossStretch
-	page := widget.Row(widget.NewSized(left, 124, 0), col).Grow(col, 1)
+	pp.tree = newPresetTree(false)
+	shelf := widget.Column(small("PATCH LIBRARY"), widget.NewSized(widget.NewScroll(pp.tree), 0, 720))
+	shelf.Cross = widget.CrossStretch
+	page := widget.Row(widget.NewSized(left, 124, 0), widget.NewSized(shelf, 196, 0), col).Grow(col, 1)
 	page.Cross = widget.CrossStart
 	pp.Scroll = widget.NewScroll(widget.NewPad(page))
 	return pp
@@ -299,6 +303,7 @@ func (pp *patchPane) update(st Studio) {
 		return
 	}
 	pp.lib.update(st, pp.name)
+	pp.tree.update(st, pp.name)
 	pp.showTrack(st)
 	var users []string
 	for _, t := range song.Tracks {

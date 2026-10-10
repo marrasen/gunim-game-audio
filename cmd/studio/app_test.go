@@ -613,3 +613,46 @@ func TestTheBeatEditsEveryDrumTrack(t *testing.T) {
 		t.Errorf("a click on the hats' M sent %#v", tv)
 	}
 }
+
+func TestTheDockedLibraryOpensAndTries(t *testing.T) {
+	h := newHarness(t, music.MirrorShine)
+	h.do(OpenEditor{Editor: "Patch", Track: "acid"})
+	h.settle()
+	pt := h.v.patch.tree
+	if len(pt.folders()) != 0 || len(pt.shown) < 8 || pt.shown[0].label != "Bass" {
+		t.Fatalf("the library opens with %v open, its rows starting %+v", pt.folders(), pt.shown[0])
+	}
+	at, ok := h.boundsOf(pt)
+	if !ok {
+		t.Fatal("the library is not on screen")
+	}
+	click := func(row int) {
+		p := geomPt(at.Min.X+40, at.Min.Y+4+(float32(row)+0.5)*treeRowH)
+		h.w.Input(input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+		h.w.Input(input.PointerUp{Pos: p, Button: input.ButtonPrimary, Time: time.Now()})
+		h.frame()
+	}
+	// A click on Bass opens it; on its first preset tries it.
+	click(0)
+	if !slices.Equal(pt.folders(), []string{"Bass"}) || pt.shown[1].label != "Juno octave bass" {
+		t.Fatalf("a click on Bass opens %v, its first row %q", pt.folders(), pt.shown[1].label)
+	}
+	click(1)
+	if got, ok := h.intent().(PresetTry); !ok || got != (PresetTry{Patch: "acid", ID: "Bass/Juno octave bass"}) {
+		t.Fatalf("a click on a preset sent %#v", got)
+	}
+	// A song's patch tried by the bar opens its folders of itself.
+	h.do(PresetTry{Patch: "acid", ID: "From the songs/Wire Cathedral/bass"})
+	h.settle()
+	if f := pt.folders(); !slices.Contains(f, "From the songs") || !slices.Contains(f, "From the songs/Wire Cathedral") {
+		t.Errorf("a song's patch tried leaves open only %v", f)
+	}
+	// The kit page has its own, of kits.
+	h.do(OpenEditor{Editor: "Kit", Track: "kick"})
+	h.settle()
+	for _, r := range h.v.kit.tree.rows {
+		if !r.Drums {
+			t.Fatalf("the kit's library offers %s, no kit", r.ID)
+		}
+	}
+}

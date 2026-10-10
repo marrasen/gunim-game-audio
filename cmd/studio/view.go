@@ -257,7 +257,9 @@ func (v *view) update(s Studio, u *gunim.UI) {
 		v.editorGen = s.EditorGen
 		v.open(s, u)
 	}
-	v.side.open = v.tabs.Selected() != tabMixer
+	// The mixer and the patch page, which shows the track's strip and steps
+	// through the tracks, take the window's width.
+	v.side.open = v.tabs.Selected() != tabMixer && v.tabs.Selected() != tabPatch
 	v.mixer.update(s, u)
 	v.patch.update(s)
 	v.kit.update(s)
