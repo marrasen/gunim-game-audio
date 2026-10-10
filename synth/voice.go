@@ -714,19 +714,19 @@ func newVoices(n int, seed uint64) *voices {
 }
 
 // play gives n to a voice: a mono patch's one voice, or one at rest, or
-// one letting go, or else the oldest.
-func (vv *voices) play(p *patch, n note) {
+// one letting go, or else the oldest. It returns the voice.
+func (vv *voices) play(p *patch, n note) *voice {
 	vv.age++
 	if p.poly == 1 {
 		vv.vs[0].start(p, n, vv.age)
-		return
+		return vv.vs[0]
 	}
 	var best *voice
 	for _, v := range vv.vs[:min(p.poly, len(vv.vs))] {
 		switch {
 		case !v.on:
 			v.start(p, n, vv.age)
-			return
+			return v
 		case best == nil,
 			v.quiet() && !best.quiet(),
 			v.quiet() == best.quiet() && v.age < best.age:
@@ -734,6 +734,7 @@ func (vv *voices) play(p *patch, n note) {
 		}
 	}
 	best.start(p, n, vv.age)
+	return best
 }
 
 // releaseAll lets go of every note.

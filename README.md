@@ -646,6 +646,39 @@ a speaker:
 go run ./cmd/render -song boss-entrance -o boss.wav -tracks -bands
 ```
 
+## Playing MIDI files
+
+`cmd/gmplay` plays a MIDI file through the synth engine, as a General
+MIDI sound module would: its 128 instruments are patches of package
+`synth`, from the grand piano to the gunshot, and channel 10 plays a
+drum kit of its drums, by General MIDI's key map. `-o` renders the file
+to a WAV file in place of playing it, `-start` starts it some seconds
+in, `-loop` plays it again each time it ends, `-gain` turns it up or
+down in decibels, and `-v` lists each channel's instruments:
+
+```sh
+go run github.com/marrasen/gunim-game-audio/cmd/gmplay@latest song.mid
+go run ./cmd/gmplay -v -o song.wav song.mid
+```
+
+It reads Standard MIDI Files of format 0, 1 and 2, by package `midi`,
+and plays notes, program changes, the bend wheel and its range, the
+modulation wheel, volume, expression, pan, the sustain pedal, the
+reverb and chorus sends, and the resets of General MIDI, GS and XG.
+GS's drum parts and XG's drum bank make a channel other than 10 play
+drums too. A program plays it as a source a mixer plays:
+
+```go
+f, err := midi.Read(file)
+if err != nil {
+	return err
+}
+mix.Play(synth.NewMIDIPlayer(f), audio.Options{})
+```
+
+A `synth.GM` alone is the sound module, without the file: `Send` plays
+each message as it comes.
+
 ## Licence
 
 The songs, in `songs/`, are © 2026 Marcus Johansson, but for Candy
