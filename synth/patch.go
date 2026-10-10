@@ -54,6 +54,10 @@ type Patch struct {
 	// Roland VP-330's, in place of a voice's three resonances: the
 	// robot's voice of electronic pop, which a track's vowels make speak.
 	Vocoder bool `json:",omitempty"`
+	// Singer sings the vowel as a voice of its type does, through the
+	// five formants of a bass, baritone, tenor, alto or soprano, in
+	// place of three; with a glottal oscillator, a voice sings.
+	Singer string `json:",omitempty"`
 	// Pluck is how a pluck patch's string sounds.
 	Pluck Pluck
 	// Arpeggio plays a chord as one voice, its notes in turn, fast, as a
@@ -79,7 +83,8 @@ type Osc struct {
 	// another sine moves, as a bell or an electric piano. A Commodore
 	// 64's SID chip gives noise, pitched by the note as its noise is, and
 	// the waves it makes of two at once, sawtri, pulsetri and pulsesaw,
-	// thin and buzzing.
+	// thin and buzzing; and glottal, a voice's buzz, the air through
+	// its vocal folds, to sing through a Singer's formants.
 	Wave string
 	// The Nintendo chips give nespulse, a pulse snapped to the widths of
 	// 12.5, 25, 50 and 75% they have; nestri, the NES's stepped triangle;
@@ -305,6 +310,7 @@ type patch struct {
 	lfo        []lfo
 	vowel      byte
 	vocoder    bool
+	singer     string
 	poly       int
 	kit        map[string]drum
 	gain       float32
@@ -410,6 +416,8 @@ func (p *Patch) compile(name string) (*patch, error) {
 				}
 			}
 			co.wave, co.table = oscTable, stepped(steps)
+		case "glottal":
+			co.wave, co.table = oscTable, glottalTable
 		case "nesnoise", "nesmetal":
 			co.wave = oscNESNoise
 		case "sawtri", "pulsetri", "pulsesaw":
@@ -419,7 +427,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 			}
 			co.table = combined(co.wave, co.Width)
 		default:
-			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri, pulsesaw, nespulse, nestri, nesnoise, nesmetal or gbwave", name, i+1, o.Wave)
+			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri, pulsesaw, nespulse, nestri, nesnoise, nesmetal gbwave or glottal", name, i+1, o.Wave)
 		}
 		if (o.Sync || o.Ring) && i == 0 {
 			return nil, fmt.Errorf("synth: patch %s syncs or rings its first oscillator, which has none before it", name)
@@ -522,6 +530,12 @@ func (p *Patch) compile(name string) (*patch, error) {
 		c.vowel = p.Vowel[0]
 	}
 	c.vocoder = p.Vocoder
+	if p.Singer != "" {
+		if _, ok := singers[p.Singer]; !ok {
+			return nil, fmt.Errorf("synth: patch %s sings as %q, not bass, baritone, tenor, alto or soprano", name, p.Singer)
+		}
+		c.singer = p.Singer
+	}
 	if c.kind == kindDrums {
 		c.kit = map[string]drum{}
 		for n, t := range drumNames {

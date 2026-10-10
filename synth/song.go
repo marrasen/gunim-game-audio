@@ -157,6 +157,12 @@ type Track struct {
 	// compressor with every ratio's button in and driven, as a room's
 	// drums are smashed so they pump.
 	Smash float64 `json:",omitempty"`
+	// Gate chops it in time with the bar, as a trance gate chops a pad:
+	// a step a character, spread over the bar, x where it sounds and .
+	// where it is silenced, as x.xx.x.xx.x.x.xx for 16ths; GateDepth is
+	// how far the silenced steps fall, from 0 to 1, 1 by default.
+	Gate      string  `json:",omitempty"`
+	GateDepth float64 `json:",omitempty"`
 	// ChorusType is the chorus's kind: soft, the default, two copies
 	// swaying slowly; juno1, juno2 or juno12, a Roland Juno-60's chorus
 	// I, II, or both buttons down; or ensemble, a string machine's.
@@ -389,6 +395,10 @@ type ctrack struct {
 	legato float64
 	gain   float32
 	pan    float32
+	// gate are the steps of the track's trance gate over a bar, and
+	// gateFloor how far its silenced steps let through.
+	gate      []bool
+	gateFloor float32
 	// mel are the bars of a written melody, a slice a bar of the
 	// progression, a set for each of its progressions and evolutions.
 	mel [][][]mnote
@@ -721,6 +731,25 @@ func (c *compiled) compileTrack(t *Track, k key, progs [][]Chord, sting bool) (*
 	}
 	if _, ok := distortKinds[t.DistortType]; !ok {
 		return nil, fmt.Errorf("synth: track %s distorts as %q, not fuzz, amp or fold", t.Name, t.DistortType)
+	}
+	for _, r := range t.Gate {
+		switch r {
+		case 'x', 'X', '1':
+			ct.gate = append(ct.gate, true)
+		case '.', '-', '0', '_':
+			ct.gate = append(ct.gate, false)
+		case ' ':
+		default:
+			return nil, fmt.Errorf("synth: track %s gates with %q, which is no step: x sounds, . is silent", t.Name, r)
+		}
+	}
+	ct.gateFloor = 0
+	if len(ct.gate) > 0 {
+		depth := t.GateDepth
+		if depth <= 0 {
+			depth = 1
+		}
+		ct.gateFloor = float32(1 - min(depth, 1))
 	}
 	if _, ok := chorusKinds[t.ChorusType]; !ok {
 		return nil, fmt.Errorf("synth: track %s has chorus %q, not soft, juno1, juno2, juno12 or ensemble", t.Name, t.ChorusType)

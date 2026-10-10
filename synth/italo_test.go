@@ -337,3 +337,64 @@ func TestAccentsStack(t *testing.T) {
 		t.Errorf("three accents an eighth apart leave %.2f, against %.2f after one; want them stacked", third, first)
 	}
 }
+
+func TestASingerSingsItsVowels(t *testing.T) {
+	sing := func(singer, v string) []float32 {
+		p := &Patch{Osc: []Osc{{Wave: "glottal"}}, Amp: flat, Vowel: v, Singer: singer}
+		return renderNote(t, p, held(45), rate/2)[rate/10:]
+	}
+	saw := renderNote(t, &Patch{Osc: []Osc{{Wave: "saw"}}, Amp: flat, Vowel: "a"}, held(45), rate/2)[rate/10:]
+	bright := func(x []float32) float64 { return through(x, 2200) / through(x, 400) }
+	for _, kind := range []string{"bass", "baritone", "tenor", "alto", "soprano"} {
+		a, i := sing(kind, "a"), sing(kind, "i")
+		if math.IsNaN(rms(a)) || rms(a) < 0.02 {
+			t.Fatalf("a %s sings at %.4f", kind, rms(a))
+		}
+		// "i" is bright and "a" open: they stand apart.
+		if bright(i) < 1.3*bright(a) && bright(a) < 1.3*bright(i) {
+			t.Errorf("a %s's i and a are as bright, %.2f and %.2f", kind, bright(i), bright(a))
+		}
+		if db := 20 * math.Log10(rms(a)/rms(saw)); math.Abs(db) > 6 {
+			t.Errorf("a %s sings %.1f dB from a saw's vowel; want within 6", kind, db)
+		}
+	}
+	if err := (&Song{Title: "x", BPM: 120, Key: "C", Patches: map[string]*Patch{"v": {Osc: []Osc{{Wave: "glottal"}}, Singer: "castrato"}},
+		Tracks: []*Track{{Name: "v", Tier: 1, Patch: "v", Pattern: "C4"}}}).Check(); err == nil || !strings.Contains(err.Error(), "castrato") {
+		t.Errorf("a singer of no type: %v", err)
+	}
+}
+
+func TestTheTranceGateChopsInTime(t *testing.T) {
+	s := &Song{Title: "gate", BPM: 120, Key: "C", Mode: "wander",
+		Patches: map[string]*Patch{"pad": {Osc: []Osc{{Wave: "saw"}}, Amp: flat}},
+		Tracks:  []*Track{{Name: "pad", Core: true, Patch: "pad", Pattern: "C4", Legato: 1, Gate: "x.x.x.x. x.x.x.x."}},
+		Mix:     Mix{Threshold: -1},
+	}
+	p := NewPlayer(s, 1)
+	if err := p.Err(); err != nil {
+		t.Fatal(err)
+	}
+	// Two bars of 2 s each, stereo.
+	buf := make([]float32, 2*4*rate)
+	p.Read(buf)
+	// A bar of 2 s, a step an eighth of a second; the second bar,
+	// sounding throughout, its steps by turns open and shut.
+	step := rate / 8
+	level := func(k int) float64 {
+		at := 2*rate + k*step
+		var x []float32
+		for i := at + step/2; i < at+step; i++ {
+			x = append(x, buf[2*i])
+		}
+		return rms(x)
+	}
+	for k := 0; k < 16; k += 2 {
+		if open, shut := level(k), level(k+1); open < 0.05 || shut > 0.03*open {
+			t.Errorf("steps %d and %d of the gate play at %.4f and %.5f; want the second shut", k, k+1, open, shut)
+		}
+	}
+	s.Tracks[0].Gate = "x.y"
+	if err := s.Check(); err == nil || !strings.Contains(err.Error(), "'y'") {
+		t.Errorf("a gate of a bad step: %v", err)
+	}
+}

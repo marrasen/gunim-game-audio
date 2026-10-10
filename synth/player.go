@@ -152,6 +152,8 @@ type track struct {
 	ms       [2]float32
 	rng      *rng
 	sounding bool
+	// gateEnv is how open the track's trance gate is.
+	gateEnv float32
 }
 
 // A sched is a note or a drum to start on its frame.
@@ -1203,6 +1205,9 @@ func (p *Player) render(dst []float32, n int) {
 			continue
 		}
 		t.ins.process(tl, tr)
+		if len(ct.gate) > 0 {
+			p.gate(t, tl, tr)
+		}
 		pl, pr := min(1, 1-ct.pan), min(1, 1+ct.pan)
 		pl *= ct.gain
 		pr *= ct.gain
@@ -1630,5 +1635,35 @@ func (p *Player) playAuditions(as []audition) {
 			continue
 		}
 		p.audit.vs.play(pt, note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1})
+	}
+}
+
+// gateOpen and gateShut are how far a trance gate moves a frame toward
+// open, in about 2 ms, and toward shut, near silent in about 40.
+var (
+	gateOpen = 1 - float32(math.Exp(-1/(0.002*rate)))
+	gateShut = 1 - float32(math.Exp(-1/(0.012*rate)))
+)
+
+// gate chops t's sound in l and r, the block playing from p.at, by its
+// trance gate's steps over the bar.
+func (p *Player) gate(t *track, l, r []float32) {
+	ct := t.c
+	steps := float64(len(ct.gate))
+	bar := float64(max(p.barEnd-p.barStart, 1))
+	for i := range l {
+		k := int(float64(p.at+int64(i)-p.barStart) / bar * steps)
+		k = min(max(k, 0), len(ct.gate)-1)
+		to := ct.gateFloor
+		if ct.gate[k] {
+			to = 1
+		}
+		if to > t.gateEnv {
+			t.gateEnv += (to - t.gateEnv) * gateOpen
+		} else {
+			t.gateEnv += (to - t.gateEnv) * gateShut
+		}
+		l[i] *= t.gateEnv
+		r[i] *= t.gateEnv
 	}
 }

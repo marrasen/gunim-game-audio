@@ -53,6 +53,7 @@ type voice struct {
 	frames int64
 	form   formant
 	voc    vocoder
+	sng    singer
 	// noise2 are the oscillators' SID noise, and nesN their NES noise.
 	noise2 [maxOsc][maxUnison]lfsr
 	nesN   [maxOsc][maxUnison]nesNoise
@@ -156,9 +157,15 @@ func (v *voice) start(p *patch, n note, age uint64) {
 
 // aim aims the voice's formants, or its vocoder's bands, at vowel.
 func (v *voice) aim(vowel byte) {
-	if v.p.vocoder {
+	switch {
+	case v.p.vocoder:
 		v.voc.set(vowel)
-	} else {
+	case v.p.singer != "":
+		if v.sng.name != v.p.singer {
+			v.sng = singer{name: v.p.singer, kind: singers[v.p.singer]}
+		}
+		v.sng.set(vowel)
+	default:
 		v.form.set(vowel)
 	}
 	v.vowel = vowel
@@ -314,9 +321,12 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 			if vowel != v.vowel {
 				v.aim(vowel)
 			}
-			if p.vocoder {
+			switch {
+			case p.vocoder:
 				v.voc.tune()
-			} else {
+			case p.singer != "":
+				v.sng.tune()
+			default:
 				v.form.tune()
 			}
 		}
@@ -353,9 +363,12 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 			for i := range bl {
 				x := (bl[i] + br[i]) * 0.5
 				var s float32
-				if p.vocoder {
+				switch {
+				case p.vocoder:
 					s = v.voc.step(x)
-				} else {
+				case p.singer != "":
+					s = v.sng.step(x)
+				default:
 					s = v.form.step(x)
 				}
 				bl[i], br[i] = s, s

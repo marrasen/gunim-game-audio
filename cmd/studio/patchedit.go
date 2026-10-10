@@ -20,15 +20,16 @@ import (
 
 // The choices the editors offer, as the song writes them.
 var (
-	waves      = []string{"saw", "pulse", "tri", "sine", "fm", "noise", "sawtri", "pulsetri", "pulsesaw", "nespulse", "nestri", "nesnoise", "nesmetal", "gbwave"}
-	filters    = []string{"none", "lp", "lp24", "hp", "bp", "sidlp", "sidbp", "sidhp", "sidnotch"}
-	lfoTargets = []string{"pitch", "cutoff", "amp", "width", "pan"}
-	lfoWaves   = []string{"sine", "tri", "saw", "square", "random"}
-	vowels     = []string{"off", "a", "e", "i", "o", "u"}
+	waves       = []string{"saw", "pulse", "tri", "sine", "fm", "noise", "glottal", "sawtri", "pulsetri", "pulsesaw", "nespulse", "nestri", "nesnoise", "nesmetal", "gbwave"}
+	singerTypes = []string{"off", "bass", "baritone", "tenor", "alto", "soprano"}
+	filters     = []string{"none", "lp", "lp24", "hp", "bp", "sidlp", "sidbp", "sidhp", "sidnotch"}
+	lfoTargets  = []string{"pitch", "cutoff", "amp", "width", "pan"}
+	lfoWaves    = []string{"sine", "tri", "saw", "square", "random"}
+	vowels      = []string{"off", "a", "e", "i", "o", "u"}
 	// waveNames and filterNames are what the selectors print for each:
 	// the waves of an analogue synth, then the chips'; the usual
 	// filters, then the SID's.
-	waveNames = []string{"saw", "pulse", "tri", "sine", "fm", "noise",
+	waveNames = []string{"saw", "pulse", "tri", "sine", "fm", "noise", "voice",
 		"saw·tri", "pulse·tri", "pulse·saw", "nes pulse", "nes tri", "nes noise", "nes metal", "gb wave"}
 	filterNames = []string{"off", "lp 12", "lp 24", "hp", "bp", "sid lp", "sid bp", "sid hp", "sid notch"}
 )
@@ -78,6 +79,7 @@ type patchPane struct {
 	vKnobs  []*knob
 	vowel   *selector
 	vocoder *widget.Button
+	singer  *selector
 	slide   *widget.Button
 	lib     *libraryBar
 	tree    *presetTree
@@ -196,7 +198,14 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	pp.vocoder.KeepFocus, pp.vocoder.Tooltip = true, "Sing the vowel through a vocoder's ten bands, as a Roland VP-330's: a robot's voice"
 	pp.slide = widget.NewButton("Slide")
 	pp.slide.KeepFocus, pp.slide.Tooltip = true, "Glide only into a note tied to the one before, as a TB-303 slides; a note after a rest jumps"
-	voice := panelWith(small("VOICE · sings a vowel"), pp.vowel, widget.Row(pp.vocoder, pp.slide), knobs(pp.vKnobs[:4]...), knobs(pp.vKnobs[4:]...))
+	pp.singer = newSelector(singerTypes, func(i int) gunim.Intent {
+		v := singerTypes[i]
+		if v == "off" {
+			v = ""
+		}
+		return SetValue{Path: pp.base + "/Singer", Str: v, IsStr: true}
+	})
+	voice := panelWith(small("VOICE · sings a vowel"), pp.vowel, small("as a singer"), pp.singer, widget.Row(pp.vocoder, pp.slide), knobs(pp.vKnobs[:4]...), knobs(pp.vKnobs[4:]...))
 	pp.arpOn = widget.NewButton("On")
 	pp.arpOn.KeepFocus, pp.arpOn.Tooltip = true, "Arpeggiate: steps through notes fast, as a Commodore 64 plays a chord on one voice"
 	pp.arpChrd = widget.NewButton("Chords")
@@ -377,6 +386,7 @@ func (pp *patchPane) update(st Studio) {
 		vw = "off"
 	}
 	pp.vowel.SetSelected(segmentedIndex(vowels, vw))
+	pp.singer.SetSelected(segmentedIndex(singerTypes, p.Singer))
 	pp.vocoder.Active = p.Vocoder
 	pp.vocoder.OnClick = widget.Sends(ToggleValue{Path: pp.base + "/Vocoder"})
 	pp.slide.Active = p.Slide
@@ -428,7 +438,7 @@ func newOscSlot(pp *patchPane, i int) *oscSlot {
 	b := &o.base
 	o.wave = newSelector(waveNames, func(k int) gunim.Intent {
 		return SetValue{Path: o.base + "/Wave", Str: waves[k], IsStr: true}
-	}).group(6)
+	}).group(7)
 	o.remove = widget.NewIconButton(icon.X, "Take this oscillator out")
 	o.shape = &wave{}
 	// A click on the wave drawn turns to the next wave.
