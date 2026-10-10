@@ -156,6 +156,25 @@ const (
 	// drums and bubbly blips. The digit keys play the A major
 	// pentatonic over it.
 	TinkerRound = "tinker-round"
+	// SugarRush is a driving candy-pop song for a lane of battle, made
+	// in code, at 150 BPM in A major, in four tiers: a fat pumping synth
+	// bass, a pad and hats; a four-on-the-floor kick, claps and supersaw
+	// stabs, pumping under it; the hook and sparkly bells; full drums,
+	// the hook an octave up too, and glassy sparkles. Its stings: clear,
+	// a wave won; tierup; best, a new best; and over, a sad trombone.
+	SugarRush = "sugar-rush"
+	// SundaeShowdown is a cartoon villain's boss fight in candy pop,
+	// made in code, at 140 BPM in G minor, in four tiers that rise as the
+	// boss's health falls: an oom-pah fat synth bass, a creepy-cute music
+	// box and a soft kick; a beat and supersaw stabs; claps and the
+	// villain's theme, sung on a vowel; full drums, a choir and glassy
+	// runs. A victory sting of 2 bars ends it.
+	SundaeShowdown = "sundae-showdown"
+	// CandyLounge is a cozy candy-pop groove, made in code, at 90 BPM in
+	// F major, swung, for a game's menu: a soft beat, a warm bass, an
+	// electric piano and a pad always, and a music box quoting Sugar
+	// Rush's hook, vibes, a glassy topline and a shaker coming and going.
+	CandyLounge = "candy-lounge"
 )
 
 // files holds the songs: a folder each, named for the song, with its
