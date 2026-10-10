@@ -168,7 +168,7 @@ func TestEverySongPlays(t *testing.T) {
 func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 	for _, name := range []string{KeypadRound, BossEntrance, MascotDance, BubbleBounce, SisterDreams, GraveyardGallop,
 		PocketKingdom, MeadowHop, HerosField, PalaceRun, UnderworldAscent, StarDrift, OrbitRound, AlienEntrance,
-		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, SugarRush, SundaeShowdown, CandyLounge} {
+		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, SugarRush, SundaeShowdown, CandyLounge, FrostHollow, NeonAbyss, DreadSundae} {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)
@@ -262,7 +262,10 @@ func TestSugarStormsSongsAreAsLoudAsTheirKinds(t *testing.T) {
 	}
 	for _, tier := range []int{1, 4} {
 		near(SugarRush, tier, 8, KeypadRound, OrbitRound, BubbleBounce)
+		near(FrostHollow, tier, 8, KeypadRound, OrbitRound, BubbleBounce)
+		near(NeonAbyss, tier, 8, KeypadRound, OrbitRound, BubbleBounce)
 		near(SundaeShowdown, tier, 8, BossEntrance, AlienEntrance)
+		near(DreadSundae, tier, 8, BossEntrance, AlienEntrance)
 	}
 	near(CandyLounge, 1, 16, CandyClouds, CompassRose, MascotDance)
 }
