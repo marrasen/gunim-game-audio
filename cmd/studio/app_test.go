@@ -351,3 +351,44 @@ func TestPadsAndKeysPlayWhileTheSongIsPaused(t *testing.T) {
 		t.Error("trying a pad started the song")
 	}
 }
+
+func TestAQuickSecondClickUndoesTheFirst(t *testing.T) {
+	h := newHarness(t, music.KeypadRound)
+	// Two clicks before the window shows the first: each turns over the
+	// value as it is when it arrives, not as the window last showed it.
+	for _, v := range []gunim.Intent{
+		ToggleValue{Path: "Tracks/bass/Solo"},
+		ToggleValue{Path: "Patches/lead/Vocoder"},
+		ToggleValue{Path: "Mix/Gated", Seed: "Mix/Gated/Hold", Num: 0.3},
+		ToggleValue{Path: "Patches/lead/Chip", Seed: "Patches/lead/Chip/Levels", Num: 16},
+		ArpSet{Patch: "lead"},
+	} {
+		h.s.handle(t.Context(), v)
+		h.s.handle(t.Context(), v)
+	}
+	h.frame()
+	s := h.s.song
+	if track(s, "bass").Solo || s.Patches["lead"].Vocoder || s.Mix.Gated != nil || s.Patches["lead"].Chip != nil ||
+		s.Patches["lead"].Arpeggio != nil {
+		t.Error("a second click quick after the first left its value changed")
+	}
+	h.do(ToggleValue{Path: "Tracks/bass/Solo"}, ToggleValue{Path: "Mix/Gated", Seed: "Mix/Gated/Hold", Num: 0.3})
+	if !track(h.s.song, "bass").Solo || h.s.song.Mix.Gated == nil || h.s.song.Mix.Gated.Hold != 0.3 {
+		t.Error("one click turned nothing on")
+	}
+}
+
+func TestPickingAChorusKindIsHeard(t *testing.T) {
+	h := newHarness(t, music.KeypadRound)
+	b := track(h.s.song, "bass")
+	b.Chorus = 0
+	h.do(ChorusKind{Track: "bass", Type: "juno1"})
+	if b := track(h.s.song, "bass"); b.ChorusType != "juno1" || b.Chorus != 0.5 {
+		t.Errorf("the bass's chorus is %q at %.2f; want juno1, turned up", b.ChorusType, b.Chorus)
+	}
+	track(h.s.song, "bass").Chorus = 0.2
+	h.do(ChorusKind{Track: "bass", Type: "ensemble"})
+	if b := track(h.s.song, "bass"); b.ChorusType != "ensemble" || b.Chorus != 0.2 {
+		t.Errorf("the bass's chorus is %q at %.2f; want ensemble, at 0.2 as it was", b.ChorusType, b.Chorus)
+	}
+}

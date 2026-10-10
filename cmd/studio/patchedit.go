@@ -309,16 +309,12 @@ func (pp *patchPane) update(st Studio) {
 	showKnobs(song, pp.chipKs...)
 	showKnobs(song, pp.bendKs...)
 	pp.chipOn.Active = p.Chip != nil
-	if p.Chip != nil {
-		pp.chipOn.OnClick = widget.Sends(ClearValue{Path: pp.base + "/Chip"})
-	} else {
-		pp.chipOn.OnClick = widget.Sends(SetValue{Path: pp.base + "/Chip/Levels", Num: 16})
-	}
+	pp.chipOn.OnClick = widget.Sends(ToggleValue{Path: pp.base + "/Chip", Seed: pp.base + "/Chip/Levels", Num: 16})
 	a := p.Arpeggio
 	pp.arpOn.Active = a != nil
 	pp.arpChrd.Active = a != nil && a.Chord
-	pp.arpOn.OnClick = widget.Sends(ArpSet{Patch: pp.name, On: a == nil})
-	pp.arpChrd.OnClick = widget.Sends(ArpSet{Patch: pp.name, On: true, Chord: a == nil || !a.Chord})
+	pp.arpOn.OnClick = widget.Sends(ArpSet{Patch: pp.name})
+	pp.arpChrd.OnClick = widget.Sends(ArpSet{Patch: pp.name, Chord: true})
 	pp.arpChrd.Disabled = a == nil
 	if pp.arpGen != st.Gen {
 		pp.arpGen = st.Gen
@@ -341,7 +337,7 @@ func (pp *patchPane) update(st Studio) {
 	}
 	pp.vowel.SetSelected(segmentedIndex(vowels, vw), nil)
 	pp.vocoder.Active = p.Vocoder
-	pp.vocoder.OnClick = widget.Sends(SetValue{Path: pp.base + "/Vocoder", Num: boolNum(!p.Vocoder)})
+	pp.vocoder.OnClick = widget.Sends(ToggleValue{Path: pp.base + "/Vocoder"})
 	pp.resp.song, pp.fenv.song, pp.aenv.song = song, song, song
 	if st.Preview.Patch == pp.name {
 		pp.note.data, pp.cycle.data = st.Preview.Wave, st.Preview.Cycle

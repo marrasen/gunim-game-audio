@@ -360,8 +360,9 @@ The tabs over the stage swap it for the editors, each heard as it is
 changed, with no file to edit and nothing to reload:
 
 - **Mixer.** A strip for each track, with mute and solo, knobs for its
-  pan, its reverb and delay sends, its sidechain duck, its low and high
-  cut, its drive and its chorus, a stereo meter, and its fader. The
+  pan, its reverb and delay sends, its sidechain duck, its gated reverb
+  send, its low and high cut, its drive and its chorus, a menu of the
+  chorus's kind, a stereo meter, and its fader. The
   master's strip has the mix's meter, its fader, its compressor with a
   bar of how far it turns the mix down, and its loudness in LUFS. The
   track panel slides away to give the desk the window's width.

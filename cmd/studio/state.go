@@ -164,6 +164,17 @@ type (
 	// ClearValue empties the value at Path, as a patch's Chip, which
 	// turns it off.
 	ClearValue struct{ Path string }
+	// ToggleValue turns the bool at Path over, as it is when it arrives,
+	// so a second click quick after the first undoes it. Where Seed is
+	// set, it clears Path where Path is set, and else sets Seed to Num,
+	// as a patch's Chip turns on or off.
+	ToggleValue struct {
+		Path, Seed string
+		Num        float64
+	}
+	// ChorusKind sets Track's chorus to Type, and turns its chorus up
+	// where it was silent, so the kind picked is heard.
+	ChorusKind struct{ Track, Type string }
 	// SetInts sets the list of whole numbers at Path, as a wave table.
 	SetInts struct {
 		Path   string
@@ -192,11 +203,13 @@ type (
 		Patch, Drum string
 		Pitch       int
 	}
-	// ArpSet turns Patch's chip arpeggio on or off, and says whether it
-	// plays chords; ArpSteps sets its steps, as 0 4 7.
+	// ArpSet turns Patch's chip arpeggio on or off, or where Chord
+	// says, its playing of chords, as it is when it arrives, so a second
+	// click quick after the first undoes it. ArpSteps sets its steps, as
+	// 0 4 7.
 	ArpSet struct {
-		Patch     string
-		On, Chord bool
+		Patch string
+		Chord bool
 	}
 	ArpSteps struct{ Patch, Steps string }
 	// OpenEditor shows the editor named Editor, by its tab's title, on
@@ -265,6 +278,8 @@ func init() {
 	gunim.RegisterType[SetValue]("studio.set")
 	gunim.RegisterType[AddItem]("studio.add")
 	gunim.RegisterType[ClearValue]("studio.clear")
+	gunim.RegisterType[ToggleValue]("studio.toggle")
+	gunim.RegisterType[ChorusKind]("studio.chorus")
 	gunim.RegisterType[SetInts]("studio.ints")
 	gunim.RegisterType[RemoveItem]("studio.remove")
 	gunim.RegisterType[PatchNew]("studio.patch.new")

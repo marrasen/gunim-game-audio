@@ -91,13 +91,14 @@ func newChannel() *channel {
 		newKnob("Gated", b, "/Gated", 0, 1, 0).small(),
 	}
 	c.chorus = widget.NewDropdown(widget.Labels(chorusTypes...))
-	c.chorus.Label = "Chorus"
+	c.chorus.Label = "Chorus kind"
+	c.chorus.Tooltip = "The chorus's kind: soft; a Juno-60's chorus I, II or both; or a string machine's ensemble. Picking one turns a silent chorus up."
 	c.chorus.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
 		t := chorusTypes[i]
 		if t == "soft" {
 			t = ""
 		}
-		return SetValue{Path: c.base + "/ChorusType", Str: t, IsStr: true}
+		return ChorusKind{Track: c.name.Text, Type: t}
 	}
 	c.mute = widget.NewButton("M")
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
@@ -138,8 +139,8 @@ func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	c.gain = t.Gain
 	c.gainDB.Text = fmt.Sprintf("%+.1f dB", t.Gain)
 	c.mute.Active, c.solo.Active = t.Mute, t.Solo
-	c.mute.OnClick = widget.Sends(SetValue{Path: c.base + "/Mute", Num: boolNum(!t.Mute)})
-	c.solo.OnClick = widget.Sends(SetValue{Path: c.base + "/Solo", Num: boolNum(!t.Solo)})
+	c.mute.OnClick = widget.Sends(ToggleValue{Path: c.base + "/Mute"})
+	c.solo.OnClick = widget.Sends(ToggleValue{Path: c.base + "/Solo"})
 	c.meter.m = t.Meter
 	showKnobs(st.Doc, c.ks...)
 	ct := "soft"
@@ -334,11 +335,7 @@ func (f *fxPane) update(st Studio) {
 	showKnobs(song, f.trans...)
 	showKnobs(song, f.gated...)
 	f.gateOn.Active = song.Mix.Gated != nil
-	if f.gateOn.Active {
-		f.gateOn.OnClick = widget.Sends(ClearValue{Path: "Mix/Gated"})
-	} else {
-		f.gateOn.OnClick = widget.Sends(SetValue{Path: "Mix/Gated/Hold", Num: 0.3})
-	}
+	f.gateOn.OnClick = widget.Sends(ToggleValue{Path: "Mix/Gated", Seed: "Mix/Gated/Hold", Num: 0.3})
 	f.tail.song, f.echoes.song, f.curve.song = song, song, song
 	f.curve.db = st.Reduction
 	f.duckTo = []string{"none"}

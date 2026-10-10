@@ -336,6 +336,40 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		if err != nil {
 			s.status = plain(err)
 		}
+	case ToggleValue:
+		var perr error
+		err := s.edit(func(song *synth.Song) {
+			cur, set := getPath(song, v.Path)
+			switch {
+			case v.Seed == "":
+				on, _ := cur.(bool)
+				perr = setPath(song, v.Path, boolNum(!on))
+			case set:
+				perr = setPath(song, v.Path, nil)
+			default:
+				perr = setPath(song, v.Seed, v.Num)
+			}
+		})
+		if perr != nil {
+			err = perr
+		}
+		if err != nil {
+			s.status = plain(err)
+		}
+	case ChorusKind:
+		err := s.edit(func(song *synth.Song) {
+			for _, t := range song.Tracks {
+				if t.Name == v.Track {
+					t.ChorusType = v.Type
+					if t.Chorus == 0 {
+						t.Chorus = 0.5
+					}
+				}
+			}
+		})
+		if err != nil {
+			s.status = plain(err)
+		}
 	case ClearValue:
 		if err := s.edit(func(song *synth.Song) { _ = setPath(song, v.Path, nil) }); err != nil {
 			s.status = plain(err)
@@ -427,13 +461,13 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 				return
 			}
 			switch {
-			case !v.On:
-				p.Arpeggio = nil
 			case p.Arpeggio == nil:
 				p.Arpeggio = &synth.Arpeggio{Chord: true, Hz: 50}
+			case !v.Chord:
+				p.Arpeggio = nil
 			default:
-				p.Arpeggio.Chord = v.Chord
-				if !v.Chord && len(p.Arpeggio.Steps) == 0 {
+				p.Arpeggio.Chord = !p.Arpeggio.Chord
+				if !p.Arpeggio.Chord && len(p.Arpeggio.Steps) == 0 {
 					p.Arpeggio.Steps = []int{0, 4, 7}
 				}
 			}
