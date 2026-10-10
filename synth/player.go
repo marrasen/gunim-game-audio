@@ -91,6 +91,7 @@ type Player struct {
 	air     [2]svf
 	airGain float32
 	tape    float32
+	tw      tweaker
 	ctx     renderCtx
 
 	// What a tool reads, guarded by wmu.
@@ -551,7 +552,16 @@ func (p *Player) adopt(c *compiled) {
 	if ratio == 0 {
 		ratio = 2
 	}
+	attack := 0.008
+	if punch := min(max(m.Tweak.Punch, 0), 1); punch > 0 {
+		// Squeezed harder, and sooner, so its peaks are caught too.
+		th -= 18 * punch
+		ratio += (8 - ratio) * punch
+		attack -= 0.007 * punch
+	}
 	p.comp.threshold, p.comp.ratio = float32(th), float32(ratio)
+	p.comp.att = 1 - float32(math.Exp(-float64(control)/(attack*rate)))
+	p.tw.set(m.Tweak)
 	p.gain = float32(dbGain(m.Gain))
 	if g := m.Gated; g != nil {
 		if p.gated == nil {
@@ -1234,9 +1244,11 @@ func (p *Player) render(dst []float32, n int) {
 		rr[i] += dr[i] * 0.3
 	}
 	p.rev.process(rl, rr)
+	// Tweak's space turns the rooms and echoes up or down.
+	space := p.tw.space
 	for i := range ml {
-		ml[i] = (ml[i] + rl[i] + dl[i]) * p.gain
-		mr[i] = (mr[i] + rr[i] + dr[i]) * p.gain
+		ml[i] = (ml[i] + (rl[i]+dl[i])*space) * p.gain
+		mr[i] = (mr[i] + (rr[i]+dr[i])*space) * p.gain
 	}
 	if gated {
 		p.gated.process(gl, gr)
@@ -1251,8 +1263,8 @@ func (p *Player) render(dst []float32, n int) {
 			} else if p.gateEnv *= rel; p.gateEnv < 1e-4 {
 				p.gateEnv = 0
 			}
-			ml[i] += gl[i] * p.gateEnv * p.gain
-			mr[i] += gr[i] * p.gateEnv * p.gain
+			ml[i] += gl[i] * p.gateEnv * p.gain * space
+			mr[i] += gr[i] * p.gateEnv * p.gain * space
 		}
 	}
 	for i := range ml {
@@ -1269,6 +1281,9 @@ func (p *Player) render(dst []float32, n int) {
 			ml[i], mr[i] = m+s, m-s
 		}
 	}
+	if p.tw.on {
+		p.tw.pre(ml, mr)
+	}
 	if p.airGain != 0 {
 		for i := range ml {
 			_, _, hl := p.air[0].step(ml[i])
@@ -1279,6 +1294,9 @@ func (p *Player) render(dst []float32, n int) {
 	}
 	p.comp.process(ml, mr)
 	p.reduction.Store(math.Float32bits(p.comp.reduction))
+	if p.tw.on {
+		p.tw.post(ml, mr, p.comp.reduction)
+	}
 	if p.tape > 0 {
 		// Tape takes the quiet as it is, and rounds the peaks off.
 		for i := range ml {

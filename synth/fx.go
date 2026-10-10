@@ -528,3 +528,137 @@ func (lm *limiter) process(l, r []float32) {
 		r[i] = softClip(dr*lm.gain/lm.ceiling) * lm.ceiling
 	}
 }
+
+// tweaker turns the whole mix by a song's Tweak: its width, tilt and
+// bass before the compressor, and its make-up, drive and lo-fi after.
+type tweaker struct {
+	// on says any knob is turned; space scales the rooms and echoes.
+	on    bool
+	space float32
+	// side scales the sides, where width is turned.
+	side  float32
+	width bool
+	// The tilt: split splits the sound at 800 Hz, the bottom taken by
+	// lowG and the top by highG.
+	tilt        bool
+	split       [2]onePole
+	lowG, highG float32
+	// The bass's shelf: shelf finds the bass, lifted by bassG.
+	bass  bool
+	shelf [2]onePole
+	bassG float32
+	// punch is how hard the compressor squeezes, and makeup the level it
+	// squeezes away, on average, in decibels, which punch makes up.
+	punch  float32
+	makeup float32
+	// drive pushes the mix into a soft clip, and driveOut brings it
+	// back.
+	drive, driveOut float32
+	// lo-fi: steps are the levels a sample may take, hold how many
+	// frames each is held, and lp and hp its cuts.
+	lofi   bool
+	steps  float32
+	hold   int
+	held   int
+	holdV  [2]float32
+	lp, hp [2][2]svf
+}
+
+// set readies the tweaker for t.
+func (tw *tweaker) set(t Tweak) {
+	clamp := func(x, lo, hi float64) float64 { return min(max(x, lo), hi) }
+	tone, bass, space := clamp(t.Tone, -1, 1), clamp(t.Bass, -1, 1), clamp(t.Space, -1, 1)
+	punch, width, drive, lofi := clamp(t.Punch, 0, 1), clamp(t.Width, -1, 1), clamp(t.Drive, 0, 1), clamp(t.LoFi, 0, 1)
+	tw.on = tone != 0 || bass != 0 || space != 0 || punch != 0 || width != 0 || drive != 0 || lofi != 0
+	tw.space = 1
+	if space < 0 {
+		tw.space = float32(1 + space)
+	} else {
+		tw.space = float32(1 + 2*space)
+	}
+	tw.width, tw.side = width != 0, float32(1+width)
+	tw.tilt = tone != 0
+	tw.lowG, tw.highG = float32(dbGain(-6*tone)), float32(dbGain(6*tone))
+	for i := range 2 {
+		tw.split[i].set(800)
+		tw.shelf[i].set(120)
+		for k := range 2 {
+			tw.lp[i][k].set(float32(16000*math.Exp2(-2.7*lofi)), 0.1)
+			tw.hp[i][k].set(float32(20*math.Exp2(3.6*lofi)), 0.1)
+		}
+	}
+	tw.bass, tw.bassG = bass != 0, float32(dbGain(9*bass)-1)
+	tw.punch = float32(punch)
+	tw.drive = float32(1 + 4*drive)
+	tw.driveOut = 1 / float32(math.Sqrt(float64(tw.drive)))
+	tw.lofi = lofi > 0
+	tw.steps = float32(math.Exp2(15 - 11*lofi))
+	tw.hold = 1 + int(math.Round(5*lofi))
+}
+
+// pre turns the mix's width, tilt and bass, before the compressor.
+func (tw *tweaker) pre(l, r []float32) {
+	if tw.width {
+		for i := range l {
+			m, s := (l[i]+r[i])*0.5, (l[i]-r[i])*0.5*tw.side
+			l[i], r[i] = m+s, m-s
+		}
+	}
+	if tw.tilt {
+		for i := range l {
+			lo := tw.split[0].lp(l[i])
+			l[i] = lo*tw.lowG + (l[i]-lo)*tw.highG
+			lo = tw.split[1].lp(r[i])
+			r[i] = lo*tw.lowG + (r[i]-lo)*tw.highG
+		}
+	}
+	if tw.bass {
+		for i := range l {
+			l[i] += tw.shelf[0].lp(l[i]) * tw.bassG
+			r[i] += tw.shelf[1].lp(r[i]) * tw.bassG
+		}
+	}
+}
+
+// post makes up the level the compressor took, where punched, drives,
+// and makes the mix lo-fi, after the compressor, which takes reduction
+// decibels away now.
+func (tw *tweaker) post(l, r []float32, reduction float32) {
+	if tw.punch > 0 {
+		// The make-up follows the reduction over a second or so, so it
+		// holds the mix's level as the squeeze holds its peaks down, and
+		// lifts it a little more.
+		tw.makeup += (reduction - tw.makeup) * min(float32(len(l))/rate, 1)
+		g := float32(dbGain(float64(tw.makeup + 2*tw.punch)))
+		for i := range l {
+			l[i] *= g
+			r[i] *= g
+		}
+	}
+	if tw.drive != 1 {
+		for i := range l {
+			l[i] = softClip(l[i]*tw.drive) * tw.driveOut
+			r[i] = softClip(r[i]*tw.drive) * tw.driveOut
+		}
+	}
+	if tw.lofi {
+		for i := range l {
+			if tw.held == 0 {
+				tw.holdV[0] = float32(math.Round(float64(l[i]*tw.steps))) / tw.steps
+				tw.holdV[1] = float32(math.Round(float64(r[i]*tw.steps))) / tw.steps
+			}
+			tw.held = (tw.held + 1) % tw.hold
+			for ch, x := range tw.holdV {
+				for k := range 2 {
+					x, _, _ = tw.lp[ch][k].step(x)
+					_, _, x = tw.hp[ch][k].step(x)
+				}
+				if ch == 0 {
+					l[i] = x
+				} else {
+					r[i] = x
+				}
+			}
+		}
+	}
+}

@@ -227,6 +227,8 @@ type Mix struct {
 	// Tape saturates the mix as a tape machine does, from 0 to 1: the
 	// quiet as it was, the peaks rounded off.
 	Tape float64 `json:",omitempty"`
+	// Tweak turns the whole song's sound by a few broad knobs.
+	Tweak Tweak `json:",omitzero"`
 	// Transitions names a drums patch to mark tier changes with: a riser
 	// in the bars before the tier climbs, an impact as it lands, and a
 	// down as it falls. Lift is how many bars the riser takes, 1 by
@@ -238,6 +240,32 @@ type Mix struct {
 // Tone from 0, dark, to 1, bright, and PreDelay in seconds.
 type Reverb struct {
 	Size, Decay, Tone, PreDelay float64
+}
+
+// Tweak turns a whole song's sound by a few broad knobs, as a
+// listener's tone controls do, over the mix as it is made. Each is 0
+// for the song as mixed.
+type Tweak struct {
+	// Tone tilts the sound round 800 Hz, from -1, dark, to 1, bright:
+	// the top up and the bottom down by up to 6 dB, or the other way.
+	Tone float64 `json:",omitzero"`
+	// Bass lifts the bass below about 120 Hz by up to 9 dB, or cuts it,
+	// from -1 to 1.
+	Bass float64 `json:",omitzero"`
+	// Space is how much of the rooms and echoes is heard, from -1, none,
+	// to 1, three times as much.
+	Space float64 `json:",omitzero"`
+	// Punch squeezes the mix, from 0 to 1: the compressor's threshold
+	// down by up to 18 dB and its ratio up to 8, its level made up.
+	Punch float64 `json:",omitzero"`
+	// Width narrows the sound to mono at -1, or widens it to twice its
+	// sides at 1.
+	Width float64 `json:",omitzero"`
+	// Drive saturates the mix, from 0 to 1, as a desk pushed too hard.
+	Drive float64 `json:",omitzero"`
+	// LoFi makes it an old radio's, from 0 to 1: fewer bits, a lower
+	// sample rate, and its top and bottom cut.
+	LoFi float64 `json:",omitzero"`
 }
 
 // Gated shapes a song's gated reverb: Size and Tone as a Reverb's, 1.2
