@@ -94,7 +94,7 @@ func newKitPane(changed func(kit, drum string) gunim.Intent) *kitPane {
 	drumHead.Grow(drumHead.Children()[1], 1)
 	drumHead.Cross = widget.CrossCenter
 	editor := panelWith(drumHead, knobs(kp.ks...), sized(kp.hit, 0, 110), sized(kp.close, 0, 90))
-	padPanel := panel("PADS · press one to play it and edit it", sized(kp.pads, 0, 340))
+	padPanel := panel("PADS · press one to play it and edit it", kp.pads)
 	body := widget.Row(padPanel, editor).Grow(padPanel, 1.1).Grow(editor, 1)
 	body.Cross = widget.CrossStretch
 	kp.lib = newLibraryBar()
@@ -192,9 +192,16 @@ type pads struct {
 
 const padCols = 4
 
+// padRowH is how tall a row of pads is: room for a drum's name and,
+// under it, its type.
+const padRowH = 56
+
+// Layout makes the pads as tall as their rows, so each has room for
+// both its lines, however many drums the kit has.
 func (pd *pads) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
-	pd.size = c.Max
-	return c.Max
+	rows := (len(pd.names) + padCols - 1) / padCols
+	pd.size = c.Constrain(geom.Sz(c.Max.W, float32(max(rows, 1))*padRowH))
+	return pd.size
 }
 
 func (pd *pads) rect(i int) geom.Rect {
