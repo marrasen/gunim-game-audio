@@ -167,8 +167,10 @@ type (
 		Mute  bool
 		Solo  bool
 	}
-	// NoteDot is a note heard, or to be heard. DrumName names the drum
-	// of a drum's note, as bd.
+	// NoteDot is a note heard, or to be heard: Track is its track's
+	// index, -1 for none of the song's, as the keypad's, or transTrack for
+	// the song's transitions. DrumName names the drum of a drum's note,
+	// as bd.
 	NoteDot struct {
 		Frame, Len int64
 		Track      int

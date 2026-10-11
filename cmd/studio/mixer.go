@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"slices"
 
 	"github.com/marrasen/gunim/icon"
 
@@ -238,11 +239,19 @@ type fxPane struct {
 	duck    *widget.Dropdown
 	duckTo  []string
 	transOn *switcher
+	roll    *widget.Dropdown
 	gated   []*knob
 	gateOn  *widget.Button
 	tweak   []*knob
 	untweak *widget.Button
 }
+
+// rollDrums are what a song's transitions can build up with, by the drum
+// rolled, "" for the riser, and rollLabels their names.
+var (
+	rollDrums  = []string{"", "tim", "sn"}
+	rollLabels = []string{"Riser", "Timpani roll", "Snare roll"}
+)
 
 func newFxPane() *fxPane {
 	f := &fxPane{base: "Mix"}
@@ -273,9 +282,15 @@ func newFxPane() *fxPane {
 	f.mix[1].base = new(string)
 	f.mix[1].rel = "Swing"
 	f.trans = []*knob{
-		newKnob("Riser bars", b, "/Transitions/Lift", 1, 4, 1).steps(1).unsetIs(1),
+		newKnob("Bars", b, "/Transitions/Lift", 1, 4, 1).steps(1).unsetIs(1),
 		newKnob("Level", b, "/Transitions/Gain", -24, 6, 0).units("dB"),
 		newKnob("Reverb", b, "/Transitions/Reverb", 0, 1, 0.3),
+	}
+	f.roll = widget.NewDropdown(widget.Labels(rollLabels...))
+	f.roll.Label = "Builds up with"
+	f.roll.Tooltip = "What plays in the bars before the tier climbs: the kit's riser, or a roll of its timpani or snare, swelling into the new tier"
+	f.roll.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+		return SetValue{Path: "Mix/Transitions/Roll", Str: rollDrums[i], IsStr: true}
 	}
 	f.gated = []*knob{
 		newKnob("Size", b, "/Gated/Size", 0.3, 1.5, 1.2).unsetIs(1.2),
@@ -316,7 +331,7 @@ func newFxPane() *fxPane {
 	duckRow := widget.Row(small("Sidechain: the tracks with Duck turn down as"), f.duck, small("hits"))
 	duckRow.Cross = widget.CrossCenter
 	mix := panel("MIX", knobs(f.mix...), duckRow)
-	trans := panel("TRANSITIONS · a riser before the tier climbs, an impact as it lands", knobs(f.trans...))
+	trans := panel("TRANSITIONS · a build-up before the tier climbs, an impact as it lands", f.roll, knobs(f.trans...))
 	f.transOn = newSwitcher(trans, panel("TRANSITIONS", small("This song marks no tier changes.")))
 	gated := panel("GATED REVERB · a big room, cut off short after each hit", f.gateOn, knobs(f.gated...))
 	low := widget.Row(mix, gated, f.transOn).Grow(mix, 1.4).Grow(gated, 1).Grow(f.transOn, 1)
@@ -340,6 +355,9 @@ func (f *fxPane) update(st Studio) {
 	showKnobs(song, f.comp...)
 	showKnobs(song, f.mix...)
 	showKnobs(song, f.trans...)
+	if tr := song.Mix.Transitions; tr != nil {
+		f.roll.SetSelected(max(slices.Index(rollDrums, tr.Roll), 0), nil)
+	}
 	showKnobs(song, f.gated...)
 	showKnobs(song, f.tweak...)
 	f.untweak.Disabled = song.Mix.Tweak == (synth.Tweak{})

@@ -826,3 +826,33 @@ func TestAKitPlaysOnTheBankLoaded(t *testing.T) {
 	}
 	h.play(2 * time.Second)
 }
+
+func TestATierClimbsOnARollTheStudioShows(t *testing.T) {
+	h := newHarness(t, music.EmberCrown)
+	h.do(OpenEditor{Editor: "Effects"})
+	h.settle()
+	if got := h.v.fx.roll.Selected(); got != 1 {
+		t.Fatalf("Ember Crown builds up with item %d, want 1, the timpani", got)
+	}
+	// Asked for tier 2 once playing, it rolls in the phrase's last two
+	// bars, bars 7 and 8 at 138 BPM: the notes the stage and flow show
+	// have it.
+	h.play(3 * time.Second)
+	h.do(TierChosen{Tier: 2})
+	h.play(10 * time.Second)
+	rolled := 0
+	for _, n := range h.s.state().Notes {
+		if n.Track == transTrack && n.DrumName == "tim" {
+			rolled++
+		}
+	}
+	if rolled == 0 {
+		t.Fatal("the studio shows none of the roll's hits")
+	}
+	// The snare rolls in its place.
+	h.do(SetValue{Path: "Mix/Transitions/Roll", Str: "sn", IsStr: true})
+	h.settle()
+	if got := h.s.song.Mix.Transitions.Roll; got != "sn" || h.v.fx.roll.Selected() != 2 {
+		t.Errorf("chosen the snare roll, the song rolls %q, shown as item %d", got, h.v.fx.roll.Selected())
+	}
+}

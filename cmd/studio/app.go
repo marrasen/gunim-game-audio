@@ -650,7 +650,10 @@ func (s *studio) state() Studio {
 			continue
 		}
 		i, ok := index[n.Track]
-		if !ok {
+		switch {
+		case n.Track == "transitions":
+			i = transTrack
+		case !ok:
 			i = -1
 		}
 		st.Notes = append(st.Notes, NoteDot{Frame: n.Frame, Len: n.Len, Track: i, Pitch: n.Pitch, Vel: n.Vel, Drum: n.Drum != "", DrumName: n.Drum})

@@ -940,7 +940,15 @@ func (p *Player) liftLate() {
 	if left := end - p.at; float64(left) > c.fpb/4 {
 		p.risen = true
 		if c.trans.rolls {
-			p.roll(p.at, end)
+			// The bar is published already: its share of the roll is
+			// published now, and the rest with the next bar's.
+			var notes []Note
+			for _, s := range p.roll(p.at, end) {
+				if s.frame < p.barEnd {
+					notes = append(notes, p.noteOf(s))
+				}
+			}
+			p.publish(notes)
 			// The roll's hits go among those queued, in time.
 			slices.SortStableFunc(p.queue[p.qi:], func(a, b sched) int { return cmp.Compare(a.frame, b.frame) })
 			return
@@ -949,13 +957,14 @@ func (p *Player) liftLate() {
 	}
 }
 
-// roll queues the transitions' roll from frame from to end: 16ths, on
-// the song's grid, and 32nds in its last bar, swelling from soft to
-// loud, a timpani's on the chord's root.
-func (p *Player) roll(from, end int64) {
+// roll queues the transitions' roll from frame from to end: 8ths, on
+// the song's grid, and 16ths in its last bar, swelling from soft to
+// loud, a timpani's on the chord's root. It returns the hits queued.
+func (p *Player) roll(from, end int64) []sched {
 	c := p.c
 	tr := c.trans
-	sixteenth := c.fpb / float64(c.beats*4)
+	first := len(p.queue)
+	eighth := c.fpb / float64(c.beats*2)
 	lastBar := float64(end) - c.fpb
 	var pitch float32
 	if tr.roll.kind == drTimpani {
@@ -963,20 +972,21 @@ func (p *Player) roll(from, end int64) {
 		pitch = float32(ch.Root + 36)
 	}
 	// From the bar's grid, the first step at or after from.
-	at := float64(p.barStart) + math.Ceil((float64(from)-float64(p.barStart))/sixteenth-1e-9)*sixteenth
+	at := float64(p.barStart) + math.Ceil((float64(from)-float64(p.barStart))/eighth-1e-9)*eighth
 	span := float64(end) - at
 	for at < float64(end)-1 {
 		x := 1 - (float64(end)-at)/max(span, 1)
 		vel := float32(0.18 + 0.82*x*x)
 		vel *= 1 + 0.04*p.rng.bipolar()
 		p.queue = append(p.queue, sched{frame: int64(at), t: p.trans, drum: true, d: tr.roll, pitch: pitch,
-			dur: int64(sixteenth), n: note{vel: min(vel, 1)}})
-		step := sixteenth
+			dur: int64(eighth), n: note{vel: min(vel, 1)}})
+		step := eighth
 		if at >= lastBar {
 			step /= 2
 		}
 		at += step
 	}
+	return p.queue[first:]
 }
 
 // hit queues a transition's drum at frame.
@@ -1475,11 +1485,11 @@ func (p *Player) publishBar(sb int) {
 	}
 	notes := make([]Note, 0, len(p.queue))
 	for _, s := range p.queue {
-		nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
-		if s.drum {
-			nt.Len, nt.Pitch, nt.Drum, nt.Kind = max(s.dur, rate/20), int(s.pitch), s.d.name, drumKind(s.d.kind)
+		// A transition's hits queued for bars to come are published
+		// with those bars.
+		if s.frame < p.barEnd {
+			notes = append(notes, p.noteOf(s))
 		}
-		notes = append(notes, nt)
 	}
 	ahead, claps := p.foresee(sb)
 	clapTrack := ""
@@ -1494,6 +1504,15 @@ func (p *Player) publishBar(sb int) {
 	p.ahead, p.aheadFrom = ahead, p.barEnd
 	p.wmu.Unlock()
 	p.publish(notes)
+}
+
+// noteOf returns the note s plays, as Notes tells it.
+func (p *Player) noteOf(s sched) Note {
+	nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
+	if s.drum {
+		nt.Len, nt.Pitch, nt.Drum, nt.Kind = max(s.dur, rate/20), int(s.pitch), s.d.name, drumKind(s.d.kind)
+	}
+	return nt
 }
 
 // publishLook records the song's look as it changes between bars.
