@@ -957,33 +957,57 @@ func (p *Player) liftLate() {
 	}
 }
 
-// roll queues the transitions' roll from frame from to end: 8ths, on
-// the song's grid, and 16ths in its last bar, swelling from soft to
-// loud, a timpani's on the chord's root. It returns the hits queued.
+// roll queues the transitions' roll from frame from to end: quarters,
+// on the song's grid, and 8ths in its last bar. It swells from soft to
+// loud, as a player's would: each bar's downbeat leans in, an 8th off
+// the beat falls back, the last hit drives into the new tier, and no
+// two hits are quite as loud or quite on time. A timpani's rolls on the
+// chord's root. It returns the hits queued.
 func (p *Player) roll(from, end int64) []sched {
 	c := p.c
 	tr := c.trans
 	first := len(p.queue)
-	eighth := c.fpb / float64(c.beats*2)
+	beat := c.fpb / float64(c.beats)
 	lastBar := float64(end) - c.fpb
 	var pitch float32
 	if tr.roll.kind == drTimpani {
 		ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
 		pitch = float32(ch.Root + 36)
 	}
-	// From the bar's grid, the first step at or after from.
-	at := float64(p.barStart) + math.Ceil((float64(from)-float64(p.barStart))/eighth-1e-9)*eighth
+	// From the bar's grid, the first step at or after from: a beat, or
+	// in the last bar an 8th.
+	grid := beat
+	if float64(from) >= lastBar {
+		grid = beat / 2
+	}
+	at := float64(p.barStart) + math.Ceil((float64(from)-float64(p.barStart))/grid-1e-9)*grid
 	span := float64(end) - at
 	for at < float64(end)-1 {
-		x := 1 - (float64(end)-at)/max(span, 1)
-		vel := float32(0.18 + 0.82*x*x)
-		vel *= 1 + 0.04*p.rng.bipolar()
-		p.queue = append(p.queue, sched{frame: int64(at), t: p.trans, drum: true, d: tr.roll, pitch: pitch,
-			dur: int64(eighth), n: note{vel: min(vel, 1)}})
-		step := eighth
-		if at >= lastBar {
-			step /= 2
+		step := beat
+		if at >= lastBar-1 {
+			step = beat / 2
 		}
+		x := 1 - (float64(end)-at)/max(span, 1)
+		vel := 0.2 + 0.8*math.Pow(x, 1.7)
+		inBeats := (at - float64(p.barStart)) / beat
+		k := int(math.Round(inBeats * 2))
+		switch {
+		case at+step >= float64(end)-1:
+			// The last, driving into the new tier.
+			vel *= 1.3
+		case k%2 != 0:
+			// An 8th off the beat.
+			vel *= 0.68
+		case mod(k/2, c.beats) == 0:
+			vel *= 1.25
+		case c.beats == 4 && mod(k/2, 4) == 2:
+			vel *= 1.1
+		}
+		vel *= 1 + 0.12*float64(p.rng.bipolar())
+		// A few milliseconds early or late, never before from.
+		frame := max(int64(at+0.006*rate*float64(p.rng.bipolar())), from)
+		p.queue = append(p.queue, sched{frame: frame, t: p.trans, drum: true, d: tr.roll, pitch: pitch,
+			dur: int64(step), n: note{vel: float32(min(max(vel, 0.08), 1))}})
 		at += step
 	}
 	return p.queue[first:]

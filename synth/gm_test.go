@@ -535,8 +535,8 @@ func TestATierClimbsOnARoll(t *testing.T) {
 	read(1.5)
 	p.SetTier(2)
 	read(0.6)
-	// Into bar 3, the roll's two bars are queued: 8 8ths, then 16 16ths,
-	// swelling, on D, the chord's root.
+	// Into bar 3, the roll's two bars are queued: 4 quarters, then 8
+	// 8ths, swelling, on D, the chord's root.
 	var vels []float32
 	for _, q := range p.queue {
 		if q.t == p.trans && q.d.name == "tim" {
@@ -546,8 +546,8 @@ func TestATierClimbsOnARoll(t *testing.T) {
 			}
 		}
 	}
-	if len(vels) != 24 {
-		t.Fatalf("the roll has %d hits, want 24", len(vels))
+	if len(vels) != 12 {
+		t.Fatalf("the roll has %d hits, want 12", len(vels))
 	}
 	// Notes tells each hit once, as its bar comes.
 	read(2)
@@ -557,10 +557,14 @@ func TestATierClimbsOnARoll(t *testing.T) {
 			heard++
 		}
 	}
-	if heard != 24 {
-		t.Errorf("Notes tells %d hits of the roll, want 24", heard)
+	if heard != 12 {
+		t.Errorf("Notes tells %d hits of the roll, want 12", heard)
 	}
-	if vels[0] > 0.3 || vels[len(vels)-1] < 0.9 {
+	if vels[0] > 0.35 || vels[len(vels)-1] < 0.9 {
 		t.Errorf("the roll swells from %v to %v", vels[0], vels[len(vels)-1])
+	}
+	// In its last bar, the 8ths off the beat fall back from those on it.
+	if on, off := vels[6], vels[5]; off >= on {
+		t.Errorf("an 8th off the beat plays at %v, the beat after at %v", off, on)
 	}
 }

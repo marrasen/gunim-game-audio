@@ -320,8 +320,9 @@ type Transitions struct {
 	// Reverb is how much they send to the reverb.
 	Reverb float64
 	// Roll names a drum of the patch to roll in the riser's place, as an
-	// orchestra's timpani or snare does: 8ths, and 16ths in the last
-	// bar, swelling from soft to loud into the new tier. A tim rolls on
+	// orchestra's timpani or snare does: quarters, and 8ths in the last
+	// bar, swelling from soft to loud into the new tier, accented as a
+	// player would. A tim rolls on
 	// the chord's root.
 	Roll string `json:",omitempty"`
 }
