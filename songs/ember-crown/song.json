@@ -1,0 +1,105 @@
+{
+	"Kind": "synth",
+	"Title": "Ember Crown",
+	"Category": "Boss fights",
+	"Artist": "Marcus Johansson",
+	"BPM": 138,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "D",
+	"Scale": "minor",
+	"Chords": ["Dm", "Dm", "Bb", "Gm", "Dm", "Bb", "Gm", "A"],
+	"Mode": "tiers",
+	"Clap": {"Track": "snares", "Drum": "sn"},
+	"Start": 1,
+	"Patches": {
+		"strings": {"SoundFont": "general", "Program": 48, "Poly": 24, "Gain": 1},
+		"contrabass": {"SoundFont": "general", "Program": 43, "Poly": 4, "Gain": 1},
+		"horns": {"SoundFont": "general", "Program": 60, "Poly": 12, "Gain": 1},
+		"trumpet": {"SoundFont": "general", "Program": 56, "Poly": 2, "Gain": 1},
+		"choir": {"SoundFont": "general", "Program": 52, "Poly": 16, "Gain": 1},
+		"brass": {"SoundFont": "general", "Program": 61, "Poly": 12, "Gain": 1},
+		"hit": {"SoundFont": "general", "Program": 55, "Poly": 8, "Gain": 1},
+		"timpani": {"SoundFont": "general", "Program": 47, "Poly": 4, "Gain": 1},
+		"orch": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {"Type": "boom", "Decay": 0.5, "Gain": 0.8},
+				"sn": {"Tone": 0.5, "Decay": 0.9, "Gain": 0.55},
+				"cr": {"Gain": 0.4, "Decay": 1.4},
+				"ht": {"Tune": 4, "Gain": 0.5},
+				"mt": {"Gain": 0.5},
+				"lt": {"Tune": -4, "Gain": 0.55}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "ostinato", "Tier": 1, "Patch": "strings", "Color": "#7c8cff",
+			"Pattern": "<[c0 c0 c2 c0 c1 c0 c2 c1] [c0 c0 c2 c0 c3 c2 c1 c2]>", "Octave": 4, "Legato": 0.45,
+			"Params": {"vel": "[1 0.6 0.8 0.6]*2"},
+			"Gain": -3, "Pan": -0.2, "Reverb": 0.25
+		},
+		{
+			"Name": "contrabass", "Tier": 1, "Patch": "contrabass", "Color": "#3fd0c9",
+			"Pattern": "b ~ ~ b ~ ~ b ~", "Octave": 2, "Legato": 0.6,
+			"Params": {"vel": "1 0.75 0.85"},
+			"Gain": -2, "Reverb": 0.15
+		},
+		{
+			"Name": "horns", "Tier": 2, "Patch": "horns", "Color": "#ffcf5c",
+			"Pattern": "<[ch _ _ ~] [ch _ ~ ch]>", "Octave": 3, "Legato": 1,
+			"Params": {"vel": "0.8"},
+			"Gain": -13, "Pan": 0.2, "Reverb": 0.35
+		},
+		{
+			"Name": "timpani", "Tier": 2, "Patch": "timpani", "Color": "#ff8a4c",
+			"Pattern": "<[b ~ ~ ~ b ~ b b] [b ~ ~ ~ b ~ [b b] [b b]]>", "Octave": 2, "Legato": 1,
+			"Params": {"vel": "[1 0.6 0.8 0.7]*2"},
+			"Gain": -9, "Reverb": 0.3
+		},
+		{
+			"Name": "theme", "Tier": 3, "Patch": "trumpet", "Color": "#ff6b9d",
+			"Pattern": "[0' _ ~ 4 5 _ 4 3] [2 _ _ _ 0 _ ~ ~] [3 _ 2 _ 1 _ 0 _] [1 _ _ _ -1# _ ~ ~] [0' _ ~ 4 5 _ 6 _] [7 _ _ _ 4 _ ~ ~] [5 _ 4 _ 3 _ 2 _] [1 _ _ _ 4 _ ~ ~]",
+			"Bars": 8, "Octave": 4, "Legato": 0.9,
+			"Params": {"vel": "[1 0.8 0.9 0.85]*2"},
+			"Gain": -6, "Pan": 0.05, "Reverb": 0.35, "Delay": 0.06
+		},
+		{
+			"Name": "choir", "Tier": 3, "Patch": "choir", "Color": "#c58cff",
+			"Pattern": "ch", "Octave": 4, "Legato": 1,
+			"Params": {"vel": "0.7"},
+			"Gain": -10, "Reverb": 0.55, "HPF": 160
+		},
+		{
+			"Name": "snares", "Tier": 3, "Patch": "orch", "Color": "#ffa86b",
+			"Pattern": "<[~ sn ~ sn] [~ sn ~ [sn sn]]>",
+			"Params": {"vel": "0.85"},
+			"Gain": -3, "Reverb": 0.3
+		},
+		{
+			"Name": "drums", "Tier": 4, "Patch": "orch", "Color": "#ff5c5c",
+			"Pattern": "[[bd ~ ~ bd ~ ~ bd ~], cr] [[bd ~ ~ bd ~ ~ bd ~], [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ht mt lt lt]]",
+			"Bars": 2,
+			"Params": {"vel": "[1 0.8]*8"},
+			"Gain": -5, "Reverb": 0.22
+		},
+		{
+			"Name": "brass", "Tier": 4, "Patch": "brass", "Color": "#ffe05f",
+			"Pattern": "<[~ ch ~ ch] [~ ch ~ [ch ch]]>", "Octave": 4, "Legato": 0.4,
+			"Params": {"vel": "0.85 1"},
+			"Gain": -6, "Pan": -0.15, "Reverb": 0.3
+		},
+		{
+			"Name": "hits", "Tier": 4, "Patch": "hit", "Color": "#ffffff",
+			"Pattern": "[ch ~ ~ ~] [~ ~ ~ ~]", "Bars": 2, "Octave": 4, "Legato": 1,
+			"Params": {"vel": "1"},
+			"Gain": -13, "Reverb": 0.4
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 1.2, "Decay": 3, "Tone": 0.5, "PreDelay": 0.03},
+		"Delay": {"Beats": 0.5, "Feedback": 0.2, "Tone": 0.4},
+		"Gain": -6.5
+	}
+}

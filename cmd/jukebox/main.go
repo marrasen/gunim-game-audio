@@ -7,12 +7,14 @@
 //
 //	go run github.com/marrasen/gunim-game-audio/cmd/jukebox@latest
 //
-// The keys 1 to 9 set the tier too.
+// The keys 1 to 9 set the tier too. -soundfont plays the songs'
+// sampled instruments on a General MIDI bank, .sf2 or .sf3.
 package main
 
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -32,6 +34,7 @@ import (
 
 	music "github.com/marrasen/gunim-game-audio"
 	"github.com/marrasen/gunim-game-audio/internal/songpicker"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // The vocabulary the two halves share.
@@ -93,6 +96,15 @@ func init() {
 }
 
 func main() {
+	font := flag.String("soundfont", "", "a General MIDI SoundFont bank, .sf2 or .sf3, for the songs' sampled instruments to play on")
+	flag.Parse()
+	if *font != "" {
+		f, err := soundfont.Open(*font)
+		if err != nil {
+			log.Fatal(err)
+		}
+		music.UseSoundFont(f)
+	}
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}

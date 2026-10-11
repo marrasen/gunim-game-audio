@@ -41,6 +41,8 @@ import music "github.com/marrasen/gunim-game-audio"
 | Meridian | `meridian` | A futurepop song in the manner of VNV Nation, made in code, at 138 BPM in B minor, in 96 bars: a choir, timpani and a piano open it; a 16th EBM bass and a supersaw arpeggio drive it; a baritone sings, clean, in a hall; its chorus lifts to the harmonic minor's V; and a supersaw lead soars over its break. |
 | Parallax | `parallax` | A futurepop song in the manner of Apoptygma Berzerk, made in code, at 132 BPM in F minor, in 96 bars: an arpeggio for its hook, an EBM bass, a supersaw pad chopped by a trance gate, a tenor sung and doubled, a supersaw riff, a Commodore 64's interlude, and a robot girl's voice in its breakdown. |
 | Phantom Highway | `phantom-highway` | A noise pop song in the manner of the Raveonettes' Whip It On, made in code, at 144 BPM in B-flat minor, in three chords and 96 bars, with no hi-hats: a big kick and a roomy snare, a floor tom's eighths and a tambourine; strummed guitars whose reverb is buried in fuzz, walls of them hard left and right in its choruses; a twanging surf lead on a spring; and a man's and a woman's voice droning together in the reverb. |
+| Harbour Lanterns | `harbour-lanterns` | A calm song of a harbour at dusk, made in code, at 80 BPM in F major, for a room and its map, played on a SoundFont bank's recorded instruments: a piano's arpeggio, an upright bass, strings and brushes always, and a nylon guitar, a flute's tune and a vibraphone coming and going. Without a bank it plays the engine's own General MIDI sounds. |
+| Ember Crown | `ember-crown` | An orchestral boss fight, made in code, at 138 BPM in D minor, in four tiers, played on a SoundFont bank's recorded instruments: staccato strings and a contrabass; horns and timpani; a trumpet's theme, a choir and snares; drums, a brass section and orchestra hits. Without a bank it plays the engine's own General MIDI sounds. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -192,7 +194,7 @@ tier 2. Mascot Dance's, Sister Dreams' and Underworld Ascent's come and
 go as those songs wander, and the game can hold them in with
 `SetPart`; Star Drift's bells always ring, as do Candy Clouds' soft
 snap, Compass Rose's rim, Summer Meadow's woody tick and Tinker Lab's
-snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, Ring Me Twice's, but for its breakdown's first four, the snares of Wire Cathedral, but in its piano's quiet, and of Mirror Shine, but where its voice is alone, the claps of Meridian and Parallax, but in their intros and breakdowns, and Phantom Highway's snare. Pocket Kingdom claps twice, quick, every bar;
+snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, Ring Me Twice's, but for its breakdown's first four, the snares of Wire Cathedral, but in its piano's quiet, and of Mirror Shine, but where its voice is alone, the claps of Meridian and Parallax, but in their intros and breakdowns, Phantom Highway's snare, and Harbour Lanterns' rim. Pocket Kingdom claps twice, quick, every bar;
 Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent, Orbit
 Round, Alien Entrance, Meadow Hop and Tinker Round every other bar. The recorded songs, Greek Themes and A round song,
 tell their beat but not their drums: a character can clap on beats 2
@@ -798,17 +800,20 @@ under the GPL, and many banks found on the web are of unclear origin.
 
 In the MIDI player the SoundFont cartridge plays MIDI files on a bank:
 drop an `.sf2` or `.sf3` on the window, or name it with `-soundfont`,
-and the player remembers it; with none, D fetches MuseScore General and
-its licence to the user's cache. `gmplay -soundfont bank.sf3` renders
+and the player remembers it; with none, a card offers to fetch MuseScore
+General and its licence to the user's cache, or to choose a bank. `gmplay -soundfont bank.sf3` renders
 on one too.
 
 A song made in code plays a bank as a patch does: a patch names the
-bank, as registered, and its program.
+bank, as registered, and its program. The library's songs name
+`music.SoundFont`, `"general"`, a General MIDI bank; Harbour Lanterns
+and Ember Crown play on it. A game gives them its bank with
+`music.UseSoundFont`:
 
 ```go
 bank, err := soundfont.Open("MuseScore_General.sf3")
 if err == nil {
-	synth.RegisterSoundFont("general", bank)
+	music.UseSoundFont(bank) // synth.RegisterSoundFont("general", bank)
 }
 ```
 
@@ -820,8 +825,9 @@ Where no bank of the name is registered, as in a game that ships
 none, the patch plays as its other fields say, or with none as General
 MIDI's program on the engine's own instruments, so the song sounds
 everywhere, and better where the bank is. In gunim music studio,
-`-soundfont bank.sf3` registers a bank by its file's name, and the
-patch editor's Plays on and Program pick it and its program.
+`-soundfont bank.sf3` registers a bank as `general`, and the patch
+editor's Plays on and Program pick it and its program. The jukebox,
+`cmd/play` and `cmd/render` take `-soundfont` too.
 
 ## Licence
 

@@ -35,8 +35,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/marrasen/gunim"
@@ -48,7 +46,6 @@ import (
 
 	music "github.com/marrasen/gunim-game-audio"
 	"github.com/marrasen/gunim-game-audio/soundfont"
-	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 func main() {
@@ -57,7 +54,7 @@ func main() {
 	editor := flag.String("editor", "", "the editor to open, by its tab: Stage, Mixer, Patch, Kit, Effects, Pattern or Beat")
 	on := flag.String("track", "", "with -editor, the track to open it on")
 	shot := flag.String("shot", "", "write the window to this PNG file after -after, and quit")
-	font := flag.String("soundfont", "", "a SoundFont bank, .sf2 or .sf3, for patches to play on, registered by its file's name")
+	font := flag.String("soundfont", "", "a SoundFont bank, .sf2 or .sf3, for patches to play on, as the songs' General MIDI bank")
 	after := flag.Duration("after", 6*time.Second, "how long -shot waits")
 	flag.Parse()
 	if *font != "" {
@@ -120,22 +117,24 @@ func run(song string, tier int, editor, on, shot string, after time.Duration) er
 	return err
 }
 
-// fontName and fontPrograms are the bank -soundfont registered, by its
-// file's name, and the names of its programs of bank 0, by number.
+// fontName and fontPrograms are the name -soundfont's bank is registered
+// by, music.SoundFont, and the names of its programs of bank 0, by number.
 var (
 	fontName     string
 	fontPrograms []string
 )
 
-// registerFont reads the bank at path and registers it by its file's
-// name, for patches to play on.
+// registerFont reads the bank at path and registers it as the songs'
+// General MIDI bank, for patches to play on.
 func registerFont(path string) error {
 	f, err := soundfont.Open(path)
 	if err != nil {
 		return err
 	}
-	fontName = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	synth.RegisterSoundFont(fontName, f)
+	// Registered as the library's songs name it, so they play on it, and
+	// the patches made here play on a game's bank.
+	fontName = music.SoundFont
+	music.UseSoundFont(f)
 	fontPrograms = make([]string, 128)
 	for i := range fontPrograms {
 		name := "—"

@@ -1,0 +1,83 @@
+{
+	"Kind": "synth",
+	"Title": "Harbour Lanterns",
+	"Category": "Calm rooms",
+	"Artist": "Marcus Johansson",
+	"BPM": 80,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "F",
+	"Scale": "major",
+	"Chords": ["Fmaj7", "Dm7", "Bbmaj7", "C7sus4", "Am7", "Dm7", "Gm7", "C7"],
+	"ChordBars": 2,
+	"Mode": "wander",
+	"Clap": {"Track": "brushes", "Drum": "rim"},
+	"Patches": {
+		"piano": {"SoundFont": "general", "Program": 0, "Poly": 16, "Gain": 1},
+		"guitar": {"SoundFont": "general", "Program": 24, "Poly": 12, "Gain": 1},
+		"upright": {"SoundFont": "general", "Program": 32, "Poly": 4, "Gain": 1},
+		"strings": {"SoundFont": "general", "Program": 49, "Poly": 16, "Gain": 1},
+		"flute": {"SoundFont": "general", "Program": 73, "Poly": 2, "Gain": 1},
+		"vibes": {"SoundFont": "general", "Program": 11, "Poly": 8, "Gain": 1},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"lt": {"Tune": -3, "Decay": 0.7, "Tone": 0.15, "Gain": 0.4},
+				"rim": {"Gain": 0.3, "Tone": 0.3, "Pan": -0.15},
+				"sh": {"Gain": 0.22, "Tone": 0.2, "Pan": 0.3},
+				"rd": {"Gain": 0.18, "Tone": 0.3, "Decay": 0.8, "Pan": 0.25}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "piano", "Core": true, "Patch": "piano", "Color": "#ffcf7a",
+			"Pattern": "[b x x x] [x x x ~]", "Arp": "up", "ArpOctaves": 2, "Octave": 4, "Legato": 1.6,
+			"Params": {"vel": "[0.85 0.5 0.6 0.5] [0.7 0.5 0.55 0.5]"},
+			"Gain": -4, "Pan": -0.1, "Reverb": 0.35, "Human": 0.25
+		},
+		{
+			"Name": "bass", "Core": true, "Patch": "upright", "Color": "#3fd0c9",
+			"Pattern": "b _ ~ c2 b _ c1 ~", "Octave": 2, "Legato": 0.85,
+			"Params": {"vel": "0.95 0.7 0.75 0.7"},
+			"Gain": -5, "Human": 0.15
+		},
+		{
+			"Name": "strings", "Core": true, "Patch": "strings", "Color": "#7c8cff",
+			"Pattern": "ch", "Legato": 1, "Octave": 4,
+			"Params": {"vel": "0.55"},
+			"Gain": -9, "Reverb": 0.5, "HPF": 120
+		},
+		{
+			"Name": "brushes", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "[lt ~ ~ ~ ~ ~ ~ ~, ~ rim ~ rim, sh*8?0.4, rd ~ rd rd]",
+			"Params": {"vel": "[1 0.6 0.8 0.6]*2"},
+			"Gain": -3, "Reverb": 0.25, "Human": 0.3
+		},
+		{
+			"Name": "guitar", "Patch": "guitar", "Color": "#ffa86b",
+			"Pattern": "[~ x ~ x ~ x x ~]", "Arp": "updown", "ArpOctaves": 2, "Octave": 3, "Legato": 1.2,
+			"Params": {"vel": "[0.7 0.55 0.65 0.5]*2"},
+			"Gain": -5, "Pan": 0.3, "Reverb": 0.3, "Human": 0.2
+		},
+		{
+			"Name": "flute", "Patch": "flute", "Color": "#5ce1a8",
+			"Pattern": "[c2 _ _ c1 c0 _ c1 _] [c2 _ _ _ ~ ~ ~ ~] [c3 _ c2 _ c1 _ c0 _] [c1 _ _ _ _ _ ~ ~]",
+			"Bars": 4, "Octave": 5, "Legato": 1,
+			"Params": {"vel": "0.8"},
+			"Gain": -15, "Pan": -0.2, "Reverb": 0.45, "Delay": 0.2
+		},
+		{
+			"Name": "vibes", "Patch": "vibes", "Color": "#fff1a8",
+			"Pattern": "[~ ~ c2 ~ ~ ~ c0' ~] [~ ~ ~ ~ c1' _ ~ ~]",
+			"Bars": 2, "Octave": 5, "Legato": 1.4,
+			"Params": {"vel": "0.6"},
+			"Gain": -7, "Pan": 0.35, "Reverb": 0.5, "Delay": 0.3
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 1, "Decay": 2.6, "Tone": 0.5, "PreDelay": 0.03},
+		"Delay": {"Beats": 0.75, "Feedback": 0.3, "Tone": 0.45},
+		"Gain": -5
+	}
+}
