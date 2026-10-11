@@ -260,9 +260,9 @@ type Mix struct {
 	// Tweak turns the whole song's sound by a few broad knobs.
 	Tweak Tweak `json:",omitzero"`
 	// Transitions names a drums patch to mark tier changes with: a riser
-	// in the bars before the tier climbs, an impact as it lands, and a
-	// down as it falls. Lift is how many bars the riser takes, 1 by
-	// default; Gain its level in decibels.
+	// in the bars before the tier climbs, or a roll of its drum Roll, an
+	// impact as it lands, and a down as it falls. Lift is how many bars
+	// the riser or roll takes, 1 by default; Gain its level in decibels.
 	Transitions *Transitions
 }
 
@@ -319,6 +319,12 @@ type Transitions struct {
 	Gain  float64
 	// Reverb is how much they send to the reverb.
 	Reverb float64
+	// Roll names a drum of the patch to roll in the riser's place, as an
+	// orchestra's timpani or snare does: quarters, and 8ths in the last
+	// bar, swelling from soft to loud into the new tier, accented as a
+	// player would. A tim rolls on
+	// the chord's root.
+	Roll string `json:",omitempty"`
 }
 
 // Info implements [band.Song].
@@ -444,6 +450,10 @@ type ctrans struct {
 	down   drum
 	boom   drum
 	crash  drum
+	// roll is the drum rolled in the riser's place, where rolls says
+	// there is one.
+	roll  drum
+	rolls bool
 }
 
 // The kinds of action an atom asks a track for.
@@ -609,6 +619,13 @@ func compile(s *Song) (*compiled, error) {
 		c.trans = &ctrans{patch: p, lift: max(tr.Lift, 1), gain: float32(dbGain(tr.Gain)), reverb: float32(tr.Reverb),
 			riser: p.kit["riser"], down: p.kit["down"], boom: p.kit["boom"], crash: p.kit["cr"]}
 		c.trans.lift = min(c.trans.lift, c.phraseBars)
+		if tr.Roll != "" {
+			d, ok := p.kit[tr.Roll]
+			if !ok {
+				return nil, fmt.Errorf("synth: the transitions roll drum %q, which kit %s has none of", tr.Roll, tr.Patch)
+			}
+			c.trans.roll, c.trans.rolls = d, true
+		}
 	}
 	c.stings = map[string]*csting{}
 	for name, st := range s.Stings {

@@ -1,6 +1,7 @@
 package synth
 
 import (
+	"cmp"
 	"errors"
 	"math"
 	"slices"
@@ -662,9 +663,17 @@ func (t *track) retune(ct *ctrack) {
 			t.sf = newSFVoices(p.poly)
 		}
 	} else if p.kind == kindDrums {
-		t.vs, t.sf = nil, nil
+		t.vs = nil
 		if t.hs == nil {
 			t.hs = newHits(p.poly)
+		}
+		switch {
+		case p.font == nil:
+			t.sf = nil
+		case t.sf == nil || len(t.sf.vs) < p.poly:
+			// A kit on a bank plays its drums there, and the engine's
+			// drums the bank has none for, as a riser.
+			t.sf = newSFVoices(p.poly)
 		}
 	} else {
 		t.hs, t.sf = nil, nil
@@ -720,6 +729,55 @@ func (t *track) playFont(pt *patch, n note) {
 		l, r := panGains(min(max(float32(regions[i].Pan)+n.pan, -1), 1))
 		v.panL, v.panR = l, r
 	}
+}
+
+// playDrum plays drum d of patch pt at velocity vel, panned by pan,
+// pitched to pitch where it is pitched, and lasting dur frames, as the
+// engine's drums take them: on pt's bank where it has the drum, or else
+// on the engine's.
+func (t *track) playDrum(pt *patch, d drum, vel, pan, pitch float32, dur int64, tune float32) {
+	if t.sf != nil && pt.font != nil && t.playFontDrum(pt, d, vel, pan, pitch, tune) {
+		return
+	}
+	if t.hs != nil {
+		t.hs.play(d, vel, pan, pitch, dur, tune)
+	}
+}
+
+// fontDrumGate is how long a bank's drum is held: a drum's sample plays
+// to its end, but one that loops, as a roll does, is let go.
+const fontDrumGate = 3 * rate
+
+// playFontDrum plays drum d on pt's bank, and reports whether the bank
+// has it.
+func (t *track) playFontDrum(pt *patch, d drum, vel, pan, pitch, tune float32) bool {
+	src := pt.src
+	bank, prog, key := 128, src.Program, d.key
+	if src.Bank != 0 {
+		bank = src.Bank
+	}
+	if d.prog >= 0 {
+		bank, prog, key = 0, d.prog, int(math.Round(float64(pitch)))
+	}
+	if key <= 0 || key > 127 {
+		return false
+	}
+	v127 := min(max(int(vel*127+0.5), 1), 127)
+	regions := pt.font.Regions(bank, prog, key, v127)
+	if len(regions) == 0 {
+		return false
+	}
+	for i := range regions {
+		v := t.sf.play(&regions[i], key, v127, fontDrumGate)
+		v.fine = d.fine + float64(tune)
+		if d.prog >= 0 {
+			v.fine += float64(pitch) - float64(key)
+		}
+		v.gainBy = float64(pt.gain * d.gain)
+		l, r := panGains(min(max(float32(regions[i].Pan+d.Pan)+pan, -1), 1))
+		v.panL, v.panR = l, r
+	}
+	return true
 }
 
 // startBar starts the next bar: it starts or ends a sting, chooses the
@@ -858,7 +916,12 @@ func (p *Player) lift(sb int) {
 	}
 	if mod(sb, c.phraseBars) == c.phraseBars-c.trans.lift && int(p.tierReq.Load()) > p.tier {
 		p.risen = true
-		p.hit(c.trans.riser, p.barStart, int64(float64(c.trans.lift)*c.fpb), 0.85)
+		end := p.barStart + int64(float64(c.trans.lift)*c.fpb)
+		if c.trans.rolls {
+			p.roll(p.barStart, end)
+			return
+		}
+		p.hit(c.trans.riser, p.barStart, end-p.barStart, 0.85)
 	}
 }
 
@@ -876,8 +939,78 @@ func (p *Player) liftLate() {
 	end := p.barStart + int64(float64(c.phraseBars-mod(sb, c.phraseBars))*c.fpb)
 	if left := end - p.at; float64(left) > c.fpb/4 {
 		p.risen = true
+		if c.trans.rolls {
+			// The bar is published already: its share of the roll is
+			// published now, and the rest with the next bar's.
+			var notes []Note
+			for _, s := range p.roll(p.at, end) {
+				if s.frame < p.barEnd {
+					notes = append(notes, p.noteOf(s))
+				}
+			}
+			p.publish(notes)
+			// The roll's hits go among those queued, in time.
+			slices.SortStableFunc(p.queue[p.qi:], func(a, b sched) int { return cmp.Compare(a.frame, b.frame) })
+			return
+		}
 		p.trans.hs.play(c.trans.riser, 0.85, 0, 0, left, 0)
 	}
+}
+
+// roll queues the transitions' roll from frame from to end: quarters,
+// on the song's grid, and 8ths in its last bar. It swells from soft to
+// loud, as a player's would: each bar's downbeat leans in, an 8th off
+// the beat falls back, the last hit drives into the new tier, and no
+// two hits are quite as loud or quite on time. A timpani's rolls on the
+// chord's root. It returns the hits queued.
+func (p *Player) roll(from, end int64) []sched {
+	c := p.c
+	tr := c.trans
+	first := len(p.queue)
+	beat := c.fpb / float64(c.beats)
+	lastBar := float64(end) - c.fpb
+	var pitch float32
+	if tr.roll.kind == drTimpani {
+		ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
+		pitch = float32(ch.Root + 36)
+	}
+	// From the bar's grid, the first step at or after from: a beat, or
+	// in the last bar an 8th.
+	grid := beat
+	if float64(from) >= lastBar {
+		grid = beat / 2
+	}
+	at := float64(p.barStart) + math.Ceil((float64(from)-float64(p.barStart))/grid-1e-9)*grid
+	span := float64(end) - at
+	for at < float64(end)-1 {
+		step := beat
+		if at >= lastBar-1 {
+			step = beat / 2
+		}
+		x := 1 - (float64(end)-at)/max(span, 1)
+		vel := 0.2 + 0.8*math.Pow(x, 1.7)
+		inBeats := (at - float64(p.barStart)) / beat
+		k := int(math.Round(inBeats * 2))
+		switch {
+		case at+step >= float64(end)-1:
+			// The last, driving into the new tier.
+			vel *= 1.3
+		case k%2 != 0:
+			// An 8th off the beat.
+			vel *= 0.68
+		case mod(k/2, c.beats) == 0:
+			vel *= 1.25
+		case c.beats == 4 && mod(k/2, 4) == 2:
+			vel *= 1.1
+		}
+		vel *= 1 + 0.12*float64(p.rng.bipolar())
+		// A few milliseconds early or late, never before from.
+		frame := max(int64(at+0.006*rate*float64(p.rng.bipolar())), from)
+		p.queue = append(p.queue, sched{frame: frame, t: p.trans, drum: true, d: tr.roll, pitch: pitch,
+			dur: int64(step), n: note{vel: float32(min(max(vel, 0.08), 1))}})
+		at += step
+	}
+	return p.queue[first:]
 }
 
 // hit queues a transition's drum at frame.
@@ -1173,9 +1306,7 @@ func (p *Player) paramAt(t *track, i, cycle int, at float64) (float64, bool) {
 func (p *Player) fire(s *sched) {
 	t := s.t
 	if s.drum {
-		if t.hs != nil {
-			t.hs.play(s.d, s.n.vel, s.n.pan, s.pitch, s.dur, s.tune)
-		}
+		t.playDrum(t.c.patch, s.d, s.n.vel, s.n.pan, s.pitch, s.dur, s.tune)
 	} else if t.sf != nil && t.c.patch.kind == kindFont {
 		t.playFont(t.c.patch, s.n)
 	} else if t.vs != nil {
@@ -1236,8 +1367,9 @@ func (p *Player) render(dst []float32, n int) {
 			sounding = t.sf.render(tl, tr, 0)
 		} else if t.vs != nil {
 			sounding = t.vs.render(tl, tr, &p.ctx)
-		} else if t.hs != nil {
-			sounding = t.hs.render(tl, tr)
+		}
+		if t.hs != nil {
+			sounding = t.hs.render(tl, tr) || sounding
 		}
 		t.sounding = sounding
 		ct := t.c
@@ -1377,11 +1509,11 @@ func (p *Player) publishBar(sb int) {
 	}
 	notes := make([]Note, 0, len(p.queue))
 	for _, s := range p.queue {
-		nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
-		if s.drum {
-			nt.Len, nt.Pitch, nt.Drum, nt.Kind = max(s.dur, rate/20), int(s.pitch), s.d.name, drumKind(s.d.kind)
+		// A transition's hits queued for bars to come are published
+		// with those bars.
+		if s.frame < p.barEnd {
+			notes = append(notes, p.noteOf(s))
 		}
-		notes = append(notes, nt)
 	}
 	ahead, claps := p.foresee(sb)
 	clapTrack := ""
@@ -1396,6 +1528,15 @@ func (p *Player) publishBar(sb int) {
 	p.ahead, p.aheadFrom = ahead, p.barEnd
 	p.wmu.Unlock()
 	p.publish(notes)
+}
+
+// noteOf returns the note s plays, as Notes tells it.
+func (p *Player) noteOf(s sched) Note {
+	nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
+	if s.drum {
+		nt.Len, nt.Pitch, nt.Drum, nt.Kind = max(s.dur, rate/20), int(s.pitch), s.d.name, drumKind(s.d.kind)
+	}
+	return nt
 }
 
 // publishLook records the song's look as it changes between bars.
@@ -1675,7 +1816,7 @@ func (p *Player) playAuditions(as []audition) {
 				ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
 				pitch = float32(ch.Root + 36)
 			}
-			p.audit.hs.play(d, a.vel, 0, pitch, int64(p.c.fpb), 0)
+			p.audit.playDrum(pt, d, a.vel, 0, pitch, int64(p.c.fpb), 0)
 			continue
 		}
 		n := note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1}

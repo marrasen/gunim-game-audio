@@ -168,7 +168,8 @@ func TestEverySongPlays(t *testing.T) {
 func TestTheSongsMadeInCodeAreThere(t *testing.T) {
 	for _, name := range []string{KeypadRound, BossEntrance, MascotDance, BubbleBounce, SisterDreams, GraveyardGallop,
 		PocketKingdom, MeadowHop, HerosField, PalaceRun, UnderworldAscent, StarDrift, OrbitRound, AlienEntrance,
-		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon, RingMeTwice, WireCathedral, MirrorShine, Meridian, Parallax, PhantomHighway} {
+		CandyClouds, CompassRose, SummerMeadow, TinkerLab, TinkerRound, NotteDiNeon, RingMeTwice, WireCathedral, MirrorShine, Meridian, Parallax, PhantomHighway,
+		HarbourLanterns, EmberCrown} {
 		s, err := Song(name)
 		if err != nil {
 			t.Fatal(err)

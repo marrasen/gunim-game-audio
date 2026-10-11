@@ -43,6 +43,7 @@ import (
 	"github.com/marrasen/gunim/audio/band"
 
 	"github.com/marrasen/gunim-game-audio/calls"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
@@ -200,7 +201,40 @@ const (
 	// reverb is buried in fuzz, a twanging surf lead on a spring, and a
 	// man's and a woman's voice droning together in the reverb.
 	PhantomHighway = "phantom-highway"
+	// HarbourLanterns is a calm song of a harbour at dusk, made in code,
+	// at 80 BPM in F major, for a game's room and its map, played on a
+	// SoundFont bank's recorded instruments: a piano's arpeggio, an
+	// upright bass, strings and brushes always, and a nylon guitar, a
+	// flute's tune and a vibraphone coming and going. See [UseSoundFont].
+	HarbourLanterns = "harbour-lanterns"
+	// EmberCrown is an orchestral boss fight, made in code, at 138 BPM
+	// in D minor, in four tiers, played on a SoundFont bank's recorded
+	// instruments: staccato strings and a contrabass; horns and timpani;
+	// a trumpet's theme, a choir and snares; drums, a brass section and
+	// orchestra hits. See [UseSoundFont].
+	EmberCrown = "ember-crown"
 )
+
+// SoundFont names the SoundFont bank the library's songs play their
+// sampled instruments on, a General MIDI bank. A game registers the
+// bank of its choice under it with [UseSoundFont]; without one, each
+// sampled instrument plays the engine's own General MIDI sound for its
+// program, so a game need ship no bank.
+const SoundFont = "general"
+
+// UseSoundFont has the songs that play on a SoundFont bank play on f,
+// a General MIDI bank, as MuseScore General is:
+//
+//	f, err := soundfont.Open("MuseScore_General.sf3")
+//	if err != nil {
+//		return err
+//	}
+//	music.UseSoundFont(f)
+//
+// Call it before the songs are loaded with [Song]. A bank has its own
+// licence, which a game that ships one must follow; package soundfont's
+// Banks lists some.
+func UseSoundFont(f *soundfont.Font) { synth.RegisterSoundFont(SoundFont, f) }
 
 // files holds the songs: a folder each, named for the song, with its
 // song.json and its parts, made by encode.sh.

@@ -12,8 +12,11 @@ func TestABankReadsItsPresetsAndRegions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.Name != "Test Bank" || len(f.Presets) != 1 || f.Presets[0].Name != "Square" {
+	if f.Name != "Test Bank" || len(f.Presets) != 2 || f.Presets[0].Name != "Square" || f.Presets[1].Name != "Kit" {
 		t.Fatalf("read %q, presets %+v", f.Name, f.Presets)
+	}
+	if n, m := len(f.Regions(128, 0, 38, 100)), len(f.Regions(128, 0, 49, 100)); n != 1 || m != 0 {
+		t.Fatalf("the kit plays %d regions on key 38 and %d on 49, want 1 and 0", n, m)
 	}
 	rs := f.Regions(0, 0, 72, 100)
 	if len(rs) != 1 {
@@ -29,8 +32,8 @@ func TestABankReadsItsPresetsAndRegions(t *testing.T) {
 	if n := len(r.Sample.Frames()); n != 100 || r.Sample.Frames()[0] != 12000 {
 		t.Errorf("the sample has %d frames", n)
 	}
-	// A bank it lacks falls back to bank 0; a drum kit it lacks, to none.
-	if f.Preset(8, 0) == nil || f.Preset(128, 0) != nil {
+	// A bank it lacks falls back to bank 0; a drum kit it lacks, to kit 0.
+	if f.Preset(8, 0) == nil || f.Preset(128, 25) != f.Preset(128, 0) {
 		t.Error("the fallbacks are wrong")
 	}
 }

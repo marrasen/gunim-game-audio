@@ -66,6 +66,27 @@ func (fl *flow) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Ch
 			drums = append(drums, i)
 		}
 	}
+	// The transitions' riser, roll and impacts have a lane while any is
+	// in sight.
+	for _, n := range s.Notes {
+		if n.Track == transTrack && n.Drum {
+			lane[transTrack] = len(drums)
+			drums = append(drums, transTrack)
+			break
+		}
+	}
+	laneColor := func(t int) color.NRGBA {
+		if t == transTrack {
+			return transColor
+		}
+		return hexColor(s.Tracks[t].Color, t)
+	}
+	laneName := func(t int) string {
+		if t == transTrack {
+			return "transitions"
+		}
+		return s.Tracks[t].Name
+	}
 	laneH := float32(14)
 	drumTop := v.Max.Y - laneH*float32(len(drums)) - 6
 	notes := geom.Rc(v.Min.X, v.Min.Y+chordH+8, v.Size().W, drumTop-v.Min.Y-chordH-14)
@@ -155,7 +176,7 @@ func (fl *flow) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Ch
 
 	// The drums.
 	for _, n := range s.Notes {
-		if !n.Drum || n.Track < 0 {
+		if !n.Drum || (n.Track < 0 && n.Track != transTrack) {
 			continue
 		}
 		l, ok := lane[n.Track]
@@ -166,7 +187,7 @@ func (fl *flow) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Ch
 		if xx < v.Min.X-8 || xx > v.Max.X+8 {
 			continue
 		}
-		c := hexColor(s.Tracks[n.Track].Color, n.Track)
+		c := laneColor(n.Track)
 		d := 4 + 5*n.Vel
 		cy := drumTop + laneH*float32(l) + laneH/2
 		r := geom.Rc(xx-d/2, cy-d/2, d, d)
@@ -183,7 +204,7 @@ func (fl *flow) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Ch
 		}
 	}
 	for i, t := range drums {
-		run := audioui.Shaped(s.Tracks[t].Name, 10, false, false)
+		run := audioui.Shaped(laneName(t), 10, false, false)
 		at := geom.Pt(v.Min.X+8, drumTop+laneH*float32(i)+(laneH-run.Height())/2)
 		p.RRect(geom.Rc(at.X-4, at.Y-1, run.Advance+8, run.Height()+2), 4, paint.Solid(color.NRGBA{0x12, 0x14, 0x1d, 0xd8}))
 		run.Paint(p, at, withAlpha(ink, 0.55))

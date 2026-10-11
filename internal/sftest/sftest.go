@@ -9,7 +9,9 @@ import (
 // Build builds a bank of one preset, program 0 of bank 0, playing one
 // instrument of one zone, keys 0 to 127, of one sample: a square wave of
 // 100 frames at 44100 Hz, its root key 60, looped through all of it, with
-// a release of about a tenth of a second and the pan hard right.
+// a release of about a tenth of a second and the pan hard right. A drum
+// kit, program 0 of bank 128, plays the same instrument on keys 36 to 38
+// only.
 func Build() []byte {
 	le := func(b *bytes.Buffer, v ...any) {
 		for _, x := range v {
@@ -45,11 +47,15 @@ func Build() []byte {
 	var phdr, pbag, pmod, pgen, inst, ibag, imod, igen, shdr bytes.Buffer
 	phdr.Write(name("Square", 20))
 	le(&phdr, uint16(0), uint16(0), uint16(0), uint32(0), uint32(0), uint32(0))
+	phdr.Write(name("Kit", 20))
+	le(&phdr, uint16(0), uint16(128), uint16(1), uint32(0), uint32(0), uint32(0))
 	phdr.Write(name("EOP", 20))
-	le(&phdr, uint16(0), uint16(0), uint16(1), uint32(0), uint32(0), uint32(0))
-	le(&pbag, uint16(0), uint16(0), uint16(1), uint16(0))
+	le(&phdr, uint16(0), uint16(0), uint16(2), uint32(0), uint32(0), uint32(0))
+	le(&pbag, uint16(0), uint16(0), uint16(1), uint16(0), uint16(3), uint16(0))
 	pmod.Write(make([]byte, 10))
-	le(&pgen, uint16(41), uint16(0), uint16(0), uint16(0))
+	le(&pgen, uint16(41), uint16(0), // the square's instrument
+		uint16(43), uint8(36), uint8(38), uint16(41), uint16(0), // the kit's: keys 36 to 38
+		uint16(0), uint16(0))
 	inst.Write(name("Square", 20))
 	le(&inst, uint16(0))
 	inst.Write(name("EOI", 20))

@@ -248,6 +248,19 @@ func (st *stage) scene(heard float64) paint.Scene {
 			c = hexColor(s.Tracks[n.Track].Color, n.Track)
 			from = st.orbAt(n.Track)
 		}
+		if n.Track == transTrack && n.Drum {
+			// A transition's hit: a ring rolling out from the core over
+			// the whole floor, as bright as the hit is hard.
+			life := 0.7 * audioRate
+			if age > life {
+				continue
+			}
+			x := float32(age / life)
+			r := 0.5 + 5.2*(1-(1-x)*(1-x))
+			add(-1, paint.SceneItem{Mesh: st.disc, Model: geom.Move3(geom.V3(0, 0.012, 0)).Mul(geom.Scale3(geom.V3(r, 0.01, r))),
+				Tint: withAlpha(transColor, 0.5*n.Vel*(1-x)*(1-x))})
+			continue
+		}
 		if n.Drum {
 			life := 0.5 * audioRate
 			if age > life {
@@ -282,6 +295,12 @@ func (st *stage) scene(heard float64) paint.Scene {
 	st.items = items
 	return sc
 }
+
+// transTrack is the track a note of the song's transitions has, its
+// riser, roll or impact, and transColor their colour, an ember's.
+const transTrack = -2
+
+var transColor = color.NRGBA{0xff, 0xa9, 0x4d, 0xff}
 
 // coreY is how high the core floats over the middle of the stage.
 const coreY = 1.45
