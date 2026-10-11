@@ -30,11 +30,34 @@ type Patch struct {
 	// gliding from note to note over Glide seconds.
 	Poly  int
 	Glide float64
+	// Slide glides only into a note that starts while the one before is
+	// still held, as a TB-303 slides between tied notes; a note after a
+	// rest jumps to its pitch. A track's legato over 1 ties its notes.
+	Slide bool `json:",omitempty"`
+	// Accent is how many octaves an accented note opens the filter by,
+	// as a TB-303's accent sweeps it: a note of velocity 1 is accented,
+	// its filter envelope falling in 0.2 s, and accents close together
+	// stack, each opening it further, as the 303's capacitor charges
+	// before it has drained. Give the notes not accented a velocity
+	// under 1.
+	Accent float64 `json:",omitempty"`
 	// Drive saturates the oscillators before the filter, from 0.
 	Drive float64
+	// Drift detunes each note by up to that many cents, at random, as
+	// an analogue synth's oscillators drift: a chord's notes beat
+	// against each other, and no two notes are quite alike.
+	Drift float64
 	// Vowel makes the patch sing a vowel, a, e, i, o or u, as a voice
 	// does; a track's vowel parameter changes it note by note.
 	Vowel string
+	// Vocoder sings the vowel through a vocoder's ten bands, as a
+	// Roland VP-330's, in place of a voice's three resonances: the
+	// robot's voice of electronic pop, which a track's vowels make speak.
+	Vocoder bool `json:",omitempty"`
+	// Singer sings the vowel as a voice of its type does, through the
+	// five formants of a bass, baritone, tenor, alto or soprano, in
+	// place of three; with a glottal oscillator, a voice sings.
+	Singer string `json:",omitempty"`
 	// Pluck is how a pluck patch's string sounds.
 	Pluck Pluck
 	// Arpeggio plays a chord as one voice, its notes in turn, fast, as a
@@ -47,7 +70,8 @@ type Patch struct {
 	// Kit is a drums patch's drums, by the names a pattern plays them
 	// by. A name the kit leaves out is a drum of the same name, as bd,
 	// sn, cp, hh, oh, rim, lt, mt, ht, cr, rd, sh, snap, tim, boom,
-	// riser or down; see Drum.
+	// riser, down, the syn-toms syn1 to syn3, cb, a cowbell, bd9, a
+	// TR-909's kick, mtl, a metal hit, or tamb, a tambourine; see Drum.
 	Kit map[string]Drum
 	// Gain is the patch's level, 1 by default.
 	Gain float64
@@ -59,7 +83,8 @@ type Osc struct {
 	// another sine moves, as a bell or an electric piano. A Commodore
 	// 64's SID chip gives noise, pitched by the note as its noise is, and
 	// the waves it makes of two at once, sawtri, pulsetri and pulsesaw,
-	// thin and buzzing.
+	// thin and buzzing; and glottal, a voice's buzz, the air through
+	// its vocal folds, to sing through a Singer's formants.
 	Wave string
 	// The Nintendo chips give nespulse, a pulse snapped to the widths of
 	// 12.5, 25, 50 and 75% they have; nestri, the NES's stepped triangle;
@@ -133,7 +158,11 @@ type Pluck struct {
 // Drum is a drum of a kit.
 type Drum struct {
 	// Type is what it is: kick, snare, clap, hat, ohat, rim, tom,
-	// crash, ride, shaker, snap, timpani, boom, riser or down; or the
+	// crash, ride, shaker, snap, timpani, boom, riser or down; syntom, an
+	// electronic tom as a Simmons drum's, its pitch diving; cowbell, a
+	// TR-808's; kick909, a TR-909's kick, its pitch falling fast from
+	// high with a click; metal, a struck piece of metal, its partials
+	// clanging; tambourine, its jingles clashing; or the
 	// SID's, built a frame at a time as a Commodore 64's drums are:
 	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
 	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
@@ -168,11 +197,17 @@ var drumNames = map[string]string{
 	"sbd":   "sidkick", "ssn": "sidsnare", "scp": "sidclap", "shh": "sidhat", "soh": "sidohat",
 	"stom": "sidtom", "szap": "sidzap",
 	"nbd": "neskick", "nsn": "nessnare", "nhh": "neshat", "noh": "nesohat", "ntom": "nestom", "nclk": "nesmetal",
-	"ncp": "nesclap",
+	"ncp":  "nesclap",
+	"syn1": "syntom", "syn2": "syntom", "syn3": "syntom", "syntom": "syntom",
+	"cb": "cowbell", "cowbell": "cowbell",
+	"bd9": "kick909", "kick909": "kick909",
+	"mtl": "metal", "metal": "metal",
+	"tamb": "tambourine", "tambourine": "tambourine",
 }
 
-// tomTune tunes the low and high toms either side of the middle one.
-var tomTune = map[string]float64{"lt": -5, "ht": 5}
+// tomTune tunes the low and high toms either side of the middle one,
+// and the syn-toms, syn1 the highest, as a kit numbers its toms.
+var tomTune = map[string]float64{"lt": -5, "ht": 5, "syn1": 5, "syn3": -5}
 
 // The types of drum.
 const (
@@ -205,6 +240,11 @@ const (
 	drNESTom
 	drNESMetal
 	drNESClap
+	drSynTom
+	drCowbell
+	drKick909
+	drMetal
+	drTambourine
 )
 
 var drumTypes = map[string]int{
@@ -215,6 +255,7 @@ var drumTypes = map[string]int{
 	"sidtom": drSIDTom, "sidzap": drSIDZap,
 	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
 	"nesclap": drNESClap,
+	"syntom":  drSynTom, "cowbell": drCowbell, "kick909": drKick909, "metal": drMetal, "tambourine": drTambourine,
 }
 
 // The waves of an oscillator.
@@ -270,6 +311,8 @@ type patch struct {
 	filter     int
 	lfo        []lfo
 	vowel      byte
+	vocoder    bool
+	singer     string
 	poly       int
 	kit        map[string]drum
 	gain       float32
@@ -375,6 +418,8 @@ func (p *Patch) compile(name string) (*patch, error) {
 				}
 			}
 			co.wave, co.table = oscTable, stepped(steps)
+		case "glottal":
+			co.wave, co.table = oscTable, glottalTable
 		case "nesnoise", "nesmetal":
 			co.wave = oscNESNoise
 		case "sawtri", "pulsetri", "pulsesaw":
@@ -384,7 +429,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 			}
 			co.table = combined(co.wave, co.Width)
 		default:
-			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri, pulsesaw, nespulse, nestri, nesnoise, nesmetal or gbwave", name, i+1, o.Wave)
+			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri, pulsesaw, nespulse, nestri, nesnoise, nesmetal gbwave or glottal", name, i+1, o.Wave)
 		}
 		if (o.Sync || o.Ring) && i == 0 {
 			return nil, fmt.Errorf("synth: patch %s syncs or rings its first oscillator, which has none before it", name)
@@ -485,6 +530,13 @@ func (p *Patch) compile(name string) (*patch, error) {
 			return nil, fmt.Errorf("synth: patch %s sings vowel %q, not a, e, i, o or u", name, p.Vowel)
 		}
 		c.vowel = p.Vowel[0]
+	}
+	c.vocoder = p.Vocoder
+	if p.Singer != "" {
+		if _, ok := singers[p.Singer]; !ok {
+			return nil, fmt.Errorf("synth: patch %s sings as %q, not bass, baritone, tenor, alto or soprano", name, p.Singer)
+		}
+		c.singer = p.Singer
 	}
 	if c.kind == kindDrums {
 		c.kit = map[string]drum{}

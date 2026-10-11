@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"math"
 	"slices"
 	"strings"
@@ -349,5 +350,410 @@ func TestPadsAndKeysPlayWhileTheSongIsPaused(t *testing.T) {
 	// And the song stays where it was paused.
 	if h.s.state().Playing {
 		t.Error("trying a pad started the song")
+	}
+}
+
+func TestAQuickSecondClickUndoesTheFirst(t *testing.T) {
+	h := newHarness(t, music.KeypadRound)
+	// Two clicks before the window shows the first: each turns over the
+	// value as it is when it arrives, not as the window last showed it.
+	for _, v := range []gunim.Intent{
+		ToggleValue{Path: "Tracks/bass/Solo"},
+		ToggleValue{Path: "Patches/lead/Vocoder"},
+		ToggleValue{Path: "Mix/Gated", Seed: "Mix/Gated/Hold", Num: 0.3},
+		ToggleValue{Path: "Patches/lead/Chip", Seed: "Patches/lead/Chip/Levels", Num: 16},
+		ArpSet{Patch: "lead"},
+	} {
+		h.s.handle(t.Context(), v)
+		h.s.handle(t.Context(), v)
+	}
+	h.frame()
+	s := h.s.song
+	if track(s, "bass").Solo || s.Patches["lead"].Vocoder || s.Mix.Gated != nil || s.Patches["lead"].Chip != nil ||
+		s.Patches["lead"].Arpeggio != nil {
+		t.Error("a second click quick after the first left its value changed")
+	}
+	h.do(ToggleValue{Path: "Tracks/bass/Solo"}, ToggleValue{Path: "Mix/Gated", Seed: "Mix/Gated/Hold", Num: 0.3})
+	if !track(h.s.song, "bass").Solo || h.s.song.Mix.Gated == nil || h.s.song.Mix.Gated.Hold != 0.3 {
+		t.Error("one click turned nothing on")
+	}
+}
+
+func TestPickingAChorusKindIsHeard(t *testing.T) {
+	h := newHarness(t, music.KeypadRound)
+	b := track(h.s.song, "bass")
+	b.Chorus = 0
+	h.do(ChorusKind{Track: "bass", Type: "juno1"})
+	if b := track(h.s.song, "bass"); b.ChorusType != "juno1" || b.Chorus != 0.5 {
+		t.Errorf("the bass's chorus is %q at %.2f; want juno1, turned up", b.ChorusType, b.Chorus)
+	}
+	track(h.s.song, "bass").Chorus = 0.2
+	h.do(ChorusKind{Track: "bass", Type: "ensemble"})
+	if b := track(h.s.song, "bass"); b.ChorusType != "ensemble" || b.Chorus != 0.2 {
+		t.Errorf("the bass's chorus is %q at %.2f; want ensemble, at 0.2 as it was", b.ChorusType, b.Chorus)
+	}
+}
+
+func TestTheChorusSwitchPicksAKind(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Mixer"})
+	h.settle()
+	var sw *selector
+	for i, r := range h.s.state().Tracks {
+		if r.Name == "hook" {
+			sw = h.v.mixer.strips[i].chorus.sw
+		}
+	}
+	if sw == nil || sw.sel != 2 || sw.off {
+		t.Fatalf("the hook's chorus switch shows %+v; want Juno II, on", sw)
+	}
+	at, ok := h.boundsOf(sw)
+	if !ok {
+		t.Fatal("the hook's chorus switch is not on screen")
+	}
+	// The fifth lamp, the ensemble's.
+	c := geomPt(at.Max.X-(at.Max.X-at.Min.X)/10, at.Min.Y+6)
+	h.w.Input(input.PointerDown{Pos: c, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: c, Button: input.ButtonPrimary, Time: time.Now()})
+	got, ok := h.intent().(ChorusKind)
+	if !ok || got != (ChorusKind{Track: "hook", Type: "ensemble"}) {
+		t.Errorf("a click on the last lamp sent %#v", got)
+	}
+}
+
+func TestAPresetTriedIsAsLoudAndRevertsAndKeeps(t *testing.T) {
+	h := newHarness(t, music.RingMeTwice)
+	st := h.s.state()
+	if len(st.Presets) < 40 {
+		t.Fatalf("the studio offers %d presets", len(st.Presets))
+	}
+	orig := clonePatch(h.s.song.Patches["bass"])
+	h.do(PresetTry{Patch: "bass", ID: "Bass/Bright Juno bass"})
+	got := h.s.song.Patches["bass"]
+	if got.Filter.Cutoff != 520 || h.s.state().Trying["bass"] != "Bass/Bright Juno bass" {
+		t.Fatalf("the bass is not the preset tried: %+v", got.Filter)
+	}
+	// As loud as the bass was, at the octave its track plays in.
+	pitch := h.s.pitchOf("bass")
+	if a, b := levelOf(orig, pitch), levelOf(got, pitch); math.Abs(20*math.Log10(b/a)) > 0.5 {
+		t.Errorf("the preset plays %.2f dB from the bass it replaced", 20*math.Log10(b/a))
+	}
+	// On through the category, then back.
+	h.do(PresetStep{Patch: "bass", By: 1})
+	if id := h.s.state().Trying["bass"]; id != "Bass/Hi-NRG roller" {
+		t.Errorf("the next preset is %q", id)
+	}
+	h.do(PresetStep{Patch: "bass", By: -2})
+	if id := h.s.state().Trying["bass"]; id != "Bass/Juno octave bass" {
+		t.Errorf("two back is %q", id)
+	}
+	h.do(PresetStep{Patch: "bass"})
+	if id := h.s.state().Trying["bass"]; !strings.HasPrefix(id, "Bass/") || id == "Bass/Juno octave bass" {
+		t.Errorf("a preset at random is %q", id)
+	}
+	// A kit takes no synth's place.
+	h.do(PresetTry{Patch: "bass", ID: "Drum kits/TR-808"})
+	if h.s.song.Patches["bass"].Kind == "drums" {
+		t.Error("a kit took the bass's place")
+	}
+	h.do(PresetRevert{Patch: "bass"})
+	if a, b := jsonOf(h.s.song.Patches["bass"]), jsonOf(orig); a != b {
+		t.Errorf("reverted, the bass is\n%s\nnot\n%s", a, b)
+	}
+	if _, ok := h.s.state().Trying["bass"]; ok {
+		t.Error("the bass is still tried after Revert")
+	}
+	// A song's own patch, kept.
+	h.do(PresetTry{Patch: "kit", ID: "From the songs/Notte di Neon/kit"}, PresetKeep{Patch: "kit"})
+	if _, ok := h.s.state().Trying["kit"]; ok || h.s.song.Patches["kit"].Kit["syn1"].Pan != -0.45 {
+		t.Error("the kit kept is not Notte di Neon's, or is still tried")
+	}
+}
+
+func jsonOf(p *synth.Patch) string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+func TestTheTweaksSetAndReset(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(SetValue{Path: "Mix/Tweak/Tone", Num: 0.6}, SetValue{Path: "Mix/Tweak/LoFi", Num: 0.4})
+	if tw := h.s.song.Mix.Tweak; tw.Tone != 0.6 || tw.LoFi != 0.4 {
+		t.Fatalf("the tweaks are %+v", tw)
+	}
+	h.do(ClearValue{Path: "Mix/Tweak"})
+	if tw := h.s.song.Mix.Tweak; tw != (synth.Tweak{}) {
+		t.Errorf("reset, the tweaks are %+v", tw)
+	}
+}
+
+func TestThePatchPageStepsThroughTheTracks(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	pp := h.v.patch
+	if pp.name != "bass" || pp.track != "bass" || pp.stripSw.which != 0 {
+		t.Fatalf("the patch page shows %s, played by %s, its strip %d", pp.name, pp.track, pp.stripSw.which)
+	}
+	// On past the drums, which the kit editor edits, to the next synth.
+	want := []string{"arp", "hook", "voice", "choir", "strings", "epiano", "orch", "zaps", "bass"}
+	for _, w := range want {
+		f, _ := pp.stepTrack(1).(Focus)
+		h.frame()
+		if pp.track != w || pp.name != track(h.s.song, w).Patch || f.Track != w {
+			t.Fatalf("a step on shows the track %s and the patch %s, the scope on %q; want %s", pp.track, pp.name, f.Track, w)
+		}
+	}
+	pp.stepTrack(-1)
+	h.frame()
+	if pp.track != "zaps" {
+		t.Errorf("a step back shows %s, want zaps", pp.track)
+	}
+}
+
+func TestAWaveLampSetsTheWave(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	sel := h.v.patch.oscs[0].wave
+	if waves[sel.Selected()] != "saw" {
+		t.Fatalf("the bass's first wave shows %s", waves[sel.Selected()])
+	}
+	at, ok := h.boundsOf(sel)
+	if !ok {
+		t.Fatal("the wave lamps are not on screen")
+	}
+	// The second lamp, the pulse's.
+	c := sel.cells[1]
+	p := geomPt(at.Min.X+(c.Min.X+c.Max.X)/2, at.Min.Y+(c.Min.Y+c.Max.Y)/2)
+	h.w.Input(input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: p, Button: input.ButtonPrimary, Time: time.Now()})
+	got, ok := h.intent().(SetValue)
+	if !ok || got.Path != "Patches/bass/Osc/0/Wave" || got.Str != "pulse" {
+		t.Errorf("a click on the pulse's lamp sent %#v", got)
+	}
+}
+
+func TestTheBeatEditsEveryDrumTrack(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Beat"})
+	h.settle()
+	g := h.v.beat.grid
+	var names []string
+	for _, l := range g.lanes {
+		names = append(names, l.track)
+	}
+	if !slices.Equal(names, []string{"kick", "snare", "hats", "toms", "crash", "cowbell"}) {
+		t.Fatalf("the beat shows the lanes %v", names)
+	}
+	if g.loop != 64 {
+		t.Errorf("the drums come round in %d bars, want 64", g.loop)
+	}
+	// The page of bars 33 and 34, the first chorus: the cowbell is out,
+	// and the snare plays on 2 and 4.
+	g.following = false
+	g.start = 32
+	h.frame()
+	snare := g.lanes[1]
+	sn := slices.Index(snare.rows, "sn")
+	for c := range g.cols() {
+		want := int8(0)
+		if c%16 == 4 || c%16 == 12 {
+			want = 1
+		}
+		if got := g.get(snare, sn, c); got != want {
+			t.Fatalf("the snare at step %d of bar 33 is %d, want %d", c, got, want)
+		}
+	}
+	at, ok := h.boundsOf(g)
+	if !ok {
+		t.Fatal("the beat is not on screen")
+	}
+	cw := (g.size.W - beatLabel) / float32(g.cols())
+	pos := func(lane, row, col int) geom.Point {
+		l := g.lanes[lane]
+		return geomPt(at.Min.X+beatLabel+(float32(col)+0.5)*cw, at.Min.Y+l.top+beatHead+(float32(row)+0.5)*beatRowH)
+	}
+	// A click on the kick's second step of bar 33 adds one hit there.
+	before := len(hitsOf(track(h.s.song, "kick").Pattern, 8))
+	p := pos(0, 0, 2)
+	h.w.Input(input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: p, Button: input.ButtonPrimary, Time: time.Now()})
+	got, ok := h.intent().(PatternEdited)
+	if !ok || got.Track != "kick" {
+		t.Fatalf("a click on the kick sent %#v", got)
+	}
+	hits := hitsOf(got.Text, 8)
+	// Bar 33 is the first bar of the kick's fifth turn: 2/128 of it.
+	if len(hits) != before+1 || !slices.Contains(hits, "4 0.0156 bd") {
+		t.Errorf("the kick has %d hits, from %d, and bar 33's second step is set: %v", len(hits), before, slices.Contains(hits, "4 0.0156 bd"))
+	}
+	h.do(got)
+	// A drag along the cowbell's row paints four hits.
+	cb := g.lanes[5]
+	from, to := pos(5, 0, 0), pos(5, 0, 3)
+	h.w.Input(input.PointerDown{Pos: from, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerMove{Pos: to, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: to, Button: input.ButtonPrimary, Time: time.Now()})
+	got, _ = h.intent().(PatternEdited)
+	if got.Track != "cowbell" {
+		t.Fatalf("a drag on the cowbell sent %#v", got)
+	}
+	for c := range 4 {
+		if g.get(cb, 0, c) != 1 {
+			t.Errorf("the drag left the cowbell's step %d empty", c)
+		}
+	}
+	// M mutes the hats.
+	hats := g.lanes[2]
+	m := geomPt(at.Min.X+(hats.muteAt.Min.X+hats.muteAt.Max.X)/2, at.Min.Y+(hats.muteAt.Min.Y+hats.muteAt.Max.Y)/2)
+	h.w.Input(input.PointerDown{Pos: m, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+	h.w.Input(input.PointerUp{Pos: m, Button: input.ButtonPrimary, Time: time.Now()})
+	if tv, ok := h.intent().(ToggleValue); !ok || tv.Path != "Tracks/hats/Mute" {
+		t.Errorf("a click on the hats' M sent %#v", tv)
+	}
+}
+
+func TestTheDockedLibraryOpensAndTries(t *testing.T) {
+	h := newHarness(t, music.MirrorShine)
+	h.do(OpenEditor{Editor: "Patch", Track: "acid"})
+	h.settle()
+	pt := h.v.patch.tree
+	if len(pt.folders()) != 0 || len(pt.shown) < 8 || pt.shown[0].label != "Bass" {
+		t.Fatalf("the library opens with %v open, its rows starting %+v", pt.folders(), pt.shown[0])
+	}
+	at, ok := h.boundsOf(pt)
+	if !ok {
+		t.Fatal("the library is not on screen")
+	}
+	click := func(row int) {
+		p := geomPt(at.Min.X+40, at.Min.Y+4+(float32(row)+0.5)*treeRowH)
+		h.w.Input(input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1, Time: time.Now()})
+		h.w.Input(input.PointerUp{Pos: p, Button: input.ButtonPrimary, Time: time.Now()})
+		h.frame()
+	}
+	// A click on Bass opens it; on its first preset tries it.
+	click(0)
+	if !slices.Equal(pt.folders(), []string{"Bass"}) || pt.shown[1].label != "Juno octave bass" {
+		t.Fatalf("a click on Bass opens %v, its first row %q", pt.folders(), pt.shown[1].label)
+	}
+	click(1)
+	if got, ok := h.intent().(PresetTry); !ok || got != (PresetTry{Patch: "acid", ID: "Bass/Juno octave bass"}) {
+		t.Fatalf("a click on a preset sent %#v", got)
+	}
+	// A song's patch tried by the bar opens its folders of itself.
+	h.do(PresetTry{Patch: "acid", ID: "From the songs/Wire Cathedral/bass"})
+	h.settle()
+	if f := pt.folders(); !slices.Contains(f, "From the songs") || !slices.Contains(f, "From the songs/Wire Cathedral") {
+		t.Errorf("a song's patch tried leaves open only %v", f)
+	}
+	// The kit page has its own, of kits.
+	h.do(OpenEditor{Editor: "Kit", Track: "kick"})
+	h.settle()
+	for _, r := range h.v.kit.tree.rows {
+		if !r.Drums {
+			t.Fatalf("the kit's library offers %s, no kit", r.ID)
+		}
+	}
+}
+
+func TestTheWheelScrollsThePageUnlessAKnobIsMeant(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	k := h.v.patch.fKnobs[0] // the filter's cutoff
+	at, ok := h.boundsOf(k)
+	if !ok {
+		t.Fatal("the cutoff knob is not on screen")
+	}
+	mid := func(r geom.Rect) geom.Point { return geomPt((r.Min.X+r.Max.X)/2, (r.Min.Y+r.Max.Y)/2) }
+	before := num(h.s.song, k.path())
+	drain := func() (sent bool) {
+		for {
+			select {
+			case ev := <-h.w.Client().Intents():
+				if sv, ok := ev.Intent.(SetValue); ok && sv.Path == k.path() {
+					sent = true
+				}
+			default:
+				return sent
+			}
+		}
+	}
+	t0 := time.Now()
+	wheelAt := func(p geom.Point, at time.Time, mods input.Mods) {
+		h.w.Input(input.Scroll{Pos: p, Delta: geomPt(0, -40), Notches: geomPt(0, -1), Mods: mods, Time: at})
+		h.frame()
+	}
+	// Arriving on the knob and turning the wheel at once scrolls the
+	// page: the pointer has not rested there.
+	h.w.Input(input.PointerMove{Pos: mid(at), Time: t0})
+	wheelAt(mid(at), t0.Add(100*time.Millisecond), 0)
+	if drain() {
+		t.Error("the wheel turned a knob the pointer had only passed onto")
+	}
+	h.settle()
+	moved, _ := h.boundsOf(k)
+	if moved.Min.Y == at.Min.Y {
+		t.Fatal("the wheel did not scroll the page")
+	}
+	// The pointer rests on the knob, and a fresh turn of the wheel
+	// turns it, and goes on turning it through the gesture.
+	h.w.Input(input.PointerMove{Pos: mid(moved), Time: t0.Add(2 * time.Second)})
+	wheelAt(mid(moved), t0.Add(2600*time.Millisecond), 0)
+	wheelAt(mid(moved), t0.Add(2700*time.Millisecond), 0)
+	if !drain() {
+		t.Error("the wheel did not turn a knob the pointer rested on")
+	}
+	if still, _ := h.boundsOf(k); still.Min.Y != moved.Min.Y {
+		t.Error("the page scrolled as the wheel turned the knob")
+	}
+	// A gesture begun on the page goes on scrolling it over a knob.
+	h.w.Input(input.PointerMove{Pos: geomPt(mid(moved).X, 20), Time: t0.Add(5 * time.Second)})
+	wheelAt(geomPt(mid(moved).X, 20), t0.Add(6*time.Second), 0)
+	wheelAt(mid(moved), t0.Add(6100*time.Millisecond), 0)
+	if drain() {
+		t.Error("a scroll of the page turned a knob it passed over")
+	}
+	// Ctrl with the wheel turns the knob under the pointer, always.
+	now, _ := h.boundsOf(k)
+	wheelAt(mid(now), t0.Add(6200*time.Millisecond), input.ModControl)
+	if !drain() {
+		t.Error("Ctrl and the wheel did not turn the knob")
+	}
+	_ = before
+}
+
+func TestSteppingTrackSlidesThePatchPageIn(t *testing.T) {
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	pp := h.v.patch
+	for _, s := range pp.slides {
+		if s.t != 1 {
+			t.Fatalf("the patch page is sliding before any step: %v", s.t)
+		}
+	}
+	pp.stepTrack(1)
+	for _, s := range pp.slides {
+		if s.t != 0 || s.dir != 1 {
+			t.Fatalf("a step on slides from %v at %v; want from the right, begun", s.dir, s.t)
+		}
+	}
+	// Midway it is moving, drawn; in a second it rests.
+	h.w.Frame(slideDur / 2)
+	if s := pp.slides[1]; s.t <= 0 || s.t >= 1 {
+		t.Errorf("halfway, the slide is at %v", s.t)
+	}
+	h.settle()
+	pp.stepTrack(-1)
+	if pp.slides[0].dir != -1 {
+		t.Error("a step back does not slide from the left")
+	}
+	h.settle()
+	for _, s := range pp.slides {
+		if s.t != 1 {
+			t.Errorf("a second on, the slide is at %v, not at rest", s.t)
+		}
 	}
 }

@@ -1,0 +1,38 @@
+{
+	"Osc": [
+		{
+			"Wave": "sine"
+		},
+		{
+			"Wave": "sine",
+			"Octave": 1,
+			"Level": 0.6
+		},
+		{
+			"Wave": "sine",
+			"Octave": 1,
+			"Semi": 7,
+			"Level": 0.4
+		},
+		{
+			"Wave": "sine",
+			"Octave": 2,
+			"Level": 0.3
+		}
+	],
+	"Amp": {
+		"Attack": 0.005,
+		"Decay": 0.1,
+		"Sustain": 1,
+		"Release": 0.05
+	},
+	"LFO": [
+		{
+			"To": "amp",
+			"Wave": "sine",
+			"Hz": 6.5,
+			"Depth": 0.08
+		}
+	],
+	"Poly": 10
+}

@@ -91,6 +91,19 @@ type (
 		Master    Meter
 		LUFS      float64
 		Reduction float32
+		// Presets are the patches of the library to try, and the songs';
+		// Trying the preset tried on each patch, by its ID, which Revert
+		// takes back.
+		Presets []PresetRow
+		Trying  map[string]string
+	}
+	// PresetRow is a preset as a menu lists it: ID names it, Path is
+	// where it is filed, its category and then, for a song's patch, the
+	// song; About says what it sounds like, and Drums that it is a kit.
+	PresetRow struct {
+		ID, Name, About string
+		Path            []string
+		Drums           bool
 	}
 	// Preview is a sound rendered for an editor to draw: Wave is its
 	// whole as the lows and highs of a column each, Cycle a stretch of it
@@ -164,6 +177,34 @@ type (
 	// ClearValue empties the value at Path, as a patch's Chip, which
 	// turns it off.
 	ClearValue struct{ Path string }
+	// ToggleValue turns the bool at Path over, as it is when it arrives,
+	// so a second click quick after the first undoes it. Where Seed is
+	// set, it clears Path where Path is set, and else sets Seed to Num,
+	// as a patch's Chip turns on or off.
+	ToggleValue struct {
+		Path, Seed string
+		Num        float64
+	}
+	// PresetTry tries the preset ID in place of Patch; PresetStep tries
+	// the one By places on in its category, or one at random where By
+	// is 0; PresetKeep keeps the preset tried; and PresetRevert puts
+	// Patch back as it was before presets were tried on it.
+	PresetTry  struct{ Patch, ID string }
+	PresetStep struct {
+		Patch string
+		By    int
+	}
+	PresetKeep   struct{ Patch string }
+	PresetRevert struct{ Patch string }
+	// ChorusKind sets Track's chorus to Type, and turns its chorus up
+	// where it was silent, so the kind picked is heard.
+	ChorusKind struct{ Track, Type string }
+	// DistortKind sets Track's distortion to Type, and turns it up where
+	// it was off, so the kind picked is heard.
+	DistortKind struct{ Track, Type string }
+	// WashKind sets Track's wash to Type, and turns it up where it was
+	// off, so the kind picked is heard.
+	WashKind struct{ Track, Type string }
 	// SetInts sets the list of whole numbers at Path, as a wave table.
 	SetInts struct {
 		Path   string
@@ -192,11 +233,13 @@ type (
 		Patch, Drum string
 		Pitch       int
 	}
-	// ArpSet turns Patch's chip arpeggio on or off, and says whether it
-	// plays chords; ArpSteps sets its steps, as 0 4 7.
+	// ArpSet turns Patch's chip arpeggio on or off, or where Chord
+	// says, its playing of chords, as it is when it arrives, so a second
+	// click quick after the first undoes it. ArpSteps sets its steps, as
+	// 0 4 7.
 	ArpSet struct {
-		Patch     string
-		On, Chord bool
+		Patch string
+		Chord bool
 	}
 	ArpSteps struct{ Patch, Steps string }
 	// OpenEditor shows the editor named Editor, by its tab's title, on
@@ -265,6 +308,14 @@ func init() {
 	gunim.RegisterType[SetValue]("studio.set")
 	gunim.RegisterType[AddItem]("studio.add")
 	gunim.RegisterType[ClearValue]("studio.clear")
+	gunim.RegisterType[ToggleValue]("studio.toggle")
+	gunim.RegisterType[ChorusKind]("studio.chorus")
+	gunim.RegisterType[DistortKind]("studio.distort")
+	gunim.RegisterType[WashKind]("studio.wash")
+	gunim.RegisterType[PresetTry]("studio.preset.try")
+	gunim.RegisterType[PresetStep]("studio.preset.step")
+	gunim.RegisterType[PresetKeep]("studio.preset.keep")
+	gunim.RegisterType[PresetRevert]("studio.preset.revert")
 	gunim.RegisterType[SetInts]("studio.ints")
 	gunim.RegisterType[RemoveItem]("studio.remove")
 	gunim.RegisterType[PatchNew]("studio.patch.new")

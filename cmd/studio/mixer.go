@@ -5,6 +5,8 @@ import (
 	"image/color"
 	"math"
 
+	"github.com/marrasen/gunim/icon"
+
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/geom"
@@ -57,16 +59,19 @@ func (m *mixerPane) update(st Studio, u *gunim.UI) {
 // channel is a track's strip on the desk.
 type channel struct {
 	*widget.Card
-	base   string
-	name   *widget.Label
-	gainDB *widget.Label
-	mute   *widget.Button
-	solo   *widget.Button
-	ks     []*knob
-	meter  *vu
-	fader  *audioui.Fader
-	swatch *swatch
-	gain   float32
+	base    string
+	name    *widget.Label
+	gainDB  *widget.Label
+	mute    *widget.Button
+	solo    *widget.Button
+	ks      []*knob
+	chorus  *kindUnit
+	wash    *kindUnit
+	distort *kindUnit
+	meter   *vu
+	fader   *fader
+	swatch  *swatch
+	gain    float32
 }
 
 func newChannel() *channel {
@@ -82,13 +87,18 @@ func newChannel() *channel {
 		newKnob("Low cut", b, "/HPF", 20, 2000, 20).logScale().small().unsetIs(20),
 		newKnob("High cut", b, "/LPF", 200, 20000, 20000).logScale().small().unsetIs(20000),
 		newKnob("Drive", b, "/Shape", 0, 0.95, 0).small(),
-		newKnob("Chorus", b, "/Chorus", 0, 1, 0).small(),
+		newKnob("Gated", b, "/Gated", 0, 1, 0).small(),
+		newKnob("Ring", b, "/Ring", 0, 1, 0).small(),
+		newKnob("Smash", b, "/Smash", 0, 1, 0).small(),
 	}
+	c.chorus = newChorusUnit(b)
+	c.wash = newWashUnit(b)
+	c.distort = newDistortUnit(b)
 	c.mute = widget.NewButton("M")
 	c.mute.KeepFocus, c.mute.Tooltip = true, "Mute"
 	c.solo = widget.NewButton("S")
 	c.solo.KeepFocus, c.solo.Tooltip = true, "Solo"
-	c.fader = audioui.NewFader(func() float32 { return c.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
+	c.fader = newFader(func() float32 { return c.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
 		c.gain = v
 		return SetValue{Path: c.base + "/Gain", Num: float64(v)}
 	})
@@ -97,6 +107,7 @@ func newChannel() *channel {
 	for i := 0; i+1 < len(c.ks); i += 2 {
 		rows = append(rows, widget.Row(c.ks[i], c.ks[i+1]))
 	}
+	rows = append(rows, c.chorus, c.wash, c.distort)
 	kcol := widget.Column(rows...)
 	kcol.Cross = widget.CrossCenter
 	buttons := widget.Row(c.mute, c.solo)
@@ -118,13 +129,20 @@ func (c *channel) update(st Studio, t TrackRow, i int, u *gunim.UI) {
 	c.gain = t.Gain
 	c.gainDB.Text = fmt.Sprintf("%+.1f dB", t.Gain)
 	c.mute.Active, c.solo.Active = t.Mute, t.Solo
-	c.mute.OnClick = widget.Sends(SetValue{Path: c.base + "/Mute", Num: boolNum(!t.Mute)})
-	c.solo.OnClick = widget.Sends(SetValue{Path: c.base + "/Solo", Num: boolNum(!t.Solo)})
+	c.mute.OnClick = widget.Sends(ToggleValue{Path: c.base + "/Mute"})
+	c.solo.OnClick = widget.Sends(ToggleValue{Path: c.base + "/Solo"})
 	c.meter.m = t.Meter
 	showKnobs(st.Doc, c.ks...)
 	col := hexColor(t.Color, i)
 	for _, k := range c.ks {
 		k.color = col
+	}
+	showKnobs(st.Doc, c.chorus.k, c.wash.k, c.distort.k)
+	c.chorus.k.color, c.wash.k.color, c.distort.k.color = col, col, col
+	if tr := track(st.Doc, t.Name); tr != nil {
+		c.chorus.show(t.Name, tr.Chorus, tr.ChorusType, col)
+		c.wash.show(t.Name, tr.Wash, tr.WashType, col)
+		c.distort.show(t.Name, tr.Distort, tr.DistortType, col)
 	}
 	_ = u
 }
@@ -142,7 +160,7 @@ type masterStrip struct {
 	*widget.Card
 	base   string
 	meter  *vu
-	fader  *audioui.Fader
+	fader  *fader
 	gain   float32
 	gr     *reduction
 	lufs   *widget.Label
@@ -157,7 +175,7 @@ func newMasterStrip() *masterStrip {
 		newKnob("Threshold", b, "/Threshold", -30, 0, -10).units("dB").unsetIs(-10).small(),
 		newKnob("Ratio", b, "/Ratio", 1, 10, 2).unsetIs(2).small(),
 	}
-	m.fader = audioui.NewFader(func() float32 { return m.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
+	m.fader = newFader(func() float32 { return m.gain }, func(v float32, _ *gunim.UI) gunim.Intent {
 		m.gain = v
 		return SetValue{Path: "Mix/Gain", Num: float64(v)}
 	})
@@ -220,6 +238,10 @@ type fxPane struct {
 	duck    *widget.Dropdown
 	duckTo  []string
 	transOn *switcher
+	gated   []*knob
+	gateOn  *widget.Button
+	tweak   []*knob
+	untweak *widget.Button
 }
 
 func newFxPane() *fxPane {
@@ -243,6 +265,9 @@ func newFxPane() *fxPane {
 	f.mix = []*knob{
 		newKnob("Master", b, "/Gain", -12, 12, 0).center().units("dB"),
 		newKnob("Swing", b, "/../Swing", 0, 0.5, 0),
+		newKnob("Mono bass", b, "/MonoBass", 0, 300, 0).units("Hz"),
+		newKnob("Air", b, "/Air", -6, 6, 0).center().units("dB"),
+		newKnob("Tape", b, "/Tape", 0, 1, 0),
 	}
 	// Swing is the song's, not the mix's.
 	f.mix[1].base = new(string)
@@ -252,6 +277,25 @@ func newFxPane() *fxPane {
 		newKnob("Level", b, "/Transitions/Gain", -24, 6, 0).units("dB"),
 		newKnob("Reverb", b, "/Transitions/Reverb", 0, 1, 0.3),
 	}
+	f.gated = []*knob{
+		newKnob("Size", b, "/Gated/Size", 0.3, 1.5, 1.2).unsetIs(1.2),
+		newKnob("Tone", b, "/Gated/Tone", 0, 1, 0.6).unsetIs(0.6),
+		newKnob("Hold", b, "/Gated/Hold", 0.05, 1, 0.3).units("s").unsetIs(0.3),
+	}
+	f.gateOn = widget.NewButton("On")
+	f.gateOn.KeepFocus, f.gateOn.Tooltip = true, "A second room, cut off short by a gate each hit sent to it opens, as the 1980s gated a snare"
+	f.tweak = []*knob{
+		newKnob("Tone", b, "/Tweak/Tone", -1, 1, 0).center(),
+		newKnob("Bass", b, "/Tweak/Bass", -1, 1, 0).center(),
+		newKnob("Space", b, "/Tweak/Space", -1, 1, 0).center(),
+		newKnob("Width", b, "/Tweak/Width", -1, 1, 0).center(),
+		newKnob("Punch", b, "/Tweak/Punch", 0, 1, 0),
+		newKnob("Drive", b, "/Tweak/Drive", 0, 1, 0),
+		newKnob("Lo-fi", b, "/Tweak/LoFi", 0, 1, 0),
+	}
+	f.untweak = widget.NewButton("Reset")
+	f.untweak.Icon, f.untweak.Tooltip = icon.RotateCcw, "Turn every tweak back to 0, the song as mixed"
+	f.untweak.OnClick = widget.Sends(ClearValue{Path: "Mix/Tweak"})
 	f.tail = &tailView{}
 	f.echoes = &echoView{}
 	f.curve = &curveView{}
@@ -274,9 +318,13 @@ func newFxPane() *fxPane {
 	mix := panel("MIX", knobs(f.mix...), duckRow)
 	trans := panel("TRANSITIONS · a riser before the tier climbs, an impact as it lands", knobs(f.trans...))
 	f.transOn = newSwitcher(trans, panel("TRANSITIONS", small("This song marks no tier changes.")))
-	low := widget.Row(mix, f.transOn).Grow(mix, 1).Grow(f.transOn, 1)
+	gated := panel("GATED REVERB · a big room, cut off short after each hit", f.gateOn, knobs(f.gated...))
+	low := widget.Row(mix, gated, f.transOn).Grow(mix, 1.4).Grow(gated, 1).Grow(f.transOn, 1)
 	low.Cross = widget.CrossStretch
-	col := widget.Column(top, low)
+	hint := small("Tone: dark to bright · Bass: cut to boost · Space: dry to wet · Width: mono to wide · Punch: squeezed harder · Drive: pushed into distortion · Lo-fi: an old radio")
+	hint.MaxLines = 2
+	tweak := panelWith(titled("TWEAK · turn the whole song's sound", f.untweak), widget.Row(knobs(f.tweak...), hint).Grow(hint, 1))
+	col := widget.Column(tweak, top, low)
 	col.Cross = widget.CrossStretch
 	f.Scroll = widget.NewScroll(widget.NewPad(col))
 	return f
@@ -292,6 +340,11 @@ func (f *fxPane) update(st Studio) {
 	showKnobs(song, f.comp...)
 	showKnobs(song, f.mix...)
 	showKnobs(song, f.trans...)
+	showKnobs(song, f.gated...)
+	showKnobs(song, f.tweak...)
+	f.untweak.Disabled = song.Mix.Tweak == (synth.Tweak{})
+	f.gateOn.Active = song.Mix.Gated != nil
+	f.gateOn.OnClick = widget.Sends(ToggleValue{Path: "Mix/Gated", Seed: "Mix/Gated/Hold", Num: 0.3})
 	f.tail.song, f.echoes.song, f.curve.song = song, song, song
 	f.curve.db = st.Reduction
 	f.duckTo = []string{"none"}

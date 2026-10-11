@@ -156,6 +156,50 @@ const (
 	// drums and bubbly blips. The digit keys play the A major
 	// pentatonic over it.
 	TinkerRound = "tinker-round"
+	// NotteDiNeon is an Italo disco song, made in code, at 122 BPM in D
+	// minor, as a 12" mix of the 1980s plays it in 64 bars: an octave
+	// bass, an arpeggio, a synth hook, a vocoder's verses and choir, a
+	// string machine, orchestra hits and Simmons toms, its snare in a
+	// gated reverb, mastered as for vinyl.
+	NotteDiNeon = "notte-di-neon"
+	// RingMeTwice is a Hi-NRG song of 1984, made in code, at 124 BPM in
+	// F minor, in 80 bars: a phone rings twice, a rolling 16th bass and
+	// a cowbell drive it, a brass riff answers a deep, half-spoken
+	// vocoder's verses, a choir chants back, and a chorus hangs on its
+	// sixth before the phone rings again in the breakdown.
+	RingMeTwice = "ring-me-twice"
+	// WireCathedral is an industrial song in the manner of Nine Inch
+	// Nails, made in code, at 94 BPM in E minor, in 64 bars: a detuned
+	// piano and a machine's drone, then a crushed kick, a ringing,
+	// smashed snare, a folded bass and a whisper, into choruses of
+	// amp-distorted guitars, a screaming vocoder and noise, and a dead
+	// stop.
+	WireCathedral = "wire-cathedral"
+	// MirrorShine is a techno song in the manner of Tiga, made in code,
+	// at 124 BPM in G minor, in 128 bars for a DJ: a 909 kick alone in
+	// the sub, a stab, a pulse and a deadpan vocoder's slogan, a fuzzy
+	// buzz whose filter opens and closes, and, held back till its drop,
+	// a TB-303's acid line.
+	MirrorShine = "mirror-shine"
+	// Meridian is a futurepop song in the manner of VNV Nation, made in
+	// code, at 138 BPM in B minor, in 96 bars: a choir, timpani and a
+	// piano, a 16th EBM bass and a supersaw arpeggio, a sung baritone
+	// in a hall, a chorus lifting to the harmonic minor's V, and a
+	// soaring supersaw lead.
+	Meridian = "meridian"
+	// Parallax is a futurepop song in the manner of Apoptygma Berzerk,
+	// made in code, at 132 BPM in F minor, in 96 bars: an arpeggio for
+	// a hook, an EBM bass, a trance-gated supersaw pad, a sung tenor
+	// doubled, a supersaw riff, a Commodore 64's interlude, and a robot
+	// girl's voice in its breakdown.
+	Parallax = "parallax"
+	// PhantomHighway is a noise pop song in the manner of the
+	// Raveonettes' Whip It On, made in code, at 144 BPM in B-flat minor,
+	// in three chords and 96 bars, with no hi-hats: a big kick and a
+	// roomy snare, a floor tom and a tambourine, strummed guitars whose
+	// reverb is buried in fuzz, a twanging surf lead on a spring, and a
+	// man's and a woman's voice droning together in the reverb.
+	PhantomHighway = "phantom-highway"
 )
 
 // files holds the songs: a folder each, named for the song, with its

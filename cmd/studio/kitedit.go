@@ -26,6 +26,8 @@ type kitPane struct {
 	drum    string
 	names   []string
 	picker  *widget.Dropdown
+	lib     *libraryBar
+	tree    *presetTree
 	about   *widget.Label
 	copy    *widget.IconButton
 	load    *widget.IconButton
@@ -92,12 +94,18 @@ func newKitPane(changed func(kit, drum string) gunim.Intent) *kitPane {
 	drumHead.Grow(drumHead.Children()[1], 1)
 	drumHead.Cross = widget.CrossCenter
 	editor := panelWith(drumHead, knobs(kp.ks...), sized(kp.hit, 0, 110), sized(kp.close, 0, 90))
-	padPanel := panel("PADS · press one to play it and edit it", sized(kp.pads, 0, 340))
+	padPanel := panel("PADS · press one to play it and edit it", kp.pads)
 	body := widget.Row(padPanel, editor).Grow(padPanel, 1.1).Grow(editor, 1)
 	body.Cross = widget.CrossStretch
-	col := widget.Column(head, body)
+	kp.lib = newLibraryBar()
+	col := widget.Column(head, kp.lib, body)
 	col.Cross = widget.CrossStretch
-	kp.Scroll = widget.NewScroll(widget.NewPad(col))
+	kp.tree = newPresetTree(true)
+	shelf := widget.Column(small("KIT LIBRARY"), widget.NewSized(widget.NewScroll(kp.tree), 0, 560))
+	shelf.Cross = widget.CrossStretch
+	page := widget.Row(widget.NewSized(shelf, 196, 0), col).Grow(col, 1)
+	page.Cross = widget.CrossStart
+	kp.Scroll = widget.NewScroll(widget.NewPad(page))
 	return kp
 }
 
@@ -133,6 +141,8 @@ func (kp *kitPane) update(st Studio) {
 	if p == nil {
 		return
 	}
+	kp.lib.update(st, kp.name)
+	kp.tree.update(st, kp.name)
 	var users []string
 	for _, t := range song.Tracks {
 		if t.Patch == kp.name {
@@ -182,9 +192,16 @@ type pads struct {
 
 const padCols = 4
 
+// padRowH is how tall a row of pads is: room for a drum's name and,
+// under it, its type.
+const padRowH = 56
+
+// Layout makes the pads as tall as their rows, so each has room for
+// both its lines, however many drums the kit has.
 func (pd *pads) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
-	pd.size = c.Max
-	return c.Max
+	rows := (len(pd.names) + padCols - 1) / padCols
+	pd.size = c.Constrain(geom.Sz(c.Max.W, float32(max(rows, 1))*padRowH))
+	return pd.size
 }
 
 func (pd *pads) rect(i int) geom.Rect {

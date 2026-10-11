@@ -1,0 +1,29 @@
+{
+	"Osc": [
+		{
+			"Wave": "fm",
+			"Ratio": 2,
+			"Index": 1.2,
+			"Decay": 2,
+			"Sustain": 0.5
+		},
+		{
+			"Wave": "saw",
+			"Unison": 2,
+			"Spread": 8,
+			"Level": 0.4
+		}
+	],
+	"Filter": {
+		"Type": "lp",
+		"Cutoff": 4500,
+		"Res": 0.2
+	},
+	"Amp": {
+		"Attack": 0.25,
+		"Decay": 1.5,
+		"Sustain": 0.8,
+		"Release": 1.5
+	},
+	"Poly": 8
+}

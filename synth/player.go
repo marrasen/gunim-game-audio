@@ -70,13 +70,29 @@ type Player struct {
 	duckEnv    float32
 	duckOn     bool
 	rev        *reverb
-	dly        *delay
-	comp       *compressor
-	lim        *limiter
-	gain       float32
-	// low cuts the rumble under the music, as mastering does.
-	low [2]svf
-	ctx renderCtx
+	// gated is the gated reverb, nil where the song has none; gl and gr
+	// what is sent to it; gateLeft how many frames its gate stays open,
+	// gateHold how many a hit opens it for, and gateEnv how open it is.
+	gated    *reverb
+	gl, gr   []float32
+	gateLeft int64
+	gateHold int64
+	gateEnv  float32
+	dly      *delay
+	comp     *compressor
+	lim      *limiter
+	gain     float32
+	// low cuts the rumble under the music, as mastering does; mono
+	// cuts the sides' bass, below monoHz; air lifts the
+	// top by airGain; and tape drives the mix by tape.
+	low     [2]svf
+	mono    [2]svf
+	monoHz  float32
+	air     [2]svf
+	airGain float32
+	tape    float32
+	tw      tweaker
+	ctx     renderCtx
 
 	// What a tool reads, guarded by wmu.
 	wmu    sync.Mutex
@@ -136,6 +152,8 @@ type track struct {
 	ms       [2]float32
 	rng      *rng
 	sounding bool
+	// gateEnv is how open the track's trance gate is.
+	gateEnv float32
 }
 
 // A sched is a note or a drum to start on its frame.
@@ -250,7 +268,7 @@ const (
 func NewPlayer(s *Song, seed uint64) *Player {
 	p := &Player{seed: seed, rng: newRand(seed), ctl: map[string]band.PartControl{}, bar: -1,
 		rev: newReverb(), dly: newDelay(), comp: newCompressor(-10, 2), lim: newLimiter(-0.8), gain: 1}
-	for _, b := range []*[]float32{&p.ml, &p.mr, &p.rl, &p.rr, &p.dl, &p.dr, &p.tl, &p.tr, &p.duckBuf} {
+	for _, b := range []*[]float32{&p.ml, &p.mr, &p.rl, &p.rr, &p.dl, &p.dr, &p.tl, &p.tr, &p.duckBuf, &p.gl, &p.gr} {
 		*b = make([]float32, maxBlock)
 	}
 	p.ctx.l, p.ctx.r = make([]float32, control), make([]float32, control)
@@ -536,8 +554,50 @@ func (p *Player) adopt(c *compiled) {
 	if ratio == 0 {
 		ratio = 2
 	}
+	attack := 0.008
+	if punch := min(max(m.Tweak.Punch, 0), 1); punch > 0 {
+		// Squeezed harder, and sooner, so its peaks are caught too.
+		th -= 18 * punch
+		ratio += (8 - ratio) * punch
+		attack -= 0.007 * punch
+	}
 	p.comp.threshold, p.comp.ratio = float32(th), float32(ratio)
+	p.comp.att = 1 - float32(math.Exp(-float64(control)/(attack*rate)))
+	p.tw.set(m.Tweak)
 	p.gain = float32(dbGain(m.Gain))
+	if g := m.Gated; g != nil {
+		if p.gated == nil {
+			p.gated = newReverb()
+		}
+		size, tone, hold := g.Size, g.Tone, g.Hold
+		if size == 0 {
+			size = 1.2
+		}
+		if tone == 0 {
+			tone = 0.6
+		}
+		if hold <= 0 {
+			hold = 0.3
+		}
+		// A long, dense room, which the gate cuts off long before it
+		// dies, so it sounds as loud to its end.
+		p.gated.set(size, 3, tone, 0.002)
+		p.gateHold = int64(hold * rate)
+	} else {
+		p.gated = nil
+	}
+	p.monoHz = float32(m.MonoBass)
+	if p.monoHz > 0 {
+		// Two Butterworth highpasses, 24 dB an octave.
+		p.mono[0].set(p.monoHz, 0.3)
+		p.mono[1].set(p.monoHz, 0.3)
+	}
+	p.airGain = float32(dbGain(m.Air)) - 1
+	if m.Air != 0 {
+		p.air[0].set(10000, 0)
+		p.air[1].set(10000, 0)
+	}
+	p.tape = float32(min(max(m.Tape, 0), 1))
 	p.ctx.beatHz = c.bpm / 60
 	p.tiersSeen.Store(int32(max(c.tiers, 1)))
 	if t := int(p.tierReq.Load()); t > max(c.tiers, 1) {
@@ -970,8 +1030,16 @@ func (p *Player) scheduleTrack(t *track, bar int, k key) {
 				p.queueNote(t, frame, n, v[0])
 				break
 			}
-			for _, pitch := range v {
-				p.queueNote(t, frame, n, pitch)
+			strum := int64(ct.t.Strum * rate)
+			up := math.Mod(inBar*8+1e-9, 2) >= 1
+			for i, pitch := range v {
+				// A strum, as a guitarist's hand: down, low to high, and
+				// up, on an offbeat eighth, high to low.
+				k := int64(i)
+				if up {
+					k = int64(len(v) - 1 - i)
+				}
+				p.queueNote(t, frame+k*strum, n, pitch)
 			}
 		case actArp:
 			p.queueNote(t, frame, n, p.arp(t, chord, ci, oct))
@@ -1082,6 +1150,13 @@ func (p *Player) fire(s *sched) {
 	if t == p.duckT {
 		p.duckOn = true
 	}
+	if p.gated != nil && t.c.t.Gated > 0 {
+		if p.gateLeft == 0 && p.gateEnv == 0 {
+			// The gate was shut: the room starts afresh with the hit.
+			p.gated.clear()
+		}
+		p.gateLeft = p.gateHold
+	}
 }
 
 // render makes n frames into dst.
@@ -1095,6 +1170,13 @@ func (p *Player) render(dst []float32, n int) {
 	clear(rr)
 	clear(dl)
 	clear(dr)
+	// The gated reverb runs only while its gate is open, or shutting.
+	gated := p.gated != nil && (p.gateLeft > 0 || p.gateEnv > 0)
+	gl, gr := p.gl[:n], p.gr[:n]
+	if gated {
+		clear(gl)
+		clear(gr)
+	}
 	duck := p.duckBuf[:n]
 	beat := 60 / p.c.bpm
 	att := 1 - float32(math.Exp(-1/(0.004*rate)))
@@ -1131,14 +1213,17 @@ func (p *Player) render(dst []float32, n int) {
 			continue
 		}
 		t.ins.process(tl, tr)
-		gl, gr := min(1, 1-ct.pan), min(1, 1+ct.pan)
-		gl *= ct.gain
-		gr *= ct.gain
+		if len(ct.gate) > 0 {
+			p.gate(t, tl, tr)
+		}
+		pl, pr := min(1, 1-ct.pan), min(1, 1+ct.pan)
+		pl *= ct.gain
+		pr *= ct.gain
 		rv, dv := float32(ct.t.Reverb), float32(ct.t.Delay)
 		dk := float32(ct.t.Duck)
 		for i := range tl {
 			g := 1 - dk*duck[i]
-			l, r := tl[i]*gl*g, tr[i]*gr*g
+			l, r := tl[i]*pl*g, tr[i]*pr*g
 			tl[i], tr[i] = l, r
 			ml[i] += l
 			mr[i] += r
@@ -1146,6 +1231,12 @@ func (p *Player) render(dst []float32, n int) {
 			rr[i] += r * rv
 			dl[i] += l * dv
 			dr[i] += r * dv
+		}
+		if gv := float32(ct.t.Gated); gated && gv > 0 {
+			for i := range tl {
+				gl[i] += tl[i] * gv
+				gr[i] += tr[i] * gv
+			}
 		}
 		t.meter(tl, tr)
 		if t == p.watched {
@@ -1166,16 +1257,66 @@ func (p *Player) render(dst []float32, n int) {
 		rr[i] += dr[i] * 0.3
 	}
 	p.rev.process(rl, rr)
+	// Tweak's space turns the rooms and echoes up or down.
+	space := p.tw.space
 	for i := range ml {
-		ml[i] = (ml[i] + rl[i] + dl[i]) * p.gain
-		mr[i] = (mr[i] + rr[i] + dr[i]) * p.gain
+		ml[i] = (ml[i] + (rl[i]+dl[i])*space) * p.gain
+		mr[i] = (mr[i] + (rr[i]+dr[i])*space) * p.gain
+	}
+	if gated {
+		p.gated.process(gl, gr)
+		// The gate opens in a millisecond, holds, and shuts in about
+		// fifteen.
+		att := 1 - float32(math.Exp(-1/(0.001*rate)))
+		rel := float32(math.Exp(-1 / (0.015 * rate)))
+		for i := range gl {
+			if p.gateLeft > 0 {
+				p.gateLeft--
+				p.gateEnv += (1 - p.gateEnv) * att
+			} else if p.gateEnv *= rel; p.gateEnv < 1e-4 {
+				p.gateEnv = 0
+			}
+			ml[i] += gl[i] * p.gateEnv * p.gain * space
+			mr[i] += gr[i] * p.gateEnv * p.gain * space
+		}
 	}
 	for i := range ml {
 		_, _, ml[i] = p.low[0].step(ml[i])
 		_, _, mr[i] = p.low[1].step(mr[i])
 	}
+	if p.monoHz > 0 {
+		// The sides highpassed, as a cutting engineer's elliptical
+		// equaliser does, leaves the bass in the middle.
+		for i := range ml {
+			m, s := (ml[i]+mr[i])*0.5, (ml[i]-mr[i])*0.5
+			_, _, s = p.mono[0].step(s)
+			_, _, s = p.mono[1].step(s)
+			ml[i], mr[i] = m+s, m-s
+		}
+	}
+	if p.tw.on {
+		p.tw.pre(ml, mr)
+	}
+	if p.airGain != 0 {
+		for i := range ml {
+			_, _, hl := p.air[0].step(ml[i])
+			_, _, hr := p.air[1].step(mr[i])
+			ml[i] += hl * p.airGain
+			mr[i] += hr * p.airGain
+		}
+	}
 	p.comp.process(ml, mr)
 	p.reduction.Store(math.Float32bits(p.comp.reduction))
+	if p.tw.on {
+		p.tw.post(ml, mr, p.comp.reduction)
+	}
+	if p.tape > 0 {
+		// Tape takes the quiet as it is, and rounds the peaks off.
+		for i := range ml {
+			ml[i] += (softClip(ml[i]) - ml[i]) * p.tape
+			mr[i] += (softClip(mr[i]) - mr[i]) * p.tape
+		}
+	}
 	p.lim.process(ml, mr)
 	for i := range ml {
 		dst[2*i] = ml[i]
@@ -1375,7 +1516,11 @@ func (t *track) meter(l, r []float32) {
 	for ch, x := range [2][]float32{l, r} {
 		var pk, ms float32
 		for _, s := range x {
-			pk = max(pk, abs32(s))
+			// A comparison, not max, which minds NaNs and signed zeros
+			// and costs a meter on every track dearly.
+			if a := abs32(s); a > pk {
+				pk = a
+			}
 			ms += s * s
 		}
 		if len(x) > 0 {
@@ -1498,5 +1643,35 @@ func (p *Player) playAuditions(as []audition) {
 			continue
 		}
 		p.audit.vs.play(pt, note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1})
+	}
+}
+
+// gateOpen and gateShut are how far a trance gate moves a frame toward
+// open, in about 2 ms, and toward shut, near silent in about 40.
+var (
+	gateOpen = 1 - float32(math.Exp(-1/(0.002*rate)))
+	gateShut = 1 - float32(math.Exp(-1/(0.012*rate)))
+)
+
+// gate chops t's sound in l and r, the block playing from p.at, by its
+// trance gate's steps over the bar.
+func (p *Player) gate(t *track, l, r []float32) {
+	ct := t.c
+	steps := float64(len(ct.gate))
+	bar := float64(max(p.barEnd-p.barStart, 1))
+	for i := range l {
+		k := int(float64(p.at+int64(i)-p.barStart) / bar * steps)
+		k = min(max(k, 0), len(ct.gate)-1)
+		to := ct.gateFloor
+		if ct.gate[k] {
+			to = 1
+		}
+		if to > t.gateEnv {
+			t.gateEnv += (to - t.gateEnv) * gateOpen
+		} else {
+			t.gateEnv += (to - t.gateEnv) * gateShut
+		}
+		l[i] *= t.gateEnv
+		r[i] *= t.gateEnv
 	}
 }

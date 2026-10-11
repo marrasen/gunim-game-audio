@@ -34,6 +34,13 @@ import music "github.com/marrasen/gunim-game-audio"
 | Summer Meadow | `summer-meadow` | A calm song of a summer meadow, made in code, at 88 BPM in G major, for a room and its map: a plucked harp, a soft pad, a round bass and a woody tick always, and an ocarina's tune, birdsong and a bumblebee's hum coming and going. |
 | Tinker Lab | `tinker-lab` | A curious, bouncy song of an inventor's workshop, made in code, at 96 BPM in A major, shuffled in triplets, for a room and its map: plucked strings, a plucked bass, a soft pad, a light groove and a clock's tick-tock always, and a marimba's tune, bubbly blips and a vibraphone coming and going. |
 | Tinker Round | `tinker-round` | A round song of the same workshop, made in code, at 112 BPM in A major, shuffled, in four tiers: plucked strings, a plucked bass and a pad; claps and a clock; a marimba's tune; drums and bubbly blips. The digit keys play the A major pentatonic over it. |
+| Notte di Neon | `notte-di-neon` | An Italo disco song, made in code, at 122 BPM in D minor, as a 12" mix of the 1980s plays it in 64 bars: a drum intro under an octave bass and an arpeggio, the synth hook, a vocoder's verses over a DX7's piano, choruses with a vocoder choir, string machine, orchestra hits, cowbell and laser zaps, and a break of Simmons toms. Its snare booms in a gated reverb, and its mix is mastered as for vinyl. |
+| Ring Me Twice | `ring-me-twice` | A Hi-NRG song of 1984, made in code, at 124 BPM in F minor, in 80 bars: a phone rings twice, then a rolling 16th bass, claps and a cowbell drive it; a brass riff answers a deep, half-spoken vocoder's verses, a choir chants back, a wordless "oo" rises into a chorus that hangs on its sixth, and the phone rings again in the breakdown. |
+| Wire Cathedral | `wire-cathedral` | An industrial song in the manner of Nine Inch Nails, made in code, at 94 BPM in E minor, in 64 bars: a detuned piano wobbling as worn tape does over a drone and a machine's hum; then a crushed kick, a snare ringing and smashed, gritty hats, a folded bass over a clean sub and a whisper; choruses of amp-distorted guitars hard left and right, a screaming vocoder, noise and struck metal, on the flat second and the tritone; and a dead stop. |
+| Mirror Shine | `mirror-shine` | A techno song in the manner of Tiga, made in code, at 124 BPM in G minor, in 128 bars for a DJ, one part in or out each 16: a 909 kick alone in the sub, an 808 snare, a scooping stab, a slithering pulse and a deadpan vocoder's slogan; a fuzzy buzz whose filter opens and shuts; and, held back till its drop, a TB-303's acid line, sliding and its accents stacking, over a rimshot groove. |
+| Meridian | `meridian` | A futurepop song in the manner of VNV Nation, made in code, at 138 BPM in B minor, in 96 bars: a choir, timpani and a piano open it; a 16th EBM bass and a supersaw arpeggio drive it; a baritone sings, clean, in a hall; its chorus lifts to the harmonic minor's V; and a supersaw lead soars over its break. |
+| Parallax | `parallax` | A futurepop song in the manner of Apoptygma Berzerk, made in code, at 132 BPM in F minor, in 96 bars: an arpeggio for its hook, an EBM bass, a supersaw pad chopped by a trance gate, a tenor sung and doubled, a supersaw riff, a Commodore 64's interlude, and a robot girl's voice in its breakdown. |
+| Phantom Highway | `phantom-highway` | A noise pop song in the manner of the Raveonettes' Whip It On, made in code, at 144 BPM in B-flat minor, in three chords and 96 bars, with no hi-hats: a big kick and a roomy snare, a floor tom's eighths and a tambourine; strummed guitars whose reverb is buried in fuzz, walls of them hard left and right in its choruses; a twanging surf lead on a spring; and a man's and a woman's voice droning together in the reverb. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
@@ -185,7 +192,7 @@ tier 2. Mascot Dance's, Sister Dreams' and Underworld Ascent's come and
 go as those songs wander, and the game can hold them in with
 `SetPart`; Star Drift's bells always ring, as do Candy Clouds' soft
 snap, Compass Rose's rim, Summer Meadow's woody tick and Tinker Lab's
-snap, on beats 2 and 4. Pocket Kingdom claps twice, quick, every bar;
+snap, on beats 2 and 4, Notte di Neon's clap, but for its first four bars, Ring Me Twice's, but for its breakdown's first four, the snares of Wire Cathedral, but in its piano's quiet, and of Mirror Shine, but where its voice is alone, the claps of Meridian and Parallax, but in their intros and breakdowns, and Phantom Highway's snare. Pocket Kingdom claps twice, quick, every bar;
 Boss Entrance, Bubble Bounce, Hero's Field, Underworld Ascent, Orbit
 Round, Alien Entrance, Meadow Hop and Tinker Round every other bar. The recorded songs, Greek Themes and A round song,
 tell their beat but not their drums: a character can clap on beats 2
@@ -359,23 +366,32 @@ The tabs over the stage swap it for the editors, each heard as it is
 changed, with no file to edit and nothing to reload:
 
 - **Mixer.** A strip for each track, with mute and solo, knobs for its
-  pan, its reverb and delay sends, its sidechain duck, its low and high
-  cut, its drive and its chorus, a stereo meter, and its fader. The
+  pan, its reverb and delay sends, its sidechain duck, its gated reverb
+  send, its low and high cut, its drive, its chorus, a knob for how
+  much over a row of five lamps for its kind, soft, Juno I, II or I+II,
+  or ensemble, a stereo meter, and its fader. The
   master's strip has the mix's meter, its fader, its compressor with a
   bar of how far it turns the mix down, and its loudness in LUFS. The
   track panel slides away to give the desk the window's width.
-- **Patch.** A synth's oscillators, up to four, each with its wave drawn
-  (a click on it turns to the next wave), its octave, tuning, level,
-  unison voices and spread, and its pulse width or FM ratio and index;
-  its filter with its response drawn; its filter and amp envelopes,
-  drawn; two LFOs; its voices, glide, drive, noise and the vowel it
-  sings. A plucked string's decay, brightness and body. Under them a
+- **Patch.** On its left, the strip of the track playing the patch, as
+  the mixer's, and arrows to step to the track before or after, its
+  patch shown in turn, sliding in from the side it comes from; beside it the patch library, open. The page
+  takes the window's width, as the mixer does. A synth's oscillators, up to four, each with its
+  wave picked from a panel of lamps, an analogue synth's waves over the
+  chips', and drawn (a click on it turns to the next wave), its octave,
+  tuning, level, unison voices and spread, and its pulse width or FM
+  ratio and index; its filter, its type picked from lamps, with its
+  response drawn; its filter and amp envelopes, drawn; two LFOs, what
+  each moves and its wave picked from lamps; its voices, glide, drive,
+  noise, drift and the vowel it sings. A plucked string's decay,
+  brightness and body. Under them a
   note of the patch drawn whole and close up, the track playing it on a
   scope as it plays, and a keyboard that plays it over the song.
 - **Kit.** A kit's drums as pads, which light as the song hits them and
   play as they are pressed, and the drum chosen: its type, tune, decay,
   tone, level and pan, and its hit drawn.
-- **Effects.** The reverb with its tail drawn, the delay with its
+- **Effects.** The tweaks, seven knobs that turn the whole song's
+  sound, dark to bright, dry to wet, and more, and Reset. The reverb with its tail drawn, the delay with its
   echoes, the compressor with its curve and where the mix sits on it,
   the master level, the swing, the sidechain's track, and the tier
   changes' riser and impact.
@@ -389,6 +405,32 @@ changed, with no file to edit and nothing to reload:
   share. Under it the pattern on a grid of steps, a row a drum or a
   note, where a click sets or clears a cell and Shift and a click holds
   the note before it. Each change writes the pattern back as text.
+- **Beat.** Every drum track at once, as a drum machine shows them: a
+  lane a track, with mute and solo, a row a drum it plays, on one time
+  line, a page of 1, 2, 4 or 8 bars at a time, at 8, 16 or 32 steps a
+  bar. Tracks of different lengths line up, each in the turn it plays
+  in those bars. Arrows turn the page through the song's arrangement,
+  and Follow turns it with the song. A click sets a hit or clears one,
+  a drag paints them, and a row adds a drum to a track; each edit
+  writes that track's pattern anew.
+
+The patch and kit editors browse a library of presets, in
+`patches/`: basses, leads, arps and plucks, brass, keys and bells, pads
+and strings, vocoders, effects and drum kits, and every patch of the
+songs made in code. The library stays open as a tree beside the
+editor, its categories folders, and the songs' patches a folder a song.
+A preset picked in it, or stepped to with the arrows over the editor,
+or picked at random, plays in place of the patch at once, as loud as the patch was, so the mix keeps its balance; Keep makes
+it the patch, and Revert puts the patch back as it was. A program reads
+the library with `music.Presets`.
+
+The wheel scrolls a page, and turns a knob, a fader or a row of lamps
+only when that is meant, so looking round a page changes nothing. A
+turn of the wheel belongs to what its first notch lands on: begun on
+the page, it scrolls the page to its end, though knobs pass under the
+pointer. A control takes it only where the pointer moved onto the
+control and rested there for 0.4 s, or the control was just pressed
+or dragged; Ctrl with the wheel turns it always.
 
 Patches and kits save to a file of their own, a `.patch.json`, and load
 from one, in place of a patch or as a new one; a new synth, pluck or kit
@@ -512,6 +554,66 @@ patch plays drums by name: `bd`, `sn`, `cp`, `hh`, `oh`, `rim`, `lt`,
 `mt`, `ht`, `cr`, `rd`, `sh`, `snap`, `tim`, a timpani tuned to the
 chord, and the effects `boom`, `riser` and `down`.
 
+Noise pop wants a guitar's. A track's `Strum` spreads a chord's notes
+seconds apart, down low to high and up, on an offbeat eighth, high to
+low, as a pick crosses strings. Its `Wash`, from 0 to 1, is a reverb of
+its own put before its distortion, as a reverb pedal ahead of a fuzz,
+which then chews the reverb's tail into a wall: `WashType` `hall`, long
+and bright, or `spring`, a spring tank's twang and drip. `tamb` is a
+tambourine, its jingles clashing, of type `tambourine`. The mixer has a
+knob and two lamps for a track's wash, and the pattern editor a Strum
+knob.
+
+Futurepop has its own. A patch's `Singer`, `bass`, `baritone`,
+`tenor`, `alto` or `soprano`, sings its vowels through that voice's
+five formants, and the `glottal` wave is a voice's buzz to sing them
+with, so a song has a clean voice where a vocoder would make a robot's.
+A track's `Gate` chops it in time with the bar, a step a character, `x`
+sounding and `.` silenced, as a trance gate chops a pad, by its
+`GateDepth`; the pattern editor sets it a 16th at a time.
+
+Industrial music and techno have theirs. A patch's `Slide` glides
+only into a note tied to the one before, a track's legato over 1 tying
+them, as a TB-303 slides; its `Accent` opens the filter by octaves on a
+note of velocity 1, the filter's envelope falling in 0.2 s, accents
+close together stacking as the 303's do. A track's `Distort`, from 0
+to 1, distorts it as its `DistortType` says: `fuzz`, clipped hard;
+`amp`, a guitar's amplifier and cabinet; or `fold`, a wavefolder. Its
+`Ring` ring-modulates it with a sine at `RingHz`, and its `Smash` mixes
+under it a copy crushed by a compressor with every ratio's button in,
+so it pumps. `bd9` is a TR-909's kick, its pitch falling fast from high
+with a click, of type `kick909`, and `mtl` a struck piece of metal, its
+partials clanging, of type `metal`. The studio's mixer has a knob and
+three lamps for a track's distortion, and knobs for its ring and smash;
+its patch editor a Slide button and an Accent knob.
+
+The 1980s' electronic pop has sounds of its own. `syn1`, `syn2` and
+`syn3` are a Simmons SDS-V's toms, high to low, of type `syntom`: a
+triangle bending down from twice its pitch, noise and a stick's click.
+`cb` is a TR-808's cowbell, of type `cowbell`: squares at 540 and 800 Hz
+through a bandpass. A patch's `Drift` detunes each of its notes by up to
+that many cents, at random, as an analogue synth's oscillators drift.
+Its `Vocoder` sings its vowel through a vocoder's ten bands, at a Roland
+VP-330's centres from 150 Hz to 5.2 kHz, in place of a voice's three
+resonances: a track's `vowel` parameter makes a chord speak, as a robot.
+A track's `ChorusType` is its chorus's kind: `soft`, the default;
+`juno1`, `juno2` or `juno12`, a Roland Juno-60's chorus I, II, and both
+buttons down, each side swept against the other; or `ensemble`, a string
+machine's three swaying copies. The mix's `Gated` is a second room, a
+big one cut off short a `Hold` after each hit of the tracks that send to
+it by their `Gated`, as the 1980s gated a snare. `MonoBass` makes the
+mix mono below it, in hertz, as a record is cut; `Air` lifts the top
+above 10 kHz by decibels; and `Tape` rounds the peaks off, from 0 to 1,
+as a tape machine does.
+
+A mix's `Tweak` turns the whole song's sound by seven broad knobs, each
+0 for the song as mixed: `Tone`, from dark at -1 to bright at 1; `Bass`,
+cut or boosted; `Space`, the rooms and echoes from none to three times
+as much; `Width`, from mono to twice as wide; `Punch`, the compressor
+squeezing harder, its level made up; `Drive`, the mix pushed into a
+soft clip; and `LoFi`, an old radio's fewer bits, lower rate and narrow
+band. A song left untweaked spends nothing on them.
+
 The SID patches sound like a Commodore 64. An oscillator's `Wave` may be
 `noise`, pitched by the note as the SID's noise is, or a combined wave,
 `sawtri`, `pulsetri` or `pulsesaw`, two waves ANDed as the chip makes
@@ -544,8 +646,8 @@ A track's `Params` change each note, as TidalCycles' controls do: `vel`,
 `pan`, `cutoff`, `res`, `legato`, `octave`, `vowel` and `tune`, each a
 pattern of values, or a signal from lo to hi as `sine:400:2000:4`. Its
 mix is `Gain`, `Pan`, `Reverb`, `Delay`, a sidechain `Duck` to the
-song's kick, and the effects `HPF`, `LPF`, `Shape`, `Crush`, `Coarse`
-and `Chorus`.
+song's kick, a `Gated` send, and the effects `HPF`, `LPF`, `Shape`,
+`Crush`, `Coarse` and `Chorus`, of its `ChorusType`.
 
 `cmd/render` renders a song made in code to a WAV file and says how loud
 each tier is, and each track alone, octave by octave, for mixing without
@@ -554,6 +656,101 @@ a speaker:
 ```sh
 go run ./cmd/render -song boss-entrance -o boss.wav -tracks -bands
 ```
+
+## Playing MIDI files
+
+`cmd/gmplay` plays a MIDI file through the synth engine, as a General
+MIDI sound module would: its 128 instruments are patches of package
+`synth`, from the grand piano to the gunshot, and channel 10 plays a
+drum kit of its drums, by General MIDI's key map. `-style` plays it in
+another style: `sid`, a Commodore 64's SID chip, its pulses, saws and
+triangles through its filter, and its drums; `nes`, the NES's pulses,
+its stepped triangle for the bass, its noise and its drums; `gb`, the
+Game Boy's pulses and its wave channel for the bass; or `adlib`, the
+two-operator FM of an AdLib or Sound Blaster card, as DOS games played
+their MIDI music. Each style gives every instrument a sound of its
+own chip, by what it plays: its keys, bells, organ, plucked strings,
+bass, pads, brass, reeds, pipes, leads, toms and noise. `-o` renders the file
+to a WAV file in place of playing it, `-start` starts it some seconds
+in, `-loop` plays it again each time it ends, `-gain` turns it up or
+down in decibels, and `-v` lists each channel's instruments:
+
+```sh
+go run github.com/marrasen/gunim-game-audio/cmd/gmplay@latest song.mid
+go run ./cmd/gmplay -v -o song.wav song.mid
+go run ./cmd/gmplay -style nes song.mid
+```
+
+It reads Standard MIDI Files of format 0, 1 and 2, by package `midi`,
+and plays notes, program changes, the bend wheel and its range, the
+modulation wheel, volume, expression, pan, the sustain pedal, the
+reverb and chorus sends, and the resets of General MIDI, GS and XG.
+GS's drum parts and XG's drum bank make a channel other than 10 play
+drums too. A program plays it as a source a mixer plays:
+
+```go
+f, err := midi.Read(file)
+if err != nil {
+	return err
+}
+mix.Play(synth.NewMIDIPlayer(f), audio.Options{})
+```
+
+A `synth.GM` alone is the sound module, without the file: `Send` plays
+each message as it comes, and `SetStyle` sets its style.
+
+### The MIDI player
+
+`cmd/midiplayer` is a window to play MIDI files in. Drop files, or
+folders of them, anywhere on it: the window blurs, a record spins up to
+take them, and they go on the playlist. Open does the same, and so do
+files named on the command line; with none, it offers a demo song made
+in code.
+
+```sh
+go run github.com/marrasen/gunim-game-audio/cmd/midiplayer@latest
+go run ./cmd/midiplayer -demo
+go run ./cmd/midiplayer song.mid more-songs/
+```
+
+The song falls onto a piano as it plays, each note in its channel's
+colour, and lights its key as it lands. Each channel has a station on
+the stage, its instrument drawn playing what it plays: keys go down and
+hammers jump, strings shake, a bow saws, a choir opens its mouths, a
+speaker thumps, brass sends out rings, organ pipes puff air, a scope
+draws a synth's wave, and the drum kit bounces, its cymbals rocking and
+its hi-hat opening. A spark flies up from each key to its station. A
+click on a station mutes it; with Shift, it plays alone.
+
+The cartridges at the top pick the style: an orchestra's score, a
+Commodore 64's cartridge, a NES's, a Game Boy's, or an AdLib card. The
+sound changes, and the window with it: the machine's start-up screen
+types itself out, the colours turn to its palette, and a console's fat
+pixels and scanlines come in, down to the Game Boy's four greens.
+
+Under the piano, the timeline maps how busy the song is, in the colour
+of its busiest channel, for a click or a drag to move through. Beside
+it are skip, repeat, the speed, the transpose and the volume. Space
+plays and pauses, the arrows move five seconds, N and P skip, 1 to 5
+pick a style, + and - change the speed, M shows the mixer, L shows the
+playlist and O opens files.
+
+![The MIDI player](cmd/midiplayer/midiplayer.png)
+
+The Mixer tab, or M, slides the stage away for a mixing desk. Each
+channel has a strip: a high, middle and low equaliser, drive, its
+sends to the reverb, the chorus and the delay, its pan, mute and solo,
+and a fader beside its meter. The master has a five-band equaliser,
+drawn as a curve over the spectrum of the sound heard, its handles
+dragged across for the frequency and up and down for the gain, and the
+wheel to narrow or widen each; the reverb, delay and chorus the strips
+send to; a compressor and a limiter, each showing how far it turns the
+sound down; and the master fader between its meters. A knob or a fader
+drags up and down, finer with Shift, and a double click sets it back.
+The mix is kept for the next time, and Reset sets it all back.
+`-mixer` opens the player on it.
+
+![The mixer](cmd/midiplayer/mixer.png)
 
 ## Licence
 

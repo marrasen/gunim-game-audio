@@ -1,0 +1,15 @@
+{
+	"Kind": "pluck",
+	"Pluck": {
+		"Decay": 1.4,
+		"Bright": 0.75,
+		"Body": 0.3
+	},
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 1,
+		"Sustain": 1,
+		"Release": 0.2
+	},
+	"Poly": 8
+}

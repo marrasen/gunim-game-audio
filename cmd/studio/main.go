@@ -17,9 +17,9 @@
 // Tabs swap the stage for the editors: a mixing desk; a synth's patch,
 // its oscillators, filter, envelopes and LFOs drawn and turned by
 // knobs, played from a keyboard; a kit's drums as pads; the effects;
-// and a track's pattern, its structure as boxes and its notes on a grid
-// of steps. Patches and kits save to files of their own and load from
-// them.
+// a track's pattern, its structure as boxes and its notes on a grid of
+// steps; and every drum track at once, as a drum machine shows them.
+// Patches and kits save to files of their own and load from them.
 //
 // -song opens a song by name, and -editor an editor, by its tab, on the
 // track -track. -shot writes the window to a PNG after -after, and
@@ -49,7 +49,7 @@ import (
 func main() {
 	song := flag.String("song", music.KeypadRound, "the song to open, by name")
 	tier := flag.Int("tier", 0, "the tier to start at")
-	editor := flag.String("editor", "", "the editor to open, by its tab: Stage, Mixer, Patch, Kit, Effects or Pattern")
+	editor := flag.String("editor", "", "the editor to open, by its tab: Stage, Mixer, Patch, Kit, Effects, Pattern or Beat")
 	on := flag.String("track", "", "with -editor, the track to open it on")
 	shot := flag.String("shot", "", "write the window to this PNG file after -after, and quit")
 	after := flag.Duration("after", 6*time.Second, "how long -shot waits")

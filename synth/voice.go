@@ -4,6 +4,10 @@ import (
 	"math"
 )
 
+// accentDrain is how much of an accent's charge is left after a control
+// block: it drains to a third in 0.3 s.
+var accentDrain = float32(math.Exp(-float64(control) / (0.3 * rate)))
+
 // The most oscillators a patch plays, and copies of each.
 const (
 	maxOsc     = 4
@@ -48,6 +52,8 @@ type voice struct {
 	lfoR   []float32
 	frames int64
 	form   formant
+	voc    vocoder
+	sng    singer
 	// noise2 are the oscillators' SID noise, and nesN their NES noise.
 	noise2 [maxOsc][maxUnison]lfsr
 	nesN   [maxOsc][maxUnison]nesNoise
@@ -58,6 +64,12 @@ type voice struct {
 	noise *rng
 	// pan is where the note sits, LFO and all, this control block.
 	pan float32
+	// drift is how far the note is off its pitch, in semitones, as an
+	// analogue oscillator drifts.
+	drift float32
+	// accent is the charge of the voice's accents, which each accented
+	// note adds to and which drains, opening the filter as it stands.
+	accent float32
 	// hz is the pitch heard, from pitchAt, and cut and res the filter's
 	// tuning, kept to tune it again only once they move.
 	hz, pitchAt, cut, res float32
@@ -85,7 +97,7 @@ func (v *voice) start(p *patch, n note, age uint64) {
 	src := p.src
 	v.amp.set(src.Amp)
 	v.fenv.set(src.FilterEnv)
-	if !v.on || p.poly > 1 || src.Glide <= 0 {
+	if !v.on || p.poly > 1 || src.Glide <= 0 || src.Slide && retrig {
 		v.pitch = n.pitch
 	}
 	v.glide = 1
@@ -123,13 +135,40 @@ func (v *voice) start(p *patch, n note, age uint64) {
 		vowel = p.vowel
 	}
 	if vowel != 0 {
-		v.form.set(vowel)
-		v.vowel = vowel
+		v.aim(vowel)
+	}
+	if src.Accent > 0 && n.vel >= 0.95 {
+		// Accented: the filter's envelope falls in 0.2 s, and the charge
+		// stacks on what is left of the last accent's.
+		e := src.FilterEnv
+		e.Decay = 0.2
+		v.fenv.set(e)
+		v.accent = min(v.accent+1, 2.5)
+	}
+	v.drift = 0
+	if src.Drift > 0 {
+		v.drift = float32(src.Drift/100) * v.noise.bipolar()
 	}
 	if p.kind == kindPluck {
 		v.pluck()
 	}
 	v.on = true
+}
+
+// aim aims the voice's formants, or its vocoder's bands, at vowel.
+func (v *voice) aim(vowel byte) {
+	switch {
+	case v.p.vocoder:
+		v.voc.set(vowel)
+	case v.p.singer != "":
+		if v.sng.name != v.p.singer {
+			v.sng = singer{name: v.p.singer, kind: singers[v.p.singer]}
+		}
+		v.sng.set(vowel)
+	default:
+		v.form.set(vowel)
+	}
+	v.vowel = vowel
 }
 
 // pluck plucks the string afresh: a burst of noise as long as the
@@ -229,7 +268,7 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		if b := p.src.Bend; b != nil && b.Time > 0 {
 			lPitch += float32(b.Semis * max(0, 1-float64(v.frames)/(b.Time*rate)))
 		}
-		if pitch := v.pitch + lPitch; pitch != v.pitchAt || v.hz == 0 {
+		if pitch := v.pitch + lPitch + v.drift; pitch != v.pitchAt || v.hz == 0 {
 			v.pitchAt, v.hz = pitch, float32(noteHz(float64(pitch)))
 		}
 		hz := v.hz
@@ -246,6 +285,13 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 				cut = 20000
 			}
 			oct := v.fenv.v*float32(f.Env) + lCut + float32(f.Key)*(v.pitch-60)/12 + float32(f.Vel)*(v.n.vel-1)
+			if v.accent > 0 {
+				oct += float32(src.Accent) * v.accent
+				v.accent *= accentDrain
+				if v.accent < 1e-3 {
+					v.accent = 0
+				}
+			}
 			cut *= exp2(oct)
 			res := float32(f.Res)
 			if v.n.res >= 0 {
@@ -273,10 +319,16 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		sing := vowel != 0
 		if sing {
 			if vowel != v.vowel {
-				v.form.set(vowel)
-				v.vowel = vowel
+				v.aim(vowel)
 			}
-			v.form.tune()
+			switch {
+			case p.vocoder:
+				v.voc.tune()
+			case p.singer != "":
+				v.sng.tune()
+			default:
+				v.form.tune()
+			}
 		}
 		v.pan = min(max(v.n.pan+lPan, -1), 1)
 		pl, pr := panGains(v.pan)
@@ -309,7 +361,16 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		v.filter(bl, br)
 		if sing {
 			for i := range bl {
-				s := v.form.step((bl[i] + br[i]) * 0.5)
+				x := (bl[i] + br[i]) * 0.5
+				var s float32
+				switch {
+				case p.vocoder:
+					s = v.voc.step(x)
+				case p.singer != "":
+					s = v.sng.step(x)
+				default:
+					s = v.form.step(x)
+				}
 				bl[i], br[i] = s, s
 			}
 		}
@@ -653,19 +714,19 @@ func newVoices(n int, seed uint64) *voices {
 }
 
 // play gives n to a voice: a mono patch's one voice, or one at rest, or
-// one letting go, or else the oldest.
-func (vv *voices) play(p *patch, n note) {
+// one letting go, or else the oldest. It returns the voice.
+func (vv *voices) play(p *patch, n note) *voice {
 	vv.age++
 	if p.poly == 1 {
 		vv.vs[0].start(p, n, vv.age)
-		return
+		return vv.vs[0]
 	}
 	var best *voice
 	for _, v := range vv.vs[:min(p.poly, len(vv.vs))] {
 		switch {
 		case !v.on:
 			v.start(p, n, vv.age)
-			return
+			return v
 		case best == nil,
 			v.quiet() && !best.quiet(),
 			v.quiet() == best.quiet() && v.age < best.age:
@@ -673,6 +734,7 @@ func (vv *voices) play(p *patch, n note) {
 		}
 	}
 	best.start(p, n, vv.age)
+	return best
 }
 
 // releaseAll lets go of every note.

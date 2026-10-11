@@ -134,12 +134,49 @@ type Track struct {
 	// duck track turns it down as it hits, from 0 to 1, as a sidechain
 	// pumps a dance track.
 	Gain, Pan, Reverb, Delay, Duck float64
+	// Gated is how much it sends to the song's gated reverb, from 0 to
+	// 1; each of its hits opens the gate.
+	Gated float64 `json:",omitempty"`
 	// HPF and LPF cut it below and above them, in hertz; Shape drives
 	// it, from 0 to 1; Crush takes it to that many bits; Coarse holds
 	// each sample that many frames; and Chorus thickens it, from 0 to 1.
 	HPF, LPF, Shape, Crush float64
 	Coarse                 int
 	Chorus                 float64
+	// Wash puts a reverb of its own on it, from 0 to 1, before its
+	// distortion, as a reverb pedal ahead of a fuzz, which then chews its
+	// tail into a wall: WashType hall, the default, long and bright, or
+	// spring, a spring tank's twang and drip.
+	Wash     float64 `json:",omitempty"`
+	WashType string  `json:",omitempty"`
+	// Distort distorts it, from 0 to 1, as DistortType says: fuzz, the
+	// default, clipped hard; amp, a guitar's amplifier and its speaker's
+	// cabinet; or fold, a wavefolder's metallic folds.
+	Distort     float64 `json:",omitempty"`
+	DistortType string  `json:",omitempty"`
+	// Ring ring-modulates it, from 0 to 1, with a sine at RingHz, 440 by
+	// default: the clangorous, metallic voice of a ring modulator, as
+	// industrial records put on their snares and their voices.
+	Ring   float64 `json:",omitempty"`
+	RingHz float64 `json:",omitempty"`
+	// Smash mixes under it, from 0 to 1, a copy of it crushed by a
+	// compressor with every ratio's button in and driven, as a room's
+	// drums are smashed so they pump.
+	Smash float64 `json:",omitempty"`
+	// Gate chops it in time with the bar, as a trance gate chops a pad:
+	// a step a character, spread over the bar, x where it sounds and .
+	// where it is silenced, as x.xx.x.xx.x.x.xx for 16ths; GateDepth is
+	// how far the silenced steps fall, from 0 to 1, 1 by default.
+	Gate      string  `json:",omitempty"`
+	GateDepth float64 `json:",omitempty"`
+	// ChorusType is the chorus's kind: soft, the default, two copies
+	// swaying slowly; juno1, juno2 or juno12, a Roland Juno-60's chorus
+	// I, II, or both buttons down; or ensemble, a string machine's.
+	ChorusType string `json:",omitempty"`
+	// Strum spreads a chord's notes that many seconds apart, as a
+	// guitarist's pick crosses the strings: down, low to high, and up,
+	// on an offbeat eighth, high to low.
+	Strum float64 `json:",omitempty"`
 	// Human moves each note a little in time and level, from 0 to 1, as
 	// a player's hands do.
 	Human float64
@@ -207,6 +244,21 @@ type Mix struct {
 	// Threshold and Ratio set the compressor that glues the mix, -10 dB
 	// and 2 by default.
 	Threshold, Ratio float64
+	// Gated is a second room, its sound cut off short by a gate that the
+	// hits of the tracks sending to it open, as the 1980s gated a
+	// snare's room; nil for none.
+	Gated *Gated `json:",omitempty"`
+	// MonoBass makes the mix mono below it, in hertz, as a record's
+	// cutting engineer does, so the needle tracks the bass.
+	MonoBass float64 `json:",omitempty"`
+	// Air lifts the mix above 10 kHz by that many decibels, as the
+	// mastering of the 1980s brightened a record.
+	Air float64 `json:",omitempty"`
+	// Tape saturates the mix as a tape machine does, from 0 to 1: the
+	// quiet as it was, the peaks rounded off.
+	Tape float64 `json:",omitempty"`
+	// Tweak turns the whole song's sound by a few broad knobs.
+	Tweak Tweak `json:",omitzero"`
 	// Transitions names a drums patch to mark tier changes with: a riser
 	// in the bars before the tier climbs, an impact as it lands, and a
 	// down as it falls. Lift is how many bars the riser takes, 1 by
@@ -218,6 +270,39 @@ type Mix struct {
 // Tone from 0, dark, to 1, bright, and PreDelay in seconds.
 type Reverb struct {
 	Size, Decay, Tone, PreDelay float64
+}
+
+// Tweak turns a whole song's sound by a few broad knobs, as a
+// listener's tone controls do, over the mix as it is made. Each is 0
+// for the song as mixed.
+type Tweak struct {
+	// Tone tilts the sound round 800 Hz, from -1, dark, to 1, bright:
+	// the top up and the bottom down by up to 6 dB, or the other way.
+	Tone float64 `json:",omitzero"`
+	// Bass lifts the bass below about 120 Hz by up to 9 dB, or cuts it,
+	// from -1 to 1.
+	Bass float64 `json:",omitzero"`
+	// Space is how much of the rooms and echoes is heard, from -1, none,
+	// to 1, three times as much.
+	Space float64 `json:",omitzero"`
+	// Punch squeezes the mix, from 0 to 1: the compressor's threshold
+	// down by up to 18 dB and its ratio up to 8, its level made up.
+	Punch float64 `json:",omitzero"`
+	// Width narrows the sound to mono at -1, or widens it to twice its
+	// sides at 1.
+	Width float64 `json:",omitzero"`
+	// Drive saturates the mix, from 0 to 1, as a desk pushed too hard.
+	Drive float64 `json:",omitzero"`
+	// LoFi makes it an old radio's, from 0 to 1: fewer bits, a lower
+	// sample rate, and its top and bottom cut.
+	LoFi float64 `json:",omitzero"`
+}
+
+// Gated shapes a song's gated reverb: Size and Tone as a Reverb's, 1.2
+// and 0.6 by default, and Hold how long, in seconds, its gate stays open
+// after a hit, 0.3 by default, before it shuts in a few milliseconds.
+type Gated struct {
+	Size, Tone, Hold float64
 }
 
 // Echo times a song's delay: Beats between echoes, 0.75 by default,
@@ -320,6 +405,10 @@ type ctrack struct {
 	legato float64
 	gain   float32
 	pan    float32
+	// gate are the steps of the track's trance gate over a bar, and
+	// gateFloor how far its silenced steps let through.
+	gate      []bool
+	gateFloor float32
 	// mel are the bars of a written melody, a slice a bar of the
 	// progression, a set for each of its progressions and evolutions.
 	mel [][][]mnote
@@ -649,6 +738,34 @@ func (c *compiled) compileTrack(t *Track, k key, progs [][]Chord, sting bool) (*
 		ct.arp = arpRandom
 	default:
 		return nil, fmt.Errorf("synth: track %s arpeggiates %q, not up, down, updown, downup, converge or random", t.Name, t.Arp)
+	}
+	if t.WashType != "" && t.WashType != "hall" && t.WashType != "spring" {
+		return nil, fmt.Errorf("synth: track %s washes as %q, not hall or spring", t.Name, t.WashType)
+	}
+	if _, ok := distortKinds[t.DistortType]; !ok {
+		return nil, fmt.Errorf("synth: track %s distorts as %q, not fuzz, amp or fold", t.Name, t.DistortType)
+	}
+	for _, r := range t.Gate {
+		switch r {
+		case 'x', 'X', '1':
+			ct.gate = append(ct.gate, true)
+		case '.', '-', '0', '_':
+			ct.gate = append(ct.gate, false)
+		case ' ':
+		default:
+			return nil, fmt.Errorf("synth: track %s gates with %q, which is no step: x sounds, . is silent", t.Name, r)
+		}
+	}
+	ct.gateFloor = 0
+	if len(ct.gate) > 0 {
+		depth := t.GateDepth
+		if depth <= 0 {
+			depth = 1
+		}
+		ct.gateFloor = float32(1 - min(depth, 1))
+	}
+	if _, ok := chorusKinds[t.ChorusType]; !ok {
+		return nil, fmt.Errorf("synth: track %s has chorus %q, not soft, juno1, juno2, juno12 or ensemble", t.Name, t.ChorusType)
 	}
 	src := t.Pattern
 	if t.Melody != nil {

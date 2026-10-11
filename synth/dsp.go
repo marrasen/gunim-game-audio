@@ -340,3 +340,65 @@ func (f *formant) step(x float32) float32 {
 	}
 	return y * 1.8
 }
+
+// vocoderBands are the centres of a Roland VP-330's ten bands, in hertz.
+var vocoderBands = [10]float32{150, 220, 350, 500, 760, 1100, 1600, 2200, 3600, 5200}
+
+// vocoder is a vocoder's bank of bands, each a bandpass at a fixed
+// centre, whose levels a vowel's resonances set, as a voice speaking
+// into its microphone would: the sound comes out in steps of the bank,
+// as a machine's voice.
+type vocoder struct {
+	f     [10]svf
+	gain  [10]float32
+	to    [10]float32
+	ready bool
+}
+
+// set aims the bank's levels at vowel v: each band as loud as the
+// vowel's resonances near it, an octave's third or so either side.
+func (vc *vocoder) set(v byte) {
+	fm, ok := formants[v]
+	if !ok {
+		fm = formants['a']
+	}
+	var peak float32
+	for b, hz := range vocoderBands {
+		var g float64
+		for _, f := range fm {
+			d := math.Log2(float64(hz / f[0]))
+			g += float64(f[1]) * math.Exp(-d*d/(2*0.3*0.3))
+		}
+		vc.to[b] = float32(g)
+		peak = max(peak, float32(g))
+	}
+	for b := range vc.to {
+		vc.to[b] = 0.06 + 0.94*vc.to[b]/peak
+	}
+	if !vc.ready {
+		vc.gain = vc.to
+		for b, hz := range vocoderBands {
+			vc.f[b].set(hz, 0.76)
+		}
+		vc.ready = true
+	}
+}
+
+// tune moves the levels a control block's way toward the vowel's, as
+// a vocoder's followers follow a voice, in about 10 ms.
+func (vc *vocoder) tune() {
+	for b := range vc.gain {
+		vc.gain[b] += (vc.to[b] - vc.gain[b]) * 0.06
+	}
+}
+
+// step returns x spoken through the bank.
+func (vc *vocoder) step(x float32) float32 {
+	var y float32
+	for b := range vc.f {
+		_, bp, _ := vc.f[b].step(x)
+		y += bp * vc.f[b].k * vc.gain[b]
+	}
+	// As loud as the formants make a saw, over the vowels.
+	return y * 0.94
+}

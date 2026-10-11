@@ -1,0 +1,31 @@
+{
+	"Osc": [
+		{
+			"Wave": "saw",
+			"Unison": 2,
+			"Spread": 10
+		},
+		{
+			"Wave": "pulse",
+			"Width": 0.4,
+			"Level": 0.5
+		},
+		{
+			"Wave": "saw",
+			"Octave": -1,
+			"Level": 0.4
+		}
+	],
+	"Noise": 0.06,
+	"Amp": {
+		"Attack": 0.01,
+		"Decay": 0.2,
+		"Sustain": 0.9,
+		"Release": 0.12
+	},
+	"Vocoder": true,
+	"Vowel": "o",
+	"Poly": 1,
+	"Glide": 0.02,
+	"Drift": 3
+}

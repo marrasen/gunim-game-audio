@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -82,6 +83,11 @@ type studio struct {
 	// editor is the editor the window is asked to show.
 	editor, editorTrack string
 	editorGen           int
+	// presets are the patches to try, backup each patch as it was before
+	// presets were tried on it, and trying the preset tried on it.
+	presets []preset
+	backup  map[string]*synth.Patch
+	trying  map[string]string
 }
 
 // newStudio returns the studio, playing through mix, with the song
@@ -106,6 +112,8 @@ func newStudio(c gunim.Client, mix *audio.Mixer, songName string) (*studio, erro
 	if len(s.songs) == 0 {
 		return nil, errors.New("studio: the library holds no songs made in code")
 	}
+	s.presets = loadPresets(s.songs)
+	s.backup, s.trying = map[string]*synth.Patch{}, map[string]string{}
 	s.open(s.i)
 	return s, nil
 }
@@ -114,6 +122,8 @@ func newStudio(c gunim.Client, mix *audio.Mixer, songName string) (*studio, erro
 func (s *studio) open(i int) {
 	s.i = i
 	s.song = s.songs[i].Clone()
+	clear(s.backup)
+	clear(s.trying)
 	clear(s.drafts)
 	clear(s.errs)
 	s.chordErr = ""
@@ -336,6 +346,72 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		if err != nil {
 			s.status = plain(err)
 		}
+	case ToggleValue:
+		var perr error
+		err := s.edit(func(song *synth.Song) {
+			cur, set := getPath(song, v.Path)
+			switch {
+			case v.Seed == "":
+				on, _ := cur.(bool)
+				perr = setPath(song, v.Path, boolNum(!on))
+			case set:
+				perr = setPath(song, v.Path, nil)
+			default:
+				perr = setPath(song, v.Seed, v.Num)
+			}
+		})
+		if perr != nil {
+			err = perr
+		}
+		if err != nil {
+			s.status = plain(err)
+		}
+	case ChorusKind:
+		err := s.edit(func(song *synth.Song) {
+			for _, t := range song.Tracks {
+				if t.Name == v.Track {
+					t.ChorusType = v.Type
+					if t.Chorus == 0 {
+						t.Chorus = 0.5
+					}
+				}
+			}
+		})
+		if err != nil {
+			s.status = plain(err)
+		}
+	case WashKind:
+		err := s.edit(func(song *synth.Song) {
+			if t := track(song, v.Track); t != nil {
+				t.WashType = v.Type
+				if t.Wash == 0 {
+					t.Wash = 0.5
+				}
+			}
+		})
+		if err != nil {
+			s.status = plain(err)
+		}
+	case DistortKind:
+		err := s.edit(func(song *synth.Song) {
+			if t := track(song, v.Track); t != nil {
+				t.DistortType = v.Type
+				if t.Distort == 0 {
+					t.Distort = 0.5
+				}
+			}
+		})
+		if err != nil {
+			s.status = plain(err)
+		}
+	case PresetTry:
+		s.tryPreset(v.Patch, v.ID)
+	case PresetStep:
+		s.stepPreset(v.Patch, v.By)
+	case PresetKeep:
+		s.keepPreset(v.Patch)
+	case PresetRevert:
+		s.revertPreset(v.Patch)
 	case ClearValue:
 		if err := s.edit(func(song *synth.Song) { _ = setPath(song, v.Path, nil) }); err != nil {
 			s.status = plain(err)
@@ -427,13 +503,13 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 				return
 			}
 			switch {
-			case !v.On:
-				p.Arpeggio = nil
 			case p.Arpeggio == nil:
 				p.Arpeggio = &synth.Arpeggio{Chord: true, Hz: 50}
+			case !v.Chord:
+				p.Arpeggio = nil
 			default:
-				p.Arpeggio.Chord = v.Chord
-				if !v.Chord && len(p.Arpeggio.Steps) == 0 {
+				p.Arpeggio.Chord = !p.Arpeggio.Chord
+				if !p.Arpeggio.Chord && len(p.Arpeggio.Steps) == 0 {
 					p.Arpeggio.Steps = []int{0, 4, 7}
 				}
 			}
@@ -585,6 +661,10 @@ func (s *studio) state() Studio {
 		}
 	}
 	st.Spans = spans(look, song, heard)
+	for _, p := range s.presets {
+		st.Presets = append(st.Presets, p.row)
+	}
+	st.Trying = maps.Clone(s.trying)
 	st.Doc = song
 	st.Editor, st.EditorTrack, st.EditorGen = s.editor, s.editorTrack, s.editorGen
 	st.PatternTrack, st.PatternSel, st.PatternSelGen = s.patternTrack, s.patternSel, s.patternSelGen
