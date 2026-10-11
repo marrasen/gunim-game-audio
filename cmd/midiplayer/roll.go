@@ -71,6 +71,7 @@ func (r *roll) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 	}
 	l.keyY = keyTop + r.bounds.Min.Y
 	fallH := keyTop
+	l.notePx = fallH / ahead
 	yOf := func(t float64) float32 { return keyTop - float32((t-l.t)/ahead)*fallH }
 	// The lanes of the black keys, faintly, for the eye to follow.
 	for k := r.lo; k <= r.hi; k++ {
@@ -146,7 +147,7 @@ func (r *roll) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 				continue
 			}
 			cx := (xs[k][0] + xs[k][1]) / 2
-			pn.glow(p, cx, keyTop, 26+20*litV[k], alpha(lit[k], 0.9))
+			pn.glow(p, cx, keyTop, (26+20*litV[k])*(0.4+0.9*l.fx), alpha(lit[k], 0.9))
 			p.RRect(xyxy(xs[k][0], keyTop-60*litV[k], xs[k][1], keyTop), 0,
 				paint.Fill{Gradient: &paint.Gradient{From: geom.Pt(0, keyTop-60*litV[k]), To: geom.Pt(0, keyTop),
 					Start: alpha(lit[k], 0), End: alpha(lit[k], 0.5)}})

@@ -615,6 +615,7 @@ func (s *studio) state() Studio {
 		BarFrame: look.BarFrame, PhraseBars: look.PhraseBars, Tiers: look.Tiers, Tier: s.p.Tier(),
 		Chords: slices.Clone(look.Chords), Chord: look.ChordIndex, ChordText: s.chordText, ChordErr: s.chordErr, Stings: look.Stings, Sting: look.Sting,
 		Stopped: look.Stopped, Keypad: look.Keypad, Status: s.status}
+	st.Font, st.FontPrograms = fontName, fontPrograms
 	if look.Wander {
 		st.Tiers = 0
 	}

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"math"
+	"time"
 
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/geom"
@@ -13,8 +15,10 @@ import (
 
 // playlist is the files dropped and opened, a row each, the one playing
 // lit, with bars that dance while it plays. A click plays a row, and
-// its cross takes it off. New rows slide in from the right. The wheel
-// scrolls it.
+// its cross takes it off. New rows slide in from the right, rows glide
+// to their places as others leave, and the light slides from the song
+// that played to the next. The wheel scrolls it, gliding, and it
+// scrolls by itself to keep the song playing in view.
 type playlist struct {
 	l *look
 	// open says it shows, and closed that the user shut it, so new files
@@ -26,7 +30,20 @@ type playlist struct {
 	overX        bool
 	// arrive is how far each row has slid in, by its index.
 	arrive []float32
+	// want is where the scroll glides to; lit is where the light of the
+	// song playing is, in rows, gliding to it, and litFor the song it
+	// glides to; at is where each row stands, in rows, gliding to its
+	// place, by the song it shows.
+	want   float32
+	lit    float32
+	litFor int
+	at     map[string]float32
+	// moving says something still glides, so the window draws on.
+	moving bool
 }
+
+// Step keeps the window drawing while the playlist glides.
+func (pl *playlist) Step(time.Duration) bool { return pl.moving || pl.want != pl.scroll }
 
 const rowH = 46
 
@@ -79,7 +96,8 @@ func (pl *playlist) Handle(e input.Event, u *gunim.UI) bool {
 		pl.down = -1
 	case input.Scroll:
 		most := max(0, float32(len(pl.l.s.Playlist))*rowH-(pl.size.H-50))
-		pl.scroll = min(max(pl.scroll-e.Delta.Y, 0), most)
+		pl.want = min(max(pl.want-e.Delta.Y, 0), most)
+		pl.moving = true
 		u.Invalidate()
 	default:
 		return false
@@ -114,24 +132,30 @@ func (pl *playlist) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ guni
 		msg.Paint(p, geom.Pt(16, 56), pal.dim)
 		return
 	}
+	pl.glide(s, box, dt)
+	// The light of the song playing, sliding from the last.
+	if s.Current >= 0 && s.Current < len(s.Playlist) {
+		y := 44 + pl.lit*rowH - pl.scroll
+		d := float32(math.Abs(float64(pl.lit - float32(s.Current))))
+		lr := xyxy(8, y+3, box.W-8, y+rowH-3)
+		p.ShadowRRect(lr, 10*pal.round, paint.Solid(mix(pal.panel, pal.accent, 0.18)),
+			paint.Shadow{Blur: 10 + 14*min(d, 1), Color: alpha(pal.accent, 0.15+0.25*min(d, 1))})
+	}
+	seen := map[string]int{}
 	for i, it := range s.Playlist {
 		pl.arrive[i] = min(1, pl.arrive[i]+dt*(3-float32(min(i, 10))*0.1))
 		in := ease(pl.arrive[i])
-		y := 44 + float32(i)*rowH - pl.scroll
+		key := rowKey(it, seen)
+		y := 44 + pl.at[key]*rowH - pl.scroll
 		if y > box.H || y+rowH < 44 {
 			continue
 		}
 		x := 30 * (1 - in)
 		row := xyxy(8+x, y+3, box.W-8+x, y+rowH-3)
 		cur := i == s.Current
-		fill := alpha(pal.panel, 0)
-		switch {
-		case cur:
-			fill = alpha(mix(pal.panel, pal.accent, 0.18), in)
-		case i == pl.over:
-			fill = alpha(lighten(pal.panel, 0.06), in)
+		if i == pl.over && !cur {
+			p.RRect(row, 10*pal.round, paint.Solid(alpha(lighten(pal.panel, 0.06), in)))
 		}
-		p.RRect(row, 10*pal.round, paint.Solid(fill))
 		// The bars of the song playing dance; the others show their place.
 		if cur {
 			for b := range 3 {
@@ -162,5 +186,69 @@ func (pl *playlist) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ guni
 			cx, cy := row.Max.X-20, row.Min.Y+row.Size().H/2
 			p.Mask(icon.Stroke{Icon: icon.X, Width: 2, Progress: 1}, xyxy(cx-7, cy-7, cx+7, cy+7), c)
 		}
+	}
+}
+
+// rowKey names song it of the playlist, the same each frame while it
+// stays, a second of the same name and file counted apart.
+func rowKey(it Item, seen map[string]int) string {
+	k := it.Path + "\x00" + it.Name
+	seen[k]++
+	return fmt.Sprintf("%s\x00%d", k, seen[k])
+}
+
+// glide moves the scroll, the light and the rows toward where they go:
+// the scroll to keep the song playing in view as it changes.
+func (pl *playlist) glide(s Player, box geom.Size, dt float32) {
+	room := box.H - 50
+	most := max(0, float32(len(s.Playlist))*rowH-room)
+	if s.Current != pl.litFor {
+		if pl.litFor < 0 || pl.litFor >= len(s.Playlist) {
+			pl.lit = float32(max(s.Current, 0))
+		}
+		pl.litFor = s.Current
+		if s.Current >= 0 {
+			top := float32(s.Current) * rowH
+			switch {
+			case top < pl.want:
+				pl.want = top - rowH/2
+			case top+rowH > pl.want+room:
+				pl.want = top + rowH*1.5 - room
+			}
+		}
+	}
+	pl.want = min(max(pl.want, 0), most)
+	k := min(1, dt*10)
+	pl.scroll += (pl.want - pl.scroll) * k
+	if math.Abs(float64(pl.want-pl.scroll)) < 0.3 {
+		pl.scroll = pl.want
+	}
+	if s.Current >= 0 {
+		pl.lit += (float32(s.Current) - pl.lit) * min(1, dt*9)
+	}
+	if pl.at == nil {
+		pl.at = map[string]float32{}
+	}
+	seen := map[string]int{}
+	keep := map[string]float32{}
+	for i, it := range s.Playlist {
+		key := rowKey(it, seen)
+		y, ok := pl.at[key]
+		if !ok {
+			y = float32(i)
+		}
+		y += (float32(i) - y) * min(1, dt*12)
+		keep[key] = y
+	}
+	pl.at = keep
+	pl.moving = pl.scroll != pl.want || math.Abs(float64(pl.lit-float32(max(s.Current, 0)))) > 0.002
+	for key, y := range keep {
+		_ = key
+		if y != float32(int(y)) && math.Abs(float64(y-float32(math.Round(float64(y))))) > 0.002 {
+			pl.moving = true
+		}
+	}
+	if !pl.moving && s.Current >= 0 {
+		pl.lit = float32(s.Current)
 	}
 }

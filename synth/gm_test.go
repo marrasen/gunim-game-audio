@@ -10,7 +10,9 @@ import (
 
 	"github.com/marrasen/gunim/audio"
 
+	"github.com/marrasen/gunim-game-audio/internal/sftest"
 	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 func TestGMPatchesCompile(t *testing.T) {
@@ -372,5 +374,108 @@ func TestGMBandResponse(t *testing.T) {
 	}
 	if got := GMBandResponse(0, GMBand{Freq: 100, Gain: -9, Q: 0.7}, 20); math.Abs(got+9) > 0.5 {
 		t.Errorf("a low shelf of -9 dB at 100 Hz takes 20 Hz down %v dB", got)
+	}
+}
+
+func TestTheSoundFontStylePlaysTheBank(t *testing.T) {
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := NewGM()
+	g.SetSoundFont(f)
+	if err := g.SetStyle("soundfont"); err != nil {
+		t.Fatal(err)
+	}
+	g.Send(midi.NoteOn, 72, 127, nil)
+	buf := make([]float32, 2*4800)
+	g.Read(buf)
+	// The square of 100 frames at 44100 Hz is 441 Hz at its root, 60:
+	// key 72 plays it an octave up. It is panned hard right.
+	crossings, first, last := 0, -1, -1
+	var left, right float32
+	for i := 1; i < 4800; i++ {
+		a, b := buf[2*(i-1)+1], buf[2*i+1]
+		left = max(left, abs32(buf[2*i]))
+		right = max(right, abs32(buf[2*i+1]))
+		if a <= 0 && b > 0 {
+			if first < 0 {
+				first = i
+			}
+			last, crossings = i, crossings+1
+		}
+	}
+	if crossings < 2 {
+		t.Fatal("the bank's note is silent")
+	}
+	if hz := float64(crossings-1) * rate / float64(last-first); math.Abs(hz-882) > 5 {
+		t.Errorf("key 72 plays at %.1f Hz, want 882", hz)
+	}
+	if left > right*0.3 {
+		t.Errorf("panned right, it plays %v left and %v right", left, right)
+	}
+	// Let go, it dies in its release of a tenth of a second.
+	g.Send(midi.NoteOff, 72, 0, nil)
+	peak(t, g, 0.5)
+	if g.Sounding() {
+		t.Error("the note sounds half a second after it was let go")
+	}
+	// A program the bank lacks plays on the engine's own instruments.
+	g.Send(midi.Program, 40, 0, nil)
+	g.Send(midi.NoteOn, 60, 100, nil)
+	if p := peak(t, g, 0.2); p < 0.01 {
+		t.Error("a program the bank lacks is silent")
+	}
+}
+
+func TestASongPatchPlaysOnARegisteredBankOrWithout(t *testing.T) {
+	song := func() *Song {
+		return &Song{BPM: 120, Patches: map[string]*Patch{"keys": {SoundFont: "test bank", Program: 0}},
+			Tracks: []*Track{{Name: "keys", Tier: 1, Patch: "keys", Pattern: "c5"}}}
+	}
+	key := 0
+	render := func() (pitch float64, peak float32) {
+		p := NewPlayer(song(), 1)
+		if err := p.Err(); err != nil {
+			t.Fatal(err)
+		}
+		p.SetTier(1)
+		buf := make([]float32, 2*12000)
+		p.Read(buf)
+		if ns := p.Notes(nil, 0); len(ns) > 0 {
+			key = ns[0].Pitch
+		}
+		crossings, first, last := 0, -1, -1
+		for i := 1; i < len(buf)/2; i++ {
+			peak = max(peak, abs32(buf[2*i+1]))
+			a, b := buf[2*(i-1)+1], buf[2*i+1]
+			if a <= 0 && b > 0 {
+				if first < 0 {
+					first = i
+				}
+				last, crossings = i, crossings+1
+			}
+		}
+		if crossings > 2 {
+			pitch = float64(crossings-1) * rate / float64(last-first)
+		}
+		return pitch, peak
+	}
+	// No bank of the name: General MIDI's piano plays it.
+	if _, pk := render(); pk < 0.01 {
+		t.Fatal("without its bank, the patch is silent")
+	}
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	RegisterSoundFont("test bank", f)
+	defer RegisterSoundFont("test bank", nil)
+	// With it, the bank's square plays, 441 Hz at its root, 60, and an
+	// octave up each 12 keys over it.
+	hz, pk := render()
+	want := 441 * math.Pow(2, float64(key-60)/12)
+	if pk < 0.01 || math.Abs(hz-want) > want*0.01 {
+		t.Errorf("on its bank, key %d plays %.1f Hz at %v, want %.1f", key, hz, pk, want)
 	}
 }

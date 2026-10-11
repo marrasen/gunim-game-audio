@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // GM is a General MIDI synthesizer: sixteen channels, each playing one
@@ -32,35 +33,19 @@ type GM struct {
 	// transpose moves every note but the drums', in semitones.
 	transpose int
 	ctx       renderCtx
-	rev       *reverb
-	cho       *chorus
-	dly       *delay
-	comp      *compressor
-	lim       *limiter
-	// mix is how the channels are mixed, strips the channels' strips at
-	// work, and master the master equaliser's filters, each side's.
-	mix    GMMix
-	strips [16]stripFX
-	master [5][2]biquad
-	// delayLeft counts down the frames the delay's echoes still ring for
-	// once nothing is sent to it.
-	delayLeft int
-	// meters are how loud the mix has been since they were taken.
-	meters GMMeters
-	// Gain is the whole mix's level, before its limiter.
+	// bus mixes the channels.
+	bus *Bus
+	// font is the SoundFont bank the soundfont style plays.
+	font *soundfont.Font
+	// Gain is the whole mix's level, before the master's own.
 	Gain float32
-	// The buffers: a channel's sound, the mix, and the sends to the
-	// reverb, the chorus and the delay.
-	tl, tr, ml, mr, rl, rr, cl, cr, dl, dr, el, er []float32
+	// tl and tr hold a channel's sound.
+	tl, tr []float32
 }
 
 // gmChannel is a channel's state: what it plays and how its controllers
 // stand.
 type gmChannel struct {
-	// mute silences the channel, and open is how far its sound is let
-	// through, gliding to 0 as it is muted and back to 1.
-	mute    bool
-	open    float32
 	program int
 	bank    byte
 	drums   bool
@@ -68,6 +53,7 @@ type gmChannel struct {
 	kit     *[128]*drum
 	vs      *voices
 	hs      *hits
+	sf      *sfVoices
 	held    []gmHeld
 	// vol, expr, rev and cho are from 0 to 1, pan from -1 to 1.
 	vol, expr, pan, rev, cho float32
@@ -92,6 +78,10 @@ type gmHeld struct {
 	v         *voice
 	age       uint64
 	sustained bool
+	// sv is the SoundFont voice that plays it, where a bank does, and
+	// sage its age as it started.
+	sv   *sfVoice
+	sage uint64
 }
 
 // NewGM returns a General MIDI synthesizer, reset.
@@ -102,23 +92,16 @@ func NewGM() *GM {
 		style:   "gm",
 		room:    1,
 		ctx:     renderCtx{beatHz: 2, l: make([]float32, control), r: make([]float32, control)},
-		rev:     newReverb(),
-		cho:     newChorus(chorusJuno12),
-		dly:     newDelay(),
-		comp:    newCompressor(-12, 2),
-		lim:     newLimiter(-1),
+		bus:     NewBus(),
 		Gain:    0.6,
-	}
-	g.cho.mix = 1
-	g.SetMix(DefaultGMMix())
-	for _, b := range []*[]float32{&g.tl, &g.tr, &g.ml, &g.mr, &g.rl, &g.rr, &g.cl, &g.cr, &g.dl, &g.dr, &g.el, &g.er} {
-		*b = make([]float32, maxBlock)
+		tl:      make([]float32, maxBlock),
+		tr:      make([]float32, maxBlock),
 	}
 	for i := range g.ch {
 		c := &g.ch[i]
-		c.open = 1
 		c.vs = newVoices(32, uint64(i)*104729+1)
 		c.hs = newHits(24)
+		c.sf = newSFVoices(48)
 	}
 	g.Reset()
 	return g
@@ -193,6 +176,9 @@ func velocity(v byte) float32 {
 }
 
 func (g *GM) noteOn(c *gmChannel, key int, vel byte) {
+	if g.style == "soundfont" && g.font != nil && g.fontNote(c, key, vel) {
+		return
+	}
 	if c.drums {
 		if d := c.kit[key&127]; d != nil {
 			c.hs.play(*d, velocity(vel), 0, float32(key), rate/2, 0)
@@ -205,26 +191,86 @@ func (g *GM) noteOn(c *gmChannel, key int, vel byte) {
 }
 
 func (g *GM) noteOff(c *gmChannel, key int) {
-	for i, h := range c.held {
-		if h.key != key || h.sustained {
-			continue
+	// A bank's note may sound as several voices, its layers; the note off
+	// lets go of them all, as of the one voice of the engine's own.
+	held := c.held[:0]
+	for _, h := range c.held {
+		switch {
+		case h.key != key || h.sustained:
+			held = append(held, h)
+		case c.sustain:
+			h.sustained = true
+			held = append(held, h)
+		default:
+			g.release(h)
 		}
-		if c.sustain {
-			c.held[i].sustained = true
-			return
-		}
-		g.release(h)
-		c.held = append(c.held[:i], c.held[i+1:]...)
-		return
 	}
+	c.held = held
 }
 
 // release lets go of h's note, unless its voice has been taken for
 // another.
 func (g *GM) release(h gmHeld) {
+	if h.sv != nil {
+		if h.sv.on && h.sv.age == h.sage {
+			h.sv.release()
+		}
+		return
+	}
 	if h.v.on && h.v.age == h.age {
 		h.v.release()
 	}
+}
+
+// fontNote plays key on the SoundFont bank, as the channel's bank and
+// program, or its drum kit, find it there, and reports whether the bank
+// has the instrument; one it lacks plays on the engine's own.
+func (g *GM) fontNote(c *gmChannel, key int, vel byte) bool {
+	bank, program, k := int(c.bank), c.program, key
+	if c.drums {
+		bank = 128
+	} else {
+		k = min(max(key+g.transpose, 0), 127)
+	}
+	regions := g.font.Regions(bank, program, k, int(vel))
+	if len(regions) == 0 {
+		return false
+	}
+	for i := range regions {
+		sv := c.sf.play(&regions[i], k, int(vel), 0)
+		if !c.drums {
+			c.held = append(c.held, gmHeld{key: key, sv: sv, sage: sv.age})
+		}
+	}
+	return true
+}
+
+// SetSoundFont sets the SoundFont bank the soundfont style plays, nil
+// for none; with none, it plays as gm does.
+func (g *GM) SetSoundFont(f *soundfont.Font) {
+	g.font = f
+	if f == nil {
+		return
+	}
+	for i := range g.ch {
+		g.preload(&g.ch[i])
+	}
+}
+
+// SoundFont returns the bank the soundfont style plays.
+func (g *GM) SoundFont() *soundfont.Font { return g.font }
+
+// preload decodes the samples of the channel's instrument, away from
+// the sound, so its first note does not wait for them.
+func (g *GM) preload(c *gmChannel) {
+	if g.font == nil || g.style != "soundfont" {
+		return
+	}
+	bank, program := int(c.bank), c.program
+	if c.drums {
+		bank = 128
+	}
+	go g.font.Preload(bank, program)
 }
 
 // lift lets go of the notes the sustain pedal held.
@@ -283,6 +329,7 @@ func (g *GM) control(c *gmChannel, cc, v byte) {
 	case 120:
 		// All Sound Off: silence, at once.
 		c.held = c.held[:0]
+		c.sf.silence()
 		for _, vc := range c.vs.vs {
 			vc.on = false
 		}
@@ -308,7 +355,7 @@ func (g *GM) SetStyle(style string) error {
 		return err
 	}
 	g.style = style
-	g.room = map[string]float32{"gm": 1, "adlib": 0.3}[style]
+	g.room = map[string]float32{"gm": 1, "soundfont": 1, "adlib": 0.3}[style]
 	if g.room == 0 {
 		g.room = 0.4
 	}
@@ -324,12 +371,12 @@ func (g *GM) SetStyle(style string) error {
 // notes play on, unheard, so it comes back in time.
 func (g *GM) SetMute(ch int, mute bool) {
 	if ch >= 0 && ch < len(g.ch) {
-		g.ch[ch].mute = mute
+		g.bus.SetMute(ch, mute)
 	}
 }
 
 // Muted reports whether channel ch is muted.
-func (g *GM) Muted(ch int) bool { return ch >= 0 && ch < len(g.ch) && g.ch[ch].mute }
+func (g *GM) Muted(ch int) bool { return ch >= 0 && ch < len(g.ch) && g.bus.Muted(ch) }
 
 // SetTranspose moves every note but the drums' by semis semitones,
 // from the next note on.
@@ -345,6 +392,7 @@ func (g *GM) setProgram(c *gmChannel, program int) {
 	if c.bank == 127 {
 		c.drums = true
 	}
+	g.preload(c)
 	if c.drums {
 		c.kit = g.kit(c.program)
 		return
@@ -450,141 +498,39 @@ func (g *GM) Sounding() bool {
 				return true
 			}
 		}
+		for j := range g.ch[i].sf.vs {
+			if g.ch[i].sf.vs[j].on {
+				return true
+			}
+		}
 	}
 	return false
 }
 
 // render renders n frames, n up to maxBlock, into dst.
 func (g *GM) render(dst []float32, n int) {
-	ml, mr, rl, rr, cl, cr, el, er := g.ml[:n], g.mr[:n], g.rl[:n], g.rr[:n], g.cl[:n], g.cr[:n], g.el[:n], g.er[:n]
-	for _, b := range [][]float32{ml, mr, rl, rr, cl, cr, el, er} {
-		clear(b)
-	}
-	mx := &g.mix
-	chorusOn, delayOn := false, false
+	b := g.bus
+	b.Gain = g.Gain
+	b.Begin(n)
 	for i := range g.ch {
 		c := &g.ch[i]
 		g.shift(c, n)
 		tl, tr := g.tl[:n], g.tr[:n]
 		clear(tl)
 		clear(tr)
-		var sounding bool
-		if c.vs.render(tl, tr, &g.ctx) {
+		sounding := c.vs.render(tl, tr, &g.ctx)
+		if c.hs.render(tl, tr) {
 			sounding = true
 		}
-		if c.hs.render(tl, tr) {
+		if c.sf.render(tl, tr, float64(c.shift)) {
 			sounding = true
 		}
 		if !sounding {
 			continue
 		}
-		// A mute glides in and out over 20 ms, so it does not click.
-		from := c.open
-		to := float32(1)
-		if c.mute {
-			to = 0
-		}
-		step := float32(n) / (0.02 * rate)
-		c.open = min(max(to, from-step), from+step)
-		if from == 0 && c.open == 0 {
-			continue
-		}
-		st := &mx.Channels[i]
-		g.strips[i].process(tl, tr, st.Drive)
-		gain := c.vol * c.vol * c.expr * c.expr * float32(dbGain(st.Gain))
-		pl, pr := panGains(min(max(c.pan+float32(st.Pan), -1), 1))
-		pl *= gain
-		pr *= gain
-		rv := c.rev * 0.5 * g.room * float32(st.Reverb)
-		cv := c.cho * 0.7 * g.room * float32(st.Chorus)
-		dv := float32(st.Delay)
-		chorusOn = chorusOn || cv > 0
-		delayOn = delayOn || dv > 0
-		var peak float32
-		for j := range tl {
-			o := from + (c.open-from)*float32(j)/float32(n)
-			l, r := tl[j]*pl*o, tr[j]*pr*o
-			peak = max(peak, abs32(l), abs32(r))
-			ml[j] += l
-			mr[j] += r
-			rl[j] += l * rv
-			rr[j] += r * rv
-			cl[j] += l * cv
-			cr[j] += r * cv
-			el[j] += l * dv
-			er[j] += r * dv
-		}
-		g.meters.Channels[i] = max(g.meters.Channels[i], peak*g.Gain)
+		b.Channel(i, tl, tr, c.vol*c.vol*c.expr*c.expr, c.pan, c.rev*0.5*g.room, c.cho*0.7*g.room)
 	}
-	if chorusOn {
-		// The chorus gives back half its input and its copies; a send
-		// wants only the copies.
-		dl, dr := g.dl[:n], g.dr[:n]
-		copy(dl, cl)
-		copy(dr, cr)
-		g.cho.process(cl, cr)
-		back := float32(mx.Chorus.Return)
-		for j := range cl {
-			wl, wr := (cl[j]-dl[j]*0.5)*back, (cr[j]-dr[j]*0.5)*back
-			ml[j] += wl
-			mr[j] += wr
-			rl[j] += wl * 0.3
-			rr[j] += wr * 0.3
-		}
-	}
-	if delayOn {
-		g.delayLeft = 12 * rate
-	}
-	if g.delayLeft > 0 {
-		g.delayLeft -= n
-		g.dly.process(el, er)
-		back := float32(mx.Delay.Return)
-		for j := range el {
-			ml[j] += el[j] * back
-			mr[j] += er[j] * back
-			// The echoes sound in the room too.
-			rl[j] += el[j] * back * 0.25
-			rr[j] += er[j] * back * 0.25
-		}
-	}
-	g.rev.process(rl, rr)
-	back := float32(mx.Reverb.Return)
-	for j := range ml {
-		ml[j] = (ml[j] + rl[j]*back) * g.Gain
-		mr[j] = (mr[j] + rr[j]*back) * g.Gain
-	}
-	// The master: its equaliser, its compressor, its gain, and its
-	// limiter.
-	for b := range g.master {
-		if mx.EQ[b].Gain == 0 {
-			continue
-		}
-		fl, fr := &g.master[b][0], &g.master[b][1]
-		for j := range ml {
-			ml[j] = fl.step(ml[j])
-			mr[j] = fr.step(mr[j])
-		}
-	}
-	if mx.Comp.On {
-		g.comp.process(ml, mr)
-		g.meters.Comp = max(g.meters.Comp, g.comp.reduction)
-	}
-	if mg := float32(dbGain(mx.Gain + mx.Comp.makeup())); mg != 1 {
-		for j := range ml {
-			ml[j] *= mg
-			mr[j] *= mg
-		}
-	}
-	if mx.Limiter.On {
-		g.lim.process(ml, mr)
-		g.meters.Limit = max(g.meters.Limit, -20*float32(math.Log10(float64(max(g.lim.gain, 1e-6)))))
-	}
-	for j := range ml {
-		g.meters.Left = max(g.meters.Left, abs32(ml[j]))
-		g.meters.Right = max(g.meters.Right, abs32(mr[j]))
-		dst[2*j] = ml[j]
-		dst[2*j+1] = mr[j]
-	}
+	b.End(dst)
 }
 
 // makeup is the compressor's make-up gain, where it is on.
@@ -596,35 +542,14 @@ func (c GMComp) makeup() float64 {
 }
 
 // SetMix sets how the channels are mixed; see [GMMix].
-func (g *GM) SetMix(m GMMix) {
-	g.mix = m
-	r := m.Reverb
-	g.rev.set(min(max(r.Size, 0.3), 1.5), max(r.Decay, 0.1), min(max(r.Tone, 0), 1), 0.02)
-	d := m.Delay
-	g.dly.set(min(max(d.Time, 0.01), 1.9), 60, min(max(d.Feedback, 0), 0.9), min(max(d.Tone, 0), 1))
-	g.comp.threshold = float32(m.Comp.Threshold)
-	g.comp.ratio = float32(max(m.Comp.Ratio, 1))
-	g.lim.ceiling = float32(dbGain(min(m.Limiter.Ceiling, 0)))
-	for i := range g.strips {
-		g.strips[i].tune(m.Channels[i])
-	}
-	for b, band := range m.EQ {
-		for side := range 2 {
-			g.master[b][side].set(bandKind(b), band.Freq, band.Gain, band.Q)
-		}
-	}
-}
+func (g *GM) SetMix(m GMMix) { g.bus.SetMix(m) }
 
 // Mix returns how the channels are mixed.
-func (g *GM) Mix() GMMix { return g.mix }
+func (g *GM) Mix() GMMix { return g.bus.Mix() }
 
 // TakeMeters returns how loud the mix has been since they were last
 // taken, and starts them again.
-func (g *GM) TakeMeters() GMMeters {
-	m := g.meters
-	g.meters = GMMeters{}
-	return m
-}
+func (g *GM) TakeMeters() GMMeters { return g.bus.TakeMeters() }
 
 // shift moves c's notes by its bend wheel and its modulation wheel's
 // vibrato, as they stand for the next n frames.
@@ -721,6 +646,14 @@ func (p *MIDIPlayer) SetStyle(style string) error {
 func (p *MIDIPlayer) SetMute(ch int, mute bool) {
 	p.mu.Lock()
 	p.gm.SetMute(ch, mute)
+	p.mu.Unlock()
+}
+
+// SetSoundFont sets the SoundFont bank the soundfont style plays; see
+// [GM.SetSoundFont].
+func (p *MIDIPlayer) SetSoundFont(f *soundfont.Font) {
+	p.mu.Lock()
+	p.gm.SetSoundFont(f)
 	p.mu.Unlock()
 }
 

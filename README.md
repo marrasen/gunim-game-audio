@@ -733,7 +733,10 @@ of its busiest channel, for a click or a drag to move through. Beside
 it are skip, repeat, the speed, the transpose and the volume. Space
 plays and pauses, the arrows move five seconds, N and P skip, 1 to 5
 pick a style, + and - change the speed, M shows the mixer, L shows the
-playlist and O opens files.
+playlist and O opens files. The FX slider beside the time sets how much
+it all moves: at its cozy end, by a cup of coffee, the notes stay put
+and the window rests; at its banana, the notes fly wild, the window
+jolts on each bar and bananas spin up it.
 
 ![The MIDI player](cmd/midiplayer/midiplayer.png)
 
@@ -751,6 +754,74 @@ The mix is kept for the next time, and Reset sets it all back.
 `-mixer` opens the player on it.
 
 ![The mixer](cmd/midiplayer/mixer.png)
+
+The player plays tracker modules too: the MODs of ProTracker and the
+Amiga, of 4 to 32 channels or of the Soundtracker's 15 samples, and
+the XMs of FastTracker 2, through their own samples, by package
+`tracker`. A module shows as a tracker shows it. Its pattern scrolls
+smoothly up under a glowing bar at the row heard, each channel a column
+of notes, instruments, volumes and effects, as its tracker writes them,
+and a cell that plays pops and throws a spark to its instrument. Over
+it, each channel has a scope, the wave of the sample it plays at the
+pitch it plays it, and a meter; beside it, the order list slides to the
+order heard, and the instruments light as they play, each with its
+sample's wave. Behind it all, an Amiga demo's copper bars sweep with
+the beat and stars fly faster as the song grows louder, and along the
+bottom a scroller waves the song's name and its samples' names, where
+tracker musicians wrote their greetings. A MOD wears ProTracker's grey
+and an XM FastTracker's blue, unless a cartridge picks a machine's
+look; the mixer mixes a module's channels as it does a MIDI file's.
+
+![A module playing](cmd/midiplayer/tracker.png)
+
+### SoundFont banks
+
+The engine plays SoundFont banks, sampled instruments as real as the
+bank: the SF2s of E-mu's SoundFont 2, and the SF3s of MuseScore, whose
+samples are Ogg Vorbis, so a General MIDI bank of 128 instruments and
+its drum kits comes in 40 MB. Package `soundfont` reads a bank and
+finds what each note plays; the engine plays it through each region's
+envelopes, LFOs and filter.
+
+No bank comes with this module, as each has a licence of its own, and
+a bank makes a game many times larger: a program that wants one ships
+or fetches the one it chooses. `soundfont.Banks` lists two free
+General MIDI banks and what their licences allow:
+
+| Bank | Size | Licence |
+|---|---|---|
+| MuseScore General (`.sf3`) | 40 MB | MIT: its acknowledgements and copyright notices go with it |
+| GeneralUser GS (`.sf2`) | 32 MB | free for any use, commercial too; its author cannot vouch for every sample's origin |
+
+MuseScore General is the one to ship with a game. FreePats' bank is
+under the GPL, and many banks found on the web are of unclear origin.
+
+In the MIDI player the SoundFont cartridge plays MIDI files on a bank:
+drop an `.sf2` or `.sf3` on the window, or name it with `-soundfont`,
+and the player remembers it; with none, D fetches MuseScore General and
+its licence to the user's cache. `gmplay -soundfont bank.sf3` renders
+on one too.
+
+A song made in code plays a bank as a patch does: a patch names the
+bank, as registered, and its program.
+
+```go
+bank, err := soundfont.Open("MuseScore_General.sf3")
+if err == nil {
+	synth.RegisterSoundFont("general", bank)
+}
+```
+
+```json
+"strings": {"SoundFont": "general", "Program": 48}
+```
+
+Where no bank of the name is registered, as in a game that ships
+none, the patch plays as its other fields say, or with none as General
+MIDI's program on the engine's own instruments, so the song sounds
+everywhere, and better where the bank is. In gunim music studio,
+`-soundfont bank.sf3` registers a bank by its file's name, and the
+patch editor's Plays on and Program pick it and its program.
 
 ## Licence
 

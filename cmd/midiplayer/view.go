@@ -15,6 +15,10 @@ import (
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/text"
+	"github.com/marrasen/gunim/theme"
+	"github.com/marrasen/gunim/widget"
+
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // look is what every part of the window draws from, worked out once a
@@ -35,7 +39,7 @@ type look struct {
 	phase float64
 	pulse float32
 	// ch is what each channel plays now.
-	ch [16]chanLive
+	ch [maxCh]chanLive
 	// fresh counts up from 0 to 1 over the second after a song loads.
 	fresh float32
 	// keyX says where on the window each key of the piano is, from its
@@ -44,10 +48,19 @@ type look struct {
 	keyY float32
 	// station says where each channel's station is on the window, empty
 	// for none.
-	station [16]geom.Rect
+	station [maxCh]geom.Rect
 	// playing says the song moves, so everything animates.
 	playing bool
+	// fx is how much the window animates, easing to the state's: 0 cozy,
+	// 1 bananas. notePx is how many pixels a second of a note is in the
+	// roll, for a note flying off to keep its length.
+	fx     float32
+	notePx float32
 }
+
+// bananas returns how far past 0.85 the FX level is, from 0 to 1: the
+// stretch where the window goes bananas.
+func (l *look) bananas() float32 { return min(max((l.fx-0.85)/0.15, 0), 1) }
 
 // chanLive is what a channel plays at the time heard.
 type chanLive struct {
@@ -83,6 +96,7 @@ func (l *look) update(now time.Time, dt float32) {
 	}
 	l.playing = l.s.Playing
 	l.fresh = min(1, l.fresh+dt)
+	l.fx += (l.s.FX - l.fx) * min(1, dt*8)
 	sc := l.score
 	for i := range l.ch {
 		l.ch[i].notes = l.ch[i].notes[:0]
@@ -104,7 +118,7 @@ func (l *look) update(now time.Time, dt float32) {
 	}
 	l.beat, l.phase = beat, phase
 	l.pulse = max(0, l.pulse-dt*2.5)
-	var energy [16]float32
+	var energy [maxCh]float32
 	sc.span(l.t-0.6, l.t, func(n *Note) {
 		c := &l.ch[n.Ch]
 		ln := liveNote{key: n.Key, vel: float32(n.Vel) / 127, age: l.t - n.Start, left: n.End - l.t}
@@ -149,6 +163,17 @@ type root struct {
 	list  *playlist
 	mixer *mixer
 	tabs  *tabs
+	track *trackView
+	font  *fontCard
+	// controls are the window's minimize, maximize and close buttons,
+	// at its top right: the player draws its own title bar, and
+	// captions are the parts of its header with nothing on them, which
+	// move the window as the system's title bar does.
+	controls *widget.WindowControls
+	ctlTheme *widget.Themed
+	captions []geom.Rect
+	// deckAt is where the deck lies.
+	deckAt geom.Rect
 	// page is the page shown, the stage or the mixer, and pg slides
 	// between them, from 0, the stage, to 1, the mixer.
 	page     int
@@ -177,25 +202,30 @@ type root struct {
 }
 
 func buildView(s Player) *root {
-	l := &look{s: s, score: s.Score, pal: palettes[s.Style]}
-	r := &root{l: l, page: startPage, pg: float32(startPage), gen: s.ScoreGen, style: s.Style, from: palettes[s.Style], to: palettes[s.Style], blend: 1,
+	l := &look{s: s, score: s.Score, pal: palettes[paletteKey(s)]}
+	key := paletteKey(s)
+	r := &root{l: l, page: startPage, pg: float32(startPage), gen: s.ScoreGen, style: key, bootStyle: s.Style, from: palettes[key], to: palettes[key], blend: 1,
 		msgGen: s.MessageGen}
 	r.deck = &deck{l: l, over: -1, down: -1}
 	r.band = &band{l: l, hover: -1, press: -1}
 	r.roll = &roll{l: l}
-	r.list = &playlist{l: l, over: -1, down: -1}
-	r.trans = &transport{l: l, list: r.list, over: -1, down: -1, hoverAt: -1}
+	r.list = &playlist{l: l, over: -1, down: -1, litFor: -1}
+	r.trans = &transport{l: l, list: r.list, over: -1, down0: -1, hoverAt: -1}
 	r.mixer = &mixer{l: l, hover: -1, drag: -1, lastClicked: -1}
 	r.tabs = &tabs{r: r, over: -1}
+	r.track = &trackView{l: l, lastRow: -1, lastPat: -1, latest: -1}
+	r.font = &fontCard{l: l, over: -1}
+	r.controls = widget.NewWindowControls()
+	r.ctlTheme = widget.NewThemed(r.controls, titleBarTheme(key))
 	if len(s.Playlist) > 1 {
-		r.listOpen = 1
+		r.listOpen, r.list.open = 1, true
 	}
 	return r
 }
 
 // Children implements [gunim.Composite].
 func (r *root) Children() []gunim.Node {
-	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs}
+	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs, r.track, r.font, r.ctlTheme}
 }
 
 // update shows s.
@@ -208,12 +238,17 @@ func (r *root) update(s Player, u *gunim.UI) {
 		l.fresh = 0
 		l.t = s.Clock.Time
 		r.band.reset()
+		r.track.insOff, r.track.insWant, r.track.latest, r.track.manual = 0, 0, -1, 0
 	}
-	if s.Style != r.style {
-		r.from, r.to = l.pal, palettes[s.Style]
-		r.style, r.blend = s.Style, 0
-		r.boot, r.bootStyle = 1, s.Style
+	if key := paletteKey(s); key != r.style {
+		r.ctlTheme.Use(titleBarTheme(key))
+		r.from, r.to = l.pal, palettes[key]
+		r.style, r.blend = key, 0
+		if s.Style != r.bootStyle {
+			r.boot = 1
+		}
 	}
+	r.bootStyle = s.Style
 	if s.MessageGen != r.msgGen && s.Message != "" {
 		r.msgGen, r.msg, r.toast = s.MessageGen, s.Message, 1
 	}
@@ -274,8 +309,15 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 		k.Place(rc.Min)
 	}
 	// The deck of styles at the top right, under the title bar.
-	deckW := min(float32(470), w*0.45)
-	place(3, xyxy(w-margin-deckW, top, w-margin, top+headerH))
+	// The window's buttons at the top right, and the deck left of them.
+	ctl := kids.At(9)
+	cs := ctl.Layout(gunim.Constraints{Max: geom.Sz(w, 32)})
+	ctl.Place(geom.Pt(w-cs.W, 0))
+	right := w - cs.W - 10
+	deckW := min(float32(560), w*0.42)
+	deck := xyxy(right-deckW, top, right, top+headerH)
+	r.deckAt = deck
+	place(3, deck)
 	// The transport along the bottom.
 	place(4, xyxy(margin, h-margin-transH, w-margin, h-margin))
 	midTop := top + headerH + 8
@@ -292,21 +334,56 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 	if r.pg >= 1 {
 		off = 4 * h
 	}
-	r.band.bounds = xyxy(margin, midTop+off, bandRight, midBot-rollH-12+off)
-	r.roll.bounds = xyxy(margin, midBot-rollH+off, w-margin, midBot+off)
+	// A tracker's module shows as a tracker does, in the band's and the
+	// roll's place.
+	trackerSong := r.l.score != nil && r.l.score.Tracker != nil
+	gone := float32(0)
+	if trackerSong {
+		gone = 4 * h
+	}
+	r.band.bounds = xyxy(margin, midTop+off+gone, bandRight, midBot-rollH-12+off+gone)
+	r.roll.bounds = xyxy(margin, midBot-rollH+off+gone, w-margin, midBot+off+gone)
 	place(0, r.band.bounds)
 	place(1, r.roll.bounds)
+	tgone := float32(0)
+	if !trackerSong {
+		tgone = 4 * h
+	}
+	place(7, xyxy(margin, midTop+off+tgone, bandRight, midBot+off+tgone))
+	// The card that asks for a sound font, in the middle, while it shows.
+	cw, ch := min(float32(620), w-2*margin), float32(210)
+	cx, cy := (w-cw)/2, midTop+(midBot-midTop-ch)/2
+	if !r.font.wanted() && r.font.in <= 0.01 {
+		cy = 4 * h
+	}
+	place(8, xyxy(cx, cy, cx+cw, cy+ch))
 	moff := (h + 40) * (1 - pg)
 	if r.pg <= 0 {
 		moff = 4 * h
 	}
 	place(5, xyxy(margin, midTop+moff, bandRight, midBot+moff))
 	// The tabs, left of the deck.
-	place(6, xyxy(w-margin-deckW-206, top+30, w-margin-deckW-16, top+64))
+	tabsR := xyxy(deck.Min.X-206, top+30, deck.Min.X-16, top+64)
+	place(6, tabsR)
+	// What of the header has nothing on it moves the window.
+	hb := top + headerH
+	r.captions = append(r.captions[:0],
+		xyxy(0, 0, tabsR.Min.X-8, hb),
+		xyxy(tabsR.Min.X-8, 0, deck.Min.X, tabsR.Min.Y-4),
+		xyxy(tabsR.Min.X-8, tabsR.Max.Y+4, deck.Min.X, hb),
+		xyxy(tabsR.Max.X+8, tabsR.Min.Y-4, deck.Min.X, tabsR.Max.Y+4),
+		xyxy(deck.Min.X, 0, w-cs.W, top))
 	// The playlist slides in from the right, beside the band, and out
 	// past the window's edge.
 	x := w - margin - panel + (margin+30)*(1-ease(r.listOpen))
-	place(2, xyxy(x, midTop, x+listW, midBot-rollH-12))
+	// It stands as tall as the band, over the roll, where the roll
+	// shows; beside the tracker's view and the mixer, which leave the
+	// roll's room to it, it reaches down to the transport.
+	rollShown := 1 - pg
+	if trackerSong {
+		rollShown = 0
+	}
+	place(2, xyxy(x, midTop, x+listW, midBot-(rollH+12)*rollShown))
 	return size
 }
 
@@ -319,9 +396,21 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 	// light swelling on the beat.
 	p.RRect(full, 0, paint.Fill{Gradient: &paint.Gradient{From: geom.Pt(0, 0), To: geom.Pt(0, box.H),
 		Start: pal.bgTop, End: pal.bgBottom}})
-	glow := alpha(pal.glow, 0.35+0.35*r.l.pulse)
+	fx, ban := r.l.fx, r.l.bananas()
+	gc := pal.glow
+	if ban > 0 {
+		// Gone bananas, the light turns through the channels' colours.
+		gc = mix(gc, pal.ch[(r.l.beat/2)%16], 0.6*ban)
+	}
+	glow := alpha(gc, 0.35+0.35*r.l.pulse*min(1, fx*2)+0.25*ban*r.l.pulse)
 	p.RRect(full, 0, paint.Fill{Gradient: &paint.Gradient{From: geom.Pt(box.W*0.5, box.H*0.42), To: geom.Pt(box.W*0.95, box.H),
-		Radial: true, Start: glow, End: alpha(pal.glow, 0)}})
+		Radial: true, Start: glow, End: alpha(gc, 0)}})
+	// Gone bananas, the whole window jolts on each bar.
+	if ban > 0 && r.l.pulse > 0.5 {
+		k := float64(r.l.beat) * 1.7
+		amp := 6 * ban * (r.l.pulse - 0.5) * 2
+		defer p.Push(paint.Translate(geom.Pt(amp*sinf(k*7.1), amp*cosf(k*3.3))))()
+	}
 	r.paintStars(p, box)
 	r.paintTitle(p, f, box)
 	// The parts: the stage and the mixer each fade as they slide.
@@ -329,7 +418,7 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 	for i := range kids.Len() {
 		var a float32 = 1
 		switch i {
-		case 0, 1:
+		case 0, 1, 7:
 			a = 1 - pg
 		case 5:
 			a = pg
@@ -345,9 +434,10 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 		}
 		kids.At(i).Paint(p)
 	}
-	if r.pg < 0.5 {
+	if r.pg < 0.5 && (r.l.score == nil || r.l.score.Tracker == nil) {
 		r.paintSparks(p)
 	}
+	r.paintBananas(p, box)
 	r.paintBoot(p, box)
 	r.paintToast(p, box)
 	r.paintScan(p, box)
@@ -359,8 +449,9 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 func (r *root) paintStars(p *paint.Painter, box geom.Size) {
 	pal := r.l.pal
 	defer p.Blend(paint.BlendAdd)()
-	t := float64(r.spin)
-	for i := range 48 {
+	t := float64(r.spin) * float64(0.4+1.6*r.l.fx)
+	n := int(48*min(1, r.l.fx*1.6)) + int(48*r.l.bananas())
+	for i := range n {
 		seed := float64(i) * 12.9898
 		x := float32(math.Mod(math.Sin(seed)*43758.5453, 1))
 		if x < 0 {
@@ -391,13 +482,24 @@ func (r *root) paintTitle(p *paint.Painter, f gunim.Frame, box geom.Size) {
 	logo.Paint(p, geom.Pt(x, top), pal.accent)
 	sub := shaped("MIDI PLAYER", 15, false)
 	sub.Paint(p, geom.Pt(x+logo.Advance+6, top), alpha(pal.ink, 0.65))
-	title := "Drop a MIDI file to play it"
+	title := "Drop a MIDI, MOD or XM file to play it"
 	info := "Or press Open, or try the demo"
 	if sc := r.l.score; sc != nil {
 		title = sc.Title
 		info = fmt.Sprintf("%s  ·  %d channels  ·  %.0f BPM  ·  %s", clock(sc.Length), len(sc.used()), sc.BPM, styleName(r.l.s.Style))
+		if t := sc.Tracker; t != nil {
+			kind := "FastTracker II XM"
+			if t.Module.Format == "MOD" {
+				kind = "ProTracker MOD"
+				if t.Module.Tracker == "Soundtracker" {
+					kind = "Soundtracker MOD"
+				}
+			}
+			info = fmt.Sprintf("%s  ·  %s  ·  %d channels  ·  %.0f BPM  ·  %d instruments", clock(sc.Length), kind,
+				t.Module.Channels, sc.BPM, len(t.Module.Instruments))
+		}
 	}
-	maxW := box.W - 2*margin - min(float32(470), box.W*0.45) - 230
+	maxW := box.W - 2*margin - min(float32(560), box.W*0.42) - 230 - 150
 	big := fit(title, 30, true, maxW)
 	// The title rises into place as a song loads.
 	rise := 1 - ease(r.l.fresh*2)
@@ -405,21 +507,26 @@ func (r *root) paintTitle(p *paint.Painter, f gunim.Frame, box geom.Size) {
 	fit(info, 13, false, maxW).Paint(p, geom.Pt(x+1, top+64), alpha(pal.dim, 1-rise))
 }
 
-// paintSparks sends a spark up from each key as its note starts, to the
-// station of its channel, so the piano and the band are seen to play
-// the same notes.
+// paintSparks sends each note up off its key, as it starts, to the
+// station of its channel: the note itself, as long as it falls in the
+// roll, tumbling and shrinking as it flies, so the piano and the band
+// are seen to play the same notes. The FX slider sets how many fly and
+// how wild: none at cozy, and trailing ghosts gone bananas.
 func (r *root) paintSparks(p *paint.Painter) {
 	l := r.l
-	if l.score == nil || l.keyY == 0 {
+	if l.score == nil || l.keyY == 0 || l.fx < 0.05 {
 		return
 	}
 	pal := l.pal
-	defer p.Blend(paint.BlendAdd)()
-	const life = 0.7
+	pn := pen{pal: pal}
+	life := 0.55 + 0.5*float64(l.fx)
+	limit := int(140 * l.fx)
+	ban := l.bananas()
+	ghosts := int(3 * ban)
 	count := 0
 	l.score.span(l.t-life, l.t, func(n *Note) {
 		age := l.t - n.Start
-		if age < 0 || age > life || count > 90 || l.score.Channels[n.Ch].Drums {
+		if age < 0 || age > life || count >= limit || l.score.Channels[n.Ch].Drums {
 			return
 		}
 		st := l.station[n.Ch]
@@ -427,38 +534,85 @@ func (r *root) paintSparks(p *paint.Painter) {
 			return
 		}
 		count++
-		x := float32(age / life)
-		e := ease(x)
+		kw := l.keyX[n.Key][1] - l.keyX[n.Key][0]
 		kx := (l.keyX[n.Key][0] + l.keyX[n.Key][1]) / 2
 		from := geom.Pt(kx, l.keyY)
 		to := geom.Pt(st.Min.X+st.Size().W/2, st.Max.Y-st.Size().H*0.35)
-		pos := geom.Pt(from.X+(to.X-from.X)*e, from.Y+(to.Y-from.Y)*e)
-		// An arc out to one side on the way.
 		side := float32(1)
 		if n.Key%2 == 0 {
 			side = -1
 		}
-		pos.X += side * 40 * sinf(float64(x)*math.Pi)
-		c := alpha(pal.ch[n.Ch], (1-x)*0.9*float32(n.Vel)/127+0.1)
-		s := (3 + 4*float32(n.Vel)/127) * (1 - 0.5*x)
-		if pal.pixel > 1.5 {
-			s = pal.pixel * 1.5
-			pos = geom.Pt(snap(pos.X, pal.pixel), snap(pos.Y, pal.pixel))
-			p.RRect(xyxy(pos.X-s/2, pos.Y-s/2, pos.X+s/2, pos.Y+s/2), 0, paint.Solid(c))
-			return
+		h0 := min(max(float32(n.End-n.Start)*max(l.notePx, 40), 8), 46)
+		col := pal.ch[n.Ch]
+		draw := func(x float32, a float32) {
+			e := ease(x)
+			pos := geom.Pt(from.X+(to.X-from.X)*e, from.Y+(to.Y-from.Y)*e-h0/2*(1-e))
+			// An arc out to one side on the way, wider the wilder.
+			pos.X += side * (30 + 60*l.fx) * sinf(float64(x)*math.Pi)
+			w := max(kw-2, 4) * (1 - 0.35*e)
+			h := h0 * (1 - 0.65*e)
+			spin := side * e * float32(math.Pi) * (0.3 + 1.7*l.fx)
+			end := p.Push(paint.Rotate(spin, pos))
+			c := alpha(col, a)
+			pn.rect(p, xyxy(pos.X-w/2, pos.Y-h/2, pos.X+w/2, pos.Y+h/2), min(4, w/2), c)
+			if pal.pixel < 1.5 {
+				p.RRect(xyxy(pos.X-w/2+1, pos.Y-h/2+1, pos.X+w/2-1, pos.Y-h/2+min(4, h/2)), 2, paint.Solid(alpha(pal.white, a*0.35)))
+			}
+			end()
+			pn.glow(p, pos.X, pos.Y, (10+20*l.fx)*(1-x), alpha(col, a*0.6))
 		}
-		p.ShadowRRect(xyxy(pos.X-s/2, pos.Y-s/2, pos.X+s/2, pos.Y+s/2), s/2, paint.Solid(c),
-			paint.Shadow{Blur: 10, Color: alpha(c, 0.7)})
+		x := float32(age / life)
+		a := float32(n.Vel)/127*0.5 + 0.5
+		a *= min(1, (1-x)*3)
+		for g := ghosts; g >= 1; g-- {
+			gx := x - float32(g)*0.06
+			if gx > 0 {
+				draw(gx, a*0.25/float32(g))
+			}
+		}
+		draw(x, a)
 	})
+}
+
+// paintBananas sends bananas spinning up the window on each bar, gone
+// bananas.
+func (r *root) paintBananas(p *paint.Painter, box geom.Size) {
+	l := r.l
+	ban := l.bananas()
+	sc := l.score
+	if ban <= 0 || sc == nil || len(sc.Beats) == 0 || sc.BarBeats <= 0 {
+		return
+	}
+	for b := l.beat; b >= max(l.beat-8, 0); b-- {
+		if b%sc.BarBeats != 0 || b >= len(sc.Beats) {
+			continue
+		}
+		age := float32(l.t - sc.Beats[b])
+		if age < 0 || age > 2.2 {
+			continue
+		}
+		for k := range 3 {
+			seed := float64(b*7 + k*13)
+			x0 := box.W * float32(0.15+0.7*math.Mod(seed*0.618, 1))
+			x := x0 + 80*sinf(seed+float64(age)*2)
+			y := box.H + 30 - age*(box.H*0.55+80*float32(k))
+			sz := 18 + 10*float32(k%2)
+			c := alpha(rgb(0xffd23f), ban*min(1, (2.2-age)*2))
+			end := p.Push(paint.Rotate(age*float32(2+k)*float32(math.Copysign(1, math.Sin(seed))), geom.Pt(x, y)))
+			p.Mask(icon.Stroke{Icon: icon.Banana, Width: 2.2, Progress: 1}, xyxy(x-sz, y-sz, x+sz, y+sz), l.pal.tone(c))
+			end()
+		}
+	}
 }
 
 // bootLines are what each style's machine says as it starts.
 var bootLines = map[string][]string{
-	"gm":    {"♪  THE ORCHESTRA TAKES ITS SEATS  ♪", "128 instruments  ·  one drum kit"},
-	"sid":   {"**** COMMODORE 64 BASIC V2 ****", "64K RAM SYSTEM  38911 BASIC BYTES FREE", "READY."},
-	"nes":   {"PRESS START", "2A03  ·  2 PULSES  ·  TRIANGLE  ·  NOISE"},
-	"gb":    {"gunim®", "DOT MATRIX WITH STEREO SOUND"},
-	"adlib": {"Sound Blaster detected at A220 I5 D1", "AdLib OPL2  ·  9 FM voices", "C:\\MUSIC> PLAY.EXE"},
+	"gm":        {"♪  THE ORCHESTRA TAKES ITS SEATS  ♪", "128 instruments  ·  one drum kit"},
+	"sid":       {"**** COMMODORE 64 BASIC V2 ****", "64K RAM SYSTEM  38911 BASIC BYTES FREE", "READY."},
+	"nes":       {"PRESS START", "2A03  ·  2 PULSES  ·  TRIANGLE  ·  NOISE"},
+	"gb":        {"gunim®", "DOT MATRIX WITH STEREO SOUND"},
+	"adlib":     {"Sound Blaster detected at A220 I5 D1", "AdLib OPL2  ·  9 FM voices", "C:\\MUSIC> PLAY.EXE"},
+	"soundfont": {"THE SAMPLES ARE LOADED", "every instrument, recorded"},
 }
 
 // paintBoot shows the style's start-up screen over the band as the
@@ -576,11 +730,11 @@ func (r *root) paintDrop(p *paint.Painter, box geom.Size) {
 			msg = fmt.Sprintf("Drop to play %d files", r.dragN)
 		}
 		if !r.dragOK {
-			msg = "Those are not MIDI files"
+			msg = "Those are not songs I can play"
 		}
 		run := shaped(msg, 26, true)
 		run.Paint(p, geom.Pt(cx-run.Advance/2, cy+rad+28), pal.ink)
-		sub := shaped(".mid  ·  .midi  ·  .kar  ·  or a folder of them", 13, false)
+		sub := shaped(".mid  ·  .midi  ·  .kar  ·  .mod  ·  .xm  ·  or a folder of them", 13, false)
 		sub.Paint(p, geom.Pt(cx-sub.Advance/2, cy+rad+66), pal.dim)
 		end()
 	}
@@ -596,7 +750,7 @@ func (r *root) paintDrop(p *paint.Painter, box geom.Size) {
 // takes reports which of paths the player takes, and whether any.
 func takes(paths []string) (n int) {
 	for _, p := range paths {
-		if isMIDI(p) || filepath.Ext(p) == "" {
+		if isMIDI(p) || isBank(p) || filepath.Ext(p) == "" {
 			n++
 		}
 	}
@@ -667,7 +821,9 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 		r.list.open = !r.list.open
 		r.list.closed = !r.list.open
 		u.Invalidate()
-	case k.Char >= '1' && k.Char <= '5':
+	case k.Char == 'd' && s.Style == "soundfont" && s.Font == "":
+		u.Send(r, FetchAsked{})
+	case k.Char >= '1' && k.Char <= '6':
 		u.Send(r, StyleChosen{Style: styleOrder[k.Char-'1']})
 	case k.Char == '+' || k.Char == '=':
 		u.Send(r, SpeedSet{Speed: s.Speed + 0.1})
@@ -679,12 +835,64 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 	return true
 }
 
+// chanName names what channel ch plays now: the instrument of the
+// General MIDI program it plays, the drums, or a module's instrument it
+// last started.
+func (l *look) chanName(ch int) string {
+	sc := l.score
+	switch {
+	case sc == nil:
+		return "Channel"
+	case sc.Tracker != nil:
+		name := ""
+		sc.span(l.t-8, l.t, func(n *Note) {
+			if int(n.Ch) == ch && n.Start <= l.t && int(n.Ins) >= 1 && int(n.Ins) <= len(sc.Tracker.Module.Instruments) {
+				name = strings.TrimSpace(sc.Tracker.Module.Instruments[n.Ins-1].Name)
+				if name == "" {
+					name = fmt.Sprintf("Instrument %02X", n.Ins)
+				}
+			}
+		})
+		if name == "" {
+			return fmt.Sprintf("Channel %d", ch+1)
+		}
+		return name
+	case sc.Channels[ch].Drums:
+		return "Drums"
+	}
+	return synth.GMNames[l.ch[ch].program&127]
+}
+
+// titleBarTheme is the window's buttons' theme in the palette of style
+// key: no fill of their own, over the player's drawing, and its ink.
+func titleBarTheme(key string) theme.Theme {
+	return theme.Make("titlebar."+key, theme.Set(widget.MenubarFill, color.NRGBA{}), theme.Set(widget.Ink, palettes[key].ink))
+}
+
+// CaptionRects implements [gunim.Caption]: the parts of the header with
+// nothing on them move the window, and a double click there maximizes
+// it.
+func (r *root) CaptionRects(geom.Size) []geom.Rect { return r.captions }
+
+// paletteKey returns the palette s shows in: its style's, but for a
+// tracker's module in General MIDI's style, which shows in its
+// tracker's own, ProTracker's or FastTracker's.
+func paletteKey(s Player) string {
+	if s.Score != nil && s.Score.Tracker != nil && (s.Style == "gm" || s.Style == "soundfont") {
+		if s.Score.Tracker.Module.Format == "MOD" {
+			return "pt"
+		}
+		return "ft2"
+	}
+	return s.Style
+}
+
 // startPage is the page the window opens on: 0 the stage, 1 the
 // mixer.
 var startPage int
 
 // styleOrder is the order of the styles on the deck.
-var styleOrder = []string{"gm", "sid", "nes", "gb", "adlib"}
+var styleOrder = []string{"gm", "sid", "nes", "gb", "adlib", "soundfont"}
 
 // styleName names a style as the deck does.
 func styleName(s string) string {
@@ -697,6 +905,8 @@ func styleName(s string) string {
 		return "Game Boy"
 	case "adlib":
 		return "AdLib"
+	case "soundfont":
+		return "SoundFont"
 	}
 	return "General MIDI"
 }

@@ -1,10 +1,14 @@
 // Command midiplayer plays MIDI files through the synth engine's
-// General MIDI instruments, in a window that shows the music played.
+// General MIDI instruments, and tracker modules, MOD and XM, through
+// their own samples, in a window that shows the music played.
 //
 //	go run github.com/marrasen/gunim-game-audio/cmd/midiplayer@latest [file.mid ...]
 //
-// Drop MIDI files, or folders of them, on the window to play them, or
-// press Open. The song falls onto a piano as it plays, and each channel
+// Drop MIDI files, MODs and XMs, or folders of them, on the window to
+// play them, or press Open. A module shows as a tracker shows it: its
+// pattern scrolling under the row heard, a scope for each channel, its
+// orders and instruments, and an Amiga demo's copper bars, stars and
+// scroller of its samples' names. The song falls onto a piano as it plays, and each channel
 // has a station of its own on the stage, its instrument playing what it
 // plays: a click mutes it, and a click with Shift plays it alone. The
 // cartridges at the top pick the style the instruments play in, and the
@@ -46,6 +50,9 @@ import (
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
+// startFX is the FX level -fx asks for, below 0 for the one kept.
+var startFX float64
+
 func main() {
 	style := flag.String("style", "gm", "the style to start in: gm, sid, nes, gb or adlib")
 	demo := flag.Bool("demo", false, "play the demo song")
@@ -53,27 +60,29 @@ func main() {
 	after := flag.Duration("after", 3*time.Second, "with -shot, how long to play first")
 	silent := flag.Bool("silent", false, "play without the speakers, as for -shot")
 	mixerPage := flag.Bool("mixer", false, "open on the mixer")
+	font := flag.String("soundfont", "", "play on this SoundFont bank, an .sf2 or .sf3")
+	fx := flag.Float64("fx", -1, "how much the window animates, from 0, cozy, to 1, bananas")
 	flag.Parse()
 	if *mixerPage {
 		startPage = 1
 	}
+	startFX = *fx
 	if !slices.Contains(synth.GMStyles, *style) {
 		log.Fatalf("no style %q", *style)
 	}
-	if err := run(*style, *demo, *silent, *shot, *after, flag.Args()); err != nil {
+	if err := run(*style, *demo, *silent, *shot, *after, *font, flag.Args()); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(style string, demo, silent bool, shot string, after time.Duration, files []string) error {
+func run(style string, demo, silent bool, shot string, after time.Duration, font string, files []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	return gunim.Main(ctx, func(a *gunim.App) error {
 		w, err := a.NewWindow(gunim.WindowOptions{
-			Title:         "gunim MIDI player",
-			Size:          geom.Sz(1360, 880),
-			Root:          widget.NewSurface(),
-			UnderTitleBar: true,
+			Title: "gunim MIDI player",
+			Size:  geom.Sz(1360, 880),
+			Root:  widget.NewSurface(),
 		})
 		if err != nil {
 			return err
@@ -90,6 +99,14 @@ func run(style string, demo, silent bool, shot string, after time.Duration, file
 		ap.style = style
 		if dir, err := os.UserConfigDir(); err == nil && shot == "" {
 			ap.loadMix(filepath.Join(dir, "gunim-midiplayer", "mix.json"))
+			ap.loadPrefs(filepath.Join(dir, "gunim-midiplayer", "prefs.json"))
+			ap.rememberFont(filepath.Join(dir, "gunim-midiplayer", "soundfont.txt"))
+		}
+		if font != "" {
+			ap.loadFont(font)
+		}
+		if startFX >= 0 {
+			ap.fx = float32(min(startFX, 1))
 		}
 		if demo {
 			ap.addDemo()

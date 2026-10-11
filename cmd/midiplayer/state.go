@@ -39,7 +39,7 @@ type (
 		Style string
 		// Muted are the channels muted, and Solo the one played alone,
 		// -1 for none.
-		Muted [16]bool
+		Muted [maxCh]bool
 		Solo  int
 		// Speed is how fast the song plays, 1 as written, and Transpose
 		// how many semitones it is moved.
@@ -60,6 +60,14 @@ type (
 		Mix      synth.GMMix
 		Meters   synth.GMMeters
 		Spectrum []float32
+		// Font names the SoundFont bank the soundfont style plays, "" for
+		// none, and Fetching says how far a bank's download has come, from
+		// 0 to 1, or -1 for none.
+		Font     string
+		Fetching float64
+		// FX is how much the window animates, from 0, a cozy player whose
+		// notes stay put, to 1, everything flying.
+		FX float32
 	}
 	// Item is a file of the playlist.
 	Item struct {
@@ -68,6 +76,8 @@ type (
 		Length float64
 		// Err says why it could not be read.
 		Err string
+		// Tracker says it is a tracker's module.
+		Tracker bool
 	}
 	// Clock says where a song is heard: Time seconds into it at At,
 	// moving Rate seconds a second, 0 while paused.
@@ -114,6 +124,12 @@ type (
 	Removed struct{ Index int }
 	// MixSet travels as the mixer changes.
 	MixSet struct{ Mix synth.GMMix }
+	// FetchAsked travels when the user asks to fetch a sound font.
+	FetchAsked struct{}
+	// FontOpenAsked travels when the user asks to choose a bank's file.
+	FontOpenAsked struct{}
+	// FXSet travels as the FX slider moves.
+	FXSet struct{ FX float32 }
 )
 
 // The ways to repeat.
@@ -140,6 +156,9 @@ func init() {
 	gunim.RegisterType[Picked]("midiplayer.pick")
 	gunim.RegisterType[Removed]("midiplayer.remove")
 	gunim.RegisterType[MixSet]("midiplayer.mix")
+	gunim.RegisterType[FetchAsked]("midiplayer.fetch")
+	gunim.RegisterType[FXSet]("midiplayer.fx")
+	gunim.RegisterType[FontOpenAsked]("midiplayer.fontopen")
 }
 
 // heard returns the time heard at now, from c.

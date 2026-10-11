@@ -13,6 +13,10 @@ import (
 type (
 	// Studio is what the window shows.
 	Studio struct {
+		// Font names the SoundFont bank registered for patches to play
+		// on, "" for none, and FontPrograms its programs' names.
+		Font         string
+		FontPrograms []string
 		// Songs are the songs' titles, Categories their categories, and
 		// Song the one open.
 		Songs, Categories []string

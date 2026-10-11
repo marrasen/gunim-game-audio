@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"time"
 
 	"github.com/marrasen/gunim"
+	"github.com/marrasen/gunim/anim"
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/input"
@@ -17,6 +19,7 @@ import (
 // and under it play and pause, skip, repeat, the time, the speed, the
 // transpose, the volume, Open and the playlist.
 type transport struct {
+	anim.Group
 	l    *look
 	list *playlist
 	size geom.Size
@@ -25,8 +28,18 @@ type transport struct {
 	ctls     []ctl
 	// over is the control under the pointer, and down the one held, -1
 	// for none; hot and squash light and press each by its index.
-	over, down  int
+	over, down0 int
 	hot, squash [16]float32
+	// down presses each control in, springing back with a wobble as it
+	// is let go, as Skiva's buttons do; the play button and the repeat
+	// turn from one icon to the next, the old turning out as the new
+	// turns in.
+	down [16]*anim.Float
+	// fxLocal is the FX level as last dragged, at fxAt0.
+	fxLocal   float32
+	fxAt0     time.Time
+	play, rep morph
+	ready     bool
 	// scrub is where a drag along the timeline is, in seconds, while it
 	// drags, and hoverAt where the pointer is over it, -1 for neither.
 	scrubbing bool
@@ -56,9 +69,40 @@ const (
 	cVolume
 	cOpen
 	cList
+	cFX
 )
 
+// morph is an icon that turns into another: from turning out as ic
+// turns in, as turn goes from 0 to 1.
+type morph struct {
+	ic, from *icon.Icon
+	turn     *anim.Float
+}
+
+// to turns the icon into ic, with a spring that overshoots a little.
+func (m *morph) to(ic *icon.Icon) {
+	if ic == m.ic {
+		return
+	}
+	if m.ic == nil {
+		m.ic = ic
+		return
+	}
+	m.from, m.ic = m.ic, ic
+	m.turn.Jump(0)
+	m.turn.Animate(1, anim.Spring{Response: 0.35, Damping: 0.75})
+}
+
 func (t *transport) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
+	if !t.ready {
+		t.ready = true
+		for i := range t.down {
+			t.down[i] = anim.NewFloat(0)
+			t.Add(t.down[i])
+		}
+		t.play.turn, t.rep.turn = anim.NewFloat(1), anim.NewFloat(1)
+		t.Add(t.play.turn, t.rep.turn)
+	}
 	t.size = c.Max
 	w, h := c.Max.W, c.Max.H
 	t.timeline = xyxy(14, 10, w-14, 40)
@@ -92,7 +136,37 @@ func (t *transport) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children)
 	add(cSlower, rx, 28, 28)
 	add(cSpeed, rx+28, 72, 28)
 	add(cFaster, rx+100, 28, 28)
+	// The FX slider, in the gap between the time and the speed: a cup of
+	// coffee at its left, a banana at its right.
+	left, right := float32(340), rx-36
+	if right-left >= 150 {
+		fw := min(right-left, 300)
+		add(cFX, left+(right-left-fw)/2, fw, 30)
+	}
 	return c.Max
+}
+
+// fxTrack returns the FX slider's track, between its two icons.
+func fxTrack(r geom.Rect) geom.Rect { return xyxy(r.Min.X+30, r.Min.Y, r.Max.X-30, r.Max.Y) }
+
+// fxAt returns the FX level at x along the slider.
+func (t *transport) fxAt(x float32) float32 {
+	for _, c := range t.ctls {
+		if c.id == cFX {
+			tr := fxTrack(c.r)
+			return min(max((x-tr.Min.X)/tr.Size().W, 0), 1)
+		}
+	}
+	return 0.5
+}
+
+// fx returns the FX level the slider shows: the one dragged, for a
+// moment after a drag, else the application's.
+func (t *transport) fx() float32 {
+	if time.Since(t.fxAt0) < 400*time.Millisecond || t.down0 == cFX+100 {
+		return t.fxLocal
+	}
+	return t.l.s.FX
 }
 
 // ctlAt returns the index of the control at pos, -1 for none.
@@ -129,8 +203,14 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 			u.Invalidate()
 			return true
 		}
-		if t.down == cVolume+100 {
+		if t.down0 == cVolume+100 {
 			u.Send(t, VolumeSet{Volume: t.volumeAt(e.Pos.X)})
+			return true
+		}
+		if t.down0 == cFX+100 {
+			t.fxLocal, t.fxAt0 = t.fxAt(e.Pos.X), time.Now()
+			u.Send(t, FXSet{FX: t.fxLocal})
+			u.Invalidate()
 			return true
 		}
 		t.hoverAt = -1
@@ -157,11 +237,19 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 		if i < 0 {
 			return false
 		}
-		t.down = i
+		t.down0 = i
 		t.squash[i] = 1
+		if t.ready {
+			t.down[i].Animate(1, anim.Spring{Response: 0.12, Damping: 1})
+		}
 		if t.ctls[i].id == cVolume {
-			t.down = cVolume + 100
+			t.down0 = cVolume + 100
 			u.Send(t, VolumeSet{Volume: t.volumeAt(e.Pos.X)})
+		}
+		if t.ctls[i].id == cFX {
+			t.down0 = cFX + 100
+			t.fxLocal, t.fxAt0 = t.fxAt(e.Pos.X), time.Now()
+			u.Send(t, FXSet{FX: t.fxLocal})
 		}
 		return true
 	case input.PointerUp:
@@ -170,15 +258,19 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 			u.Send(t, Sought{Time: t.timeAt(e.Pos.X)})
 			return true
 		}
-		if t.down == cVolume+100 {
-			t.down = -1
+		if t.down0 == cVolume+100 || t.down0 == cFX+100 {
+			t.fxAt0 = time.Now()
+			t.down0 = -1
 			return true
 		}
+		if t.ready && t.down0 >= 0 && t.down0 < len(t.down) {
+			t.down[t.down0].Animate(0, anim.Spring{Response: 0.4, Damping: 0.45})
+		}
 		i := t.ctlAt(e.Pos)
-		if i >= 0 && i == t.down {
+		if i >= 0 && i == t.down0 {
 			t.act(t.ctls[i].id, s, u)
 		}
-		t.down = -1
+		t.down0 = -1
 	default:
 		return false
 	}
@@ -311,15 +403,41 @@ func (t *transport) paintTimeline(p *paint.Painter, pal palette) {
 // paintCtl draws control i.
 func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 	s := t.l.s
-	hot, sq := t.hot[i], t.squash[i]
+	hot, sq := t.hot[i], float32(0)
+	if t.ready {
+		sq = t.down[i].Value()
+	}
 	mid := geom.Pt(c.r.Min.X+c.r.Size().W/2, c.r.Min.Y+c.r.Size().H/2)
-	end := p.Push(paint.Scale(1-0.08*sq+0.04*hot, mid))
+	end := p.Push(paint.Scale(1-0.1*sq+0.04*hot, mid))
 	defer end()
-	round := func(ic *icon.Icon, fill, ink color.NRGBA) {
+	sz := c.r.Size().H * 0.45
+	paintIcon := func(ic *icon.Icon, ink color.NRGBA, a, angle float32) {
+		if ic == nil || a <= 0.01 {
+			return
+		}
+		defer p.Push(paint.Rotate(angle, mid))()
+		p.Mask(icon.Stroke{Icon: ic, Width: 2, Progress: 1}, xyxy(mid.X-sz/2, mid.Y-sz/2, mid.X+sz/2, mid.Y+sz/2), alpha(ink, a))
+	}
+	disc := func(fill color.NRGBA) {
 		rr := c.r.Size().H / 2 * min(1, pal.round*3)
 		p.ShadowRRect(c.r, rr, paint.Solid(lighten(fill, 0.1*hot)), paint.Shadow{Blur: 6 + 6*hot, Offset: geom.Pt(0, 2), Color: alpha(color.NRGBA{A: 255}, 0.35)})
-		sz := c.r.Size().H * 0.45
-		p.Mask(icon.Stroke{Icon: ic, Width: 2, Progress: 1}, xyxy(mid.X-sz/2, mid.Y-sz/2, mid.X+sz/2, mid.Y+sz/2), ink)
+	}
+	round := func(ic *icon.Icon, fill, ink color.NRGBA) {
+		disc(fill)
+		paintIcon(ic, ink, 1, 0)
+	}
+	// turning draws a morph: the old icon turning a quarter out as it
+	// fades, the new one turning in from a quarter back.
+	turning := func(m *morph, fill, ink color.NRGBA) {
+		disc(fill)
+		turn := float32(1)
+		if m.turn != nil {
+			turn = m.turn.Value()
+		}
+		if turn < 1 {
+			paintIcon(m.from, ink, 1-turn, turn*math.Pi/2)
+		}
+		paintIcon(m.ic, ink, min(turn, 1), (turn-1)*math.Pi/2)
 	}
 	small := func(label string) {
 		run := shaped(label, 16, true)
@@ -358,7 +476,8 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		if s.Playing {
 			ic = icon.Pause
 		}
-		round(ic, pal.accent, darken(pal.accent, 0.8))
+		t.play.to(ic)
+		turning(&t.play, pal.accent, darken(pal.accent, 0.8))
 	case cRepeat:
 		ic := icon.Repeat
 		ink := alpha(pal.dim, 0.8)
@@ -368,7 +487,8 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		case RepeatOne:
 			ic, ink = icon.Repeat1, pal.accent
 		}
-		round(ic, alpha(pal.panel, 0), ink)
+		t.rep.to(ic)
+		turning(&t.rep, alpha(pal.panel, 0), ink)
 	case cOpen:
 		round(icon.FolderOpen, lighten(pal.panel, 0.08), pal.ink)
 	case cList:
@@ -384,7 +504,12 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		if s.Transpose == 0 {
 			v = "0"
 		}
+		if sc := t.l.score; sc != nil && sc.Tracker != nil {
+			v = "—"
+		}
 		readout(v, "TRANSPOSE", s.Transpose != 0)
+	case cFX:
+		t.paintFX(p, c, pal, hot)
 	case cVolume:
 		track := xyxy(c.r.Min.X, mid.Y-3, c.r.Max.X, mid.Y+3)
 		p.RRect(track, 3*pal.round, paint.Solid(alpha(pal.edge, 0.6)))
@@ -405,4 +530,54 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		run := shaped(now+" / "+total, 15, true)
 		run.Paint(p, geom.Pt(c.r.Max.X+14, mid.Y-run.Height()/2), pal.ink)
 	}
+}
+
+// paintFX draws the FX slider: a cup of coffee, steaming, at its left,
+// a track that warms from calm to banana yellow, and a banana at its
+// right, which wiggles more the further the slider goes.
+func (t *transport) paintFX(p *paint.Painter, c ctl, pal palette, hot float32) {
+	fx := t.fx()
+	mid := geom.Pt(c.r.Min.X+c.r.Size().W/2, c.r.Min.Y+c.r.Size().H/2)
+	tr := fxTrack(c.r)
+	track := xyxy(tr.Min.X, mid.Y-3, tr.Max.X, mid.Y+3)
+	calm, banana := mix(pal.dim, rgb(0x7fb0d0), 0.5), rgb(0xffd23f)
+	p.RRect(track, 3*pal.round, paint.Fill{Gradient: &paint.Gradient{From: track.Min, To: geom.Pt(track.Max.X, track.Min.Y),
+		Start: alpha(calm, 0.55), End: alpha(banana, 0.55)}})
+	x := track.Min.X + track.Size().W*fx
+	p.RRect(xyxy(track.Min.X, track.Min.Y, x, track.Max.Y), 3*pal.round, paint.Solid(mix(calm, banana, fx)))
+	k := 8 + 2*hot + 2*fx
+	if fx > 0.7 {
+		func() {
+			defer p.Blend(paint.BlendAdd)()
+			p.ShadowRRect(xyxy(x-k, mid.Y-k, x+k, mid.Y+k), k, paint.Solid(color.NRGBA{}), paint.Shadow{Blur: 12 * fx, Color: alpha(banana, 0.6*(fx-0.7)/0.3)})
+		}()
+	}
+	p.ShadowRRect(xyxy(x-k, mid.Y-k, x+k, mid.Y+k), k*min(1, pal.round*3), paint.Solid(pal.ink), paint.Shadow{Blur: 6, Color: alpha(color.NRGBA{A: 255}, 0.4)})
+	now := float64(t.l.now.UnixMilli()%100000) / 1000
+	// The cup, its steam rising gently while the slider is low.
+	cup := geom.Pt(c.r.Min.X+12, mid.Y)
+	p.Mask(icon.Stroke{Icon: icon.Coffee, Width: 2, Progress: 1}, xyxy(cup.X-10, cup.Y-10, cup.X+10, cup.Y+10), pal.tone(mix(pal.ink, calm, 0.3)))
+	if fx < 0.5 {
+		for k := range 2 {
+			ph := float32(math.Mod(now*0.6+float64(k)*0.5, 1))
+			pen{pal: pal}.circle(p, cup.X-3+float32(k)*5+2*sinf(now*2+float64(k)), cup.Y-12-ph*8, 1.4, alpha(pal.ink, (1-ph)*(0.5-fx)))
+		}
+	}
+	// The banana, wiggling.
+	bn := geom.Pt(c.r.Max.X-12, mid.Y)
+	wig := fx * fx * 0.5 * sinf(now*(4+10*float64(fx)))
+	func() {
+		defer p.Push(paint.Rotate(wig, bn))()
+		sz := 10 + 3*fx
+		p.Mask(icon.Stroke{Icon: icon.Banana, Width: 2, Progress: 1}, xyxy(bn.X-sz, bn.Y-sz, bn.X+sz, bn.Y+sz), pal.tone(mix(pal.dim, banana, 0.4+0.6*fx)))
+	}()
+	label := "FX"
+	switch {
+	case fx < 0.15:
+		label = "COZY"
+	case fx > 0.85:
+		label = "BANANAS"
+	}
+	cap := shaped(label, 9, fx > 0.85)
+	cap.Paint(p, geom.Pt(mid.X-cap.Advance/2, c.r.Max.Y+2), alpha(mix(pal.dim, banana, max(fx-0.85, 0)/0.15), 0.9))
 }

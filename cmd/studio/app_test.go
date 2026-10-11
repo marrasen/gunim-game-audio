@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -16,6 +18,8 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/internal/sftest"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
@@ -756,4 +760,40 @@ func TestSteppingTrackSlidesThePatchPageIn(t *testing.T) {
 			t.Errorf("a second on, the slide is at %v, not at rest", s.t)
 		}
 	}
+}
+
+func TestAPatchPlaysOnTheBankLoaded(t *testing.T) {
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fontName, fontPrograms = "Test Bank", make([]string, 128)
+	for i := range fontPrograms {
+		fontPrograms[i] = fmt.Sprintf("%03d —", i+1)
+	}
+	fontPrograms[0] = "001 Square"
+	synth.RegisterSoundFont(fontName, f)
+	defer func() {
+		synth.RegisterSoundFont(fontName, nil)
+		fontName, fontPrograms = "", nil
+	}()
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Patch", Track: "bass"})
+	h.settle()
+	pp := h.v.patch
+	if pp.sampled.Disabled || len(pp.sampleN) != 2 || !pp.program.Disabled {
+		t.Fatalf("with a bank loaded, the patch offers %v, its program disabled %v", pp.sampleN, pp.program.Disabled)
+	}
+	// Played on the bank, its first program.
+	h.do(SetValue{Path: "Patches/" + pp.name + "/SoundFont", Str: "Test Bank", IsStr: true}, SetValue{Path: "Patches/" + pp.name + "/Program", Num: 0})
+	h.settle()
+	if p := h.s.song.Patches[pp.name]; p.SoundFont != "Test Bank" {
+		t.Fatalf("the patch plays on %q", p.SoundFont)
+	}
+	if pp.sampled.Selected() != 1 || pp.program.Disabled || pp.program.Items()[0].Label != "001 Square" ||
+		!strings.Contains(pp.about.Text, "sampled from Test Bank") {
+		t.Errorf("on the bank, the patch shows %d, %v, %q", pp.sampled.Selected(), pp.program.Items()[0].Label, pp.about.Text)
+	}
+	// Its song plays on: it sounds.
+	h.play(2 * time.Second)
 }

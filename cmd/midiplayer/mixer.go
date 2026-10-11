@@ -48,7 +48,7 @@ type mixer struct {
 	// room is, and stripsTotal how wide they all are.
 	scroll, stripsW, stripsTotal float32
 	// The meters as they fall, and the peaks they hold.
-	ch, hold          [16]float32
+	ch, hold          [maxCh]float32
 	left, right, comp float32
 	limit, lHold      float32
 	rHold             float32
@@ -609,14 +609,7 @@ func (m *mixer) paintStripFrame(p *paint.Painter, ch int, r, fader geom.Rect, pa
 	bw := max(badge.Advance+10, 20)
 	p.RRect(xyxy(r.Min.X+8, r.Min.Y+8, r.Min.X+8+bw, r.Min.Y+26), 9*pal.round, paint.Solid(col))
 	badge.Paint(p, geom.Pt(r.Min.X+8+(bw-badge.Advance)/2, r.Min.Y+10), darken(col, 0.75))
-	name := "Channel"
-	if sc := l.score; sc != nil {
-		if sc.Channels[ch].Drums {
-			name = "Drums"
-		} else {
-			name = synth.GMNames[l.ch[ch].program&127]
-		}
-	}
+	name := l.chanName(ch)
 	ink := pal.ink
 	if muted {
 		ink = alpha(pal.ink, 0.4)
