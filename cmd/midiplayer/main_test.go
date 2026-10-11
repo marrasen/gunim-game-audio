@@ -233,7 +233,7 @@ func (h *window) intent() gunim.Intent {
 func demoState(t *testing.T) Player {
 	sc := newScore(demoFile(t), "Neon Overture")
 	return Player{Playlist: []Item{{Name: "Neon Overture", Length: sc.Length}}, Current: 0, Score: sc, ScoreGen: 1,
-		Clock: Clock{Time: 20, At: time.Now(), Rate: 1}, Playing: true, Style: "gm", Solo: -1, Speed: 1, Volume: 1}
+		Clock: Clock{Time: 20, At: time.Now(), Rate: 1}, Playing: true, Style: "gm", Solo: -1, Speed: 1, Volume: 1, Fetching: -1}
 }
 
 func TestTheWindowTakesClicksDropsAndKeys(t *testing.T) {
@@ -575,5 +575,44 @@ func TestTheFXLevelIsKept(t *testing.T) {
 	b.loadPrefs(prefs)
 	if b.fx != 0.95 || b.state().FX != 0.95 {
 		t.Errorf("the FX level comes back as %v", b.fx)
+	}
+}
+
+func TestTheSoundFontCardOffersADownloadAndAFile(t *testing.T) {
+	s := demoState(t)
+	h := newWindow(t, s)
+	if h.v.font.in != 0 {
+		t.Fatal("the card shows with no SoundFont style")
+	}
+	s.Style = "soundfont"
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(60)
+	fc := h.v.font
+	if fc.in != 1 {
+		t.Fatalf("with the style and no bank, the card has risen %v", fc.in)
+	}
+	// Where the card lies: in the middle of the stage's room.
+	w, hh := float32(1360), float32(880)
+	top := float32(6) + headerH + 8
+	bot := hh - margin - transH - 10
+	cw, ch := min(float32(620), w-2*margin), float32(210)
+	origin := geom.Pt((w-cw)/2, top+(bot-top-ch)/2)
+	at := func(r geom.Rect) geom.Point {
+		return geom.Pt(origin.X+r.Min.X+r.Size().W/2, origin.Y+r.Min.Y+r.Size().H/2)
+	}
+	h.click(at(fc.fetchBtn), 0)
+	if _, ok := h.intent().(FetchAsked); !ok {
+		t.Error("the download button does not fetch")
+	}
+	h.click(at(fc.chooseBtn), 0)
+	if _, ok := h.intent().(FontOpenAsked); !ok {
+		t.Error("the choose button does not open")
+	}
+	// A bank playing, the card falls away.
+	s.Font = "MuseScore General"
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(60)
+	if fc.in != 0 {
+		t.Errorf("with a bank, the card stays at %v", fc.in)
 	}
 }

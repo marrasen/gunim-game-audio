@@ -357,6 +357,14 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 				a.chosen <- paths
 			}
 		}()
+	case FontOpenAsked:
+		go func() {
+			paths, err := a.c.ChooseFiles(ctx, driver.ChooseOptions{Title: "Choose a SoundFont bank",
+				Filters: []driver.FileFilter{{Name: "SoundFont banks", Patterns: []string{"*.sf2", "*.sf3"}}}})
+			if err == nil && len(paths) > 0 {
+				a.chosen <- paths
+			}
+		}()
 	case DemoAsked:
 		a.addDemo()
 	case PlayToggled:
@@ -383,9 +391,6 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 	case StyleChosen:
 		if slices.Contains(synth.GMStyles, v.Style) {
 			a.style = v.Style
-			if v.Style == "soundfont" && a.font == nil && a.fetching < 0 {
-				a.say("No sound font yet: drop an .sf2 or .sf3 bank on the window, or press D to fetch MuseScore General (MIT licence, 40 MB)")
-			}
 			if mp := a.midi(); mp != nil {
 				_ = mp.SetStyle(v.Style)
 			}

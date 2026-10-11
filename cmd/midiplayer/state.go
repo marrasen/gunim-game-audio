@@ -126,6 +126,8 @@ type (
 	MixSet struct{ Mix synth.GMMix }
 	// FetchAsked travels when the user asks to fetch a sound font.
 	FetchAsked struct{}
+	// FontOpenAsked travels when the user asks to choose a bank's file.
+	FontOpenAsked struct{}
 	// FXSet travels as the FX slider moves.
 	FXSet struct{ FX float32 }
 )
@@ -156,6 +158,7 @@ func init() {
 	gunim.RegisterType[MixSet]("midiplayer.mix")
 	gunim.RegisterType[FetchAsked]("midiplayer.fetch")
 	gunim.RegisterType[FXSet]("midiplayer.fx")
+	gunim.RegisterType[FontOpenAsked]("midiplayer.fontopen")
 }
 
 // heard returns the time heard at now, from c.

@@ -162,6 +162,7 @@ type root struct {
 	mixer *mixer
 	tabs  *tabs
 	track *trackView
+	font  *fontCard
 	// page is the page shown, the stage or the mixer, and pg slides
 	// between them, from 0, the stage, to 1, the mixer.
 	page     int
@@ -202,6 +203,7 @@ func buildView(s Player) *root {
 	r.mixer = &mixer{l: l, hover: -1, drag: -1, lastClicked: -1}
 	r.tabs = &tabs{r: r, over: -1}
 	r.track = &trackView{l: l, lastRow: -1, lastPat: -1, latest: -1}
+	r.font = &fontCard{l: l, over: -1}
 	if len(s.Playlist) > 1 {
 		r.listOpen, r.list.open = 1, true
 	}
@@ -210,7 +212,7 @@ func buildView(s Player) *root {
 
 // Children implements [gunim.Composite].
 func (r *root) Children() []gunim.Node {
-	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs, r.track}
+	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs, r.track, r.font}
 }
 
 // update shows s.
@@ -327,6 +329,13 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 		tgone = 4 * h
 	}
 	place(7, xyxy(margin, midTop+off+tgone, bandRight, midBot+off+tgone))
+	// The card that asks for a sound font, in the middle, while it shows.
+	cw, ch := min(float32(620), w-2*margin), float32(210)
+	cx, cy := (w-cw)/2, midTop+(midBot-midTop-ch)/2
+	if !r.font.wanted() && r.font.in <= 0.01 {
+		cy = 4 * h
+	}
+	place(8, xyxy(cx, cy, cx+cw, cy+ch))
 	moff := (h + 40) * (1 - pg)
 	if r.pg <= 0 {
 		moff = 4 * h
