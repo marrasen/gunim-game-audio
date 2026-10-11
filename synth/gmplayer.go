@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // GM is a General MIDI synthesizer: sixteen channels, each playing one
@@ -34,6 +35,8 @@ type GM struct {
 	ctx       renderCtx
 	// bus mixes the channels.
 	bus *Bus
+	// font is the SoundFont bank the soundfont style plays.
+	font *soundfont.Font
 	// Gain is the whole mix's level, before the master's own.
 	Gain float32
 	// tl and tr hold a channel's sound.
@@ -50,6 +53,7 @@ type gmChannel struct {
 	kit     *[128]*drum
 	vs      *voices
 	hs      *hits
+	sf      *sfVoices
 	held    []gmHeld
 	// vol, expr, rev and cho are from 0 to 1, pan from -1 to 1.
 	vol, expr, pan, rev, cho float32
@@ -74,6 +78,10 @@ type gmHeld struct {
 	v         *voice
 	age       uint64
 	sustained bool
+	// sv is the SoundFont voice that plays it, where a bank does, and
+	// sage its age as it started.
+	sv   *sfVoice
+	sage uint64
 }
 
 // NewGM returns a General MIDI synthesizer, reset.
@@ -93,6 +101,7 @@ func NewGM() *GM {
 		c := &g.ch[i]
 		c.vs = newVoices(32, uint64(i)*104729+1)
 		c.hs = newHits(24)
+		c.sf = newSFVoices(48)
 	}
 	g.Reset()
 	return g
@@ -167,6 +176,9 @@ func velocity(v byte) float32 {
 }
 
 func (g *GM) noteOn(c *gmChannel, key int, vel byte) {
+	if g.style == "soundfont" && g.font != nil && g.fontNote(c, key, vel) {
+		return
+	}
 	if c.drums {
 		if d := c.kit[key&127]; d != nil {
 			c.hs.play(*d, velocity(vel), 0, float32(key), rate/2, 0)
@@ -179,26 +191,86 @@ func (g *GM) noteOn(c *gmChannel, key int, vel byte) {
 }
 
 func (g *GM) noteOff(c *gmChannel, key int) {
-	for i, h := range c.held {
-		if h.key != key || h.sustained {
-			continue
+	// A bank's note may sound as several voices, its layers; the note off
+	// lets go of them all, as of the one voice of the engine's own.
+	held := c.held[:0]
+	for _, h := range c.held {
+		switch {
+		case h.key != key || h.sustained:
+			held = append(held, h)
+		case c.sustain:
+			h.sustained = true
+			held = append(held, h)
+		default:
+			g.release(h)
 		}
-		if c.sustain {
-			c.held[i].sustained = true
-			return
-		}
-		g.release(h)
-		c.held = append(c.held[:i], c.held[i+1:]...)
-		return
 	}
+	c.held = held
 }
 
 // release lets go of h's note, unless its voice has been taken for
 // another.
 func (g *GM) release(h gmHeld) {
+	if h.sv != nil {
+		if h.sv.on && h.sv.age == h.sage {
+			h.sv.release()
+		}
+		return
+	}
 	if h.v.on && h.v.age == h.age {
 		h.v.release()
 	}
+}
+
+// fontNote plays key on the SoundFont bank, as the channel's bank and
+// program, or its drum kit, find it there, and reports whether the bank
+// has the instrument; one it lacks plays on the engine's own.
+func (g *GM) fontNote(c *gmChannel, key int, vel byte) bool {
+	bank, program, k := int(c.bank), c.program, key
+	if c.drums {
+		bank = 128
+	} else {
+		k = min(max(key+g.transpose, 0), 127)
+	}
+	regions := g.font.Regions(bank, program, k, int(vel))
+	if len(regions) == 0 {
+		return false
+	}
+	for i := range regions {
+		sv := c.sf.play(&regions[i], k, int(vel), 0)
+		if !c.drums {
+			c.held = append(c.held, gmHeld{key: key, sv: sv, sage: sv.age})
+		}
+	}
+	return true
+}
+
+// SetSoundFont sets the SoundFont bank the soundfont style plays, nil
+// for none; with none, it plays as gm does.
+func (g *GM) SetSoundFont(f *soundfont.Font) {
+	g.font = f
+	if f == nil {
+		return
+	}
+	for i := range g.ch {
+		g.preload(&g.ch[i])
+	}
+}
+
+// SoundFont returns the bank the soundfont style plays.
+func (g *GM) SoundFont() *soundfont.Font { return g.font }
+
+// preload decodes the samples of the channel's instrument, away from
+// the sound, so its first note does not wait for them.
+func (g *GM) preload(c *gmChannel) {
+	if g.font == nil || g.style != "soundfont" {
+		return
+	}
+	bank, program := int(c.bank), c.program
+	if c.drums {
+		bank = 128
+	}
+	go g.font.Preload(bank, program)
 }
 
 // lift lets go of the notes the sustain pedal held.
@@ -257,6 +329,7 @@ func (g *GM) control(c *gmChannel, cc, v byte) {
 	case 120:
 		// All Sound Off: silence, at once.
 		c.held = c.held[:0]
+		c.sf.silence()
 		for _, vc := range c.vs.vs {
 			vc.on = false
 		}
@@ -282,7 +355,7 @@ func (g *GM) SetStyle(style string) error {
 		return err
 	}
 	g.style = style
-	g.room = map[string]float32{"gm": 1, "adlib": 0.3}[style]
+	g.room = map[string]float32{"gm": 1, "soundfont": 1, "adlib": 0.3}[style]
 	if g.room == 0 {
 		g.room = 0.4
 	}
@@ -319,6 +392,7 @@ func (g *GM) setProgram(c *gmChannel, program int) {
 	if c.bank == 127 {
 		c.drums = true
 	}
+	g.preload(c)
 	if c.drums {
 		c.kit = g.kit(c.program)
 		return
@@ -424,6 +498,11 @@ func (g *GM) Sounding() bool {
 				return true
 			}
 		}
+		for j := range g.ch[i].sf.vs {
+			if g.ch[i].sf.vs[j].on {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -441,6 +520,9 @@ func (g *GM) render(dst []float32, n int) {
 		clear(tr)
 		sounding := c.vs.render(tl, tr, &g.ctx)
 		if c.hs.render(tl, tr) {
+			sounding = true
+		}
+		if c.sf.render(tl, tr, float64(c.shift)) {
 			sounding = true
 		}
 		if !sounding {
@@ -564,6 +646,14 @@ func (p *MIDIPlayer) SetStyle(style string) error {
 func (p *MIDIPlayer) SetMute(ch int, mute bool) {
 	p.mu.Lock()
 	p.gm.SetMute(ch, mute)
+	p.mu.Unlock()
+}
+
+// SetSoundFont sets the SoundFont bank the soundfont style plays; see
+// [GM.SetSoundFont].
+func (p *MIDIPlayer) SetSoundFont(f *soundfont.Font) {
+	p.mu.Lock()
+	p.gm.SetSoundFont(f)
 	p.mu.Unlock()
 }
 

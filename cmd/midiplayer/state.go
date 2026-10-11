@@ -60,6 +60,11 @@ type (
 		Mix      synth.GMMix
 		Meters   synth.GMMeters
 		Spectrum []float32
+		// Font names the SoundFont bank the soundfont style plays, "" for
+		// none, and Fetching says how far a bank's download has come, from
+		// 0 to 1, or -1 for none.
+		Font     string
+		Fetching float64
 	}
 	// Item is a file of the playlist.
 	Item struct {
@@ -116,6 +121,8 @@ type (
 	Removed struct{ Index int }
 	// MixSet travels as the mixer changes.
 	MixSet struct{ Mix synth.GMMix }
+	// FetchAsked travels when the user asks to fetch a sound font.
+	FetchAsked struct{}
 )
 
 // The ways to repeat.
@@ -142,6 +149,7 @@ func init() {
 	gunim.RegisterType[Picked]("midiplayer.pick")
 	gunim.RegisterType[Removed]("midiplayer.remove")
 	gunim.RegisterType[MixSet]("midiplayer.mix")
+	gunim.RegisterType[FetchAsked]("midiplayer.fetch")
 }
 
 // heard returns the time heard at now, from c.

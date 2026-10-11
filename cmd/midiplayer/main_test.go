@@ -296,7 +296,7 @@ func TestTheWindowTakesClicksDropsAndKeys(t *testing.T) {
 // right, under the title bar.
 func boundsOf(h *window, d *deck) (geom.Rect, bool) {
 	w := float32(1360)
-	deckW := min(float32(470), w*0.45)
+	deckW := min(float32(560), w*0.45)
 	return xyxy(w-margin-deckW, 6, w-margin, 6+headerH), d.size.W > 0
 }
 

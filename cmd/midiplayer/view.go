@@ -283,7 +283,7 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 		k.Place(rc.Min)
 	}
 	// The deck of styles at the top right, under the title bar.
-	deckW := min(float32(470), w*0.45)
+	deckW := min(float32(560), w*0.45)
 	place(3, xyxy(w-margin-deckW, top, w-margin, top+headerH))
 	// The transport along the bottom.
 	place(4, xyxy(margin, h-margin-transH, w-margin, h-margin))
@@ -436,7 +436,7 @@ func (r *root) paintTitle(p *paint.Painter, f gunim.Frame, box geom.Size) {
 				t.Module.Channels, sc.BPM, len(t.Module.Instruments))
 		}
 	}
-	maxW := box.W - 2*margin - min(float32(470), box.W*0.45) - 230
+	maxW := box.W - 2*margin - min(float32(560), box.W*0.45) - 230
 	big := fit(title, 30, true, maxW)
 	// The title rises into place as a song loads.
 	rise := 1 - ease(r.l.fresh*2)
@@ -493,11 +493,12 @@ func (r *root) paintSparks(p *paint.Painter) {
 
 // bootLines are what each style's machine says as it starts.
 var bootLines = map[string][]string{
-	"gm":    {"♪  THE ORCHESTRA TAKES ITS SEATS  ♪", "128 instruments  ·  one drum kit"},
-	"sid":   {"**** COMMODORE 64 BASIC V2 ****", "64K RAM SYSTEM  38911 BASIC BYTES FREE", "READY."},
-	"nes":   {"PRESS START", "2A03  ·  2 PULSES  ·  TRIANGLE  ·  NOISE"},
-	"gb":    {"gunim®", "DOT MATRIX WITH STEREO SOUND"},
-	"adlib": {"Sound Blaster detected at A220 I5 D1", "AdLib OPL2  ·  9 FM voices", "C:\\MUSIC> PLAY.EXE"},
+	"gm":        {"♪  THE ORCHESTRA TAKES ITS SEATS  ♪", "128 instruments  ·  one drum kit"},
+	"sid":       {"**** COMMODORE 64 BASIC V2 ****", "64K RAM SYSTEM  38911 BASIC BYTES FREE", "READY."},
+	"nes":       {"PRESS START", "2A03  ·  2 PULSES  ·  TRIANGLE  ·  NOISE"},
+	"gb":        {"gunim®", "DOT MATRIX WITH STEREO SOUND"},
+	"adlib":     {"Sound Blaster detected at A220 I5 D1", "AdLib OPL2  ·  9 FM voices", "C:\\MUSIC> PLAY.EXE"},
+	"soundfont": {"THE SAMPLES ARE LOADED", "every instrument, recorded"},
 }
 
 // paintBoot shows the style's start-up screen over the band as the
@@ -635,7 +636,7 @@ func (r *root) paintDrop(p *paint.Painter, box geom.Size) {
 // takes reports which of paths the player takes, and whether any.
 func takes(paths []string) (n int) {
 	for _, p := range paths {
-		if isMIDI(p) || filepath.Ext(p) == "" {
+		if isMIDI(p) || isBank(p) || filepath.Ext(p) == "" {
 			n++
 		}
 	}
@@ -706,7 +707,9 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 		r.list.open = !r.list.open
 		r.list.closed = !r.list.open
 		u.Invalidate()
-	case k.Char >= '1' && k.Char <= '5':
+	case k.Char == 'd' && s.Style == "soundfont" && s.Font == "":
+		u.Send(r, FetchAsked{})
+	case k.Char >= '1' && k.Char <= '6':
 		u.Send(r, StyleChosen{Style: styleOrder[k.Char-'1']})
 	case k.Char == '+' || k.Char == '=':
 		u.Send(r, SpeedSet{Speed: s.Speed + 0.1})
@@ -750,7 +753,7 @@ func (l *look) chanName(ch int) string {
 // tracker's module in General MIDI's style, which shows in its
 // tracker's own, ProTracker's or FastTracker's.
 func paletteKey(s Player) string {
-	if s.Score != nil && s.Score.Tracker != nil && s.Style == "gm" {
+	if s.Score != nil && s.Score.Tracker != nil && (s.Style == "gm" || s.Style == "soundfont") {
 		if s.Score.Tracker.Module.Format == "MOD" {
 			return "pt"
 		}
@@ -764,7 +767,7 @@ func paletteKey(s Player) string {
 var startPage int
 
 // styleOrder is the order of the styles on the deck.
-var styleOrder = []string{"gm", "sid", "nes", "gb", "adlib"}
+var styleOrder = []string{"gm", "sid", "nes", "gb", "adlib", "soundfont"}
 
 // styleName names a style as the deck does.
 func styleName(s string) string {
@@ -777,6 +780,8 @@ func styleName(s string) string {
 		return "Game Boy"
 	case "adlib":
 		return "AdLib"
+	case "soundfont":
+		return "SoundFont"
 	}
 	return "General MIDI"
 }

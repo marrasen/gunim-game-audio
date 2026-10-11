@@ -19,7 +19,7 @@ type deck struct {
 	size geom.Size
 	// in is how far down each cartridge sits in its slot, easing, and
 	// hot how lit it is by hover.
-	in, hot [5]float32
+	in, hot [6]float32
 	over    int
 	down    int
 	laid    bool
@@ -32,12 +32,12 @@ func (d *deck) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom
 
 // cart returns where cartridge i stands, before it moves.
 func (d *deck) cart(i int) geom.Rect {
-	w := d.size.W / 5
+	w := d.size.W / float32(len(styleOrder))
 	return xyxy(float32(i)*w+5, 4, float32(i+1)*w-5, d.size.H-14)
 }
 
 func (d *deck) cartAt(pos geom.Point) int {
-	for i := range 5 {
+	for i := range styleOrder {
 		if d.cart(i).Contains(pos) {
 			return i
 		}
@@ -97,11 +97,11 @@ func (d *deck) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 	slot := xyxy(0, box.H-22, box.W, box.H-2)
 	p.RRect(slot, 8*pal.round, paint.Solid(alpha(darken(pal.panel, 0.4), 0.9)))
 	p.RRectStroke(slot, 8*pal.round, paint.Fill{}, paint.Stroke{Width: 1, Color: alpha(pal.edge, 0.6)})
-	for i := range 5 {
+	for i := range styleOrder {
 		d.paintCart(p, i, pal)
 	}
 	// A light along the slot under the one chosen.
-	for i := range 5 {
+	for i := range styleOrder {
 		if d.in[i] > 0.05 {
 			r := d.cart(i)
 			func() {
@@ -184,6 +184,35 @@ func (d *deck) paintCart(p *paint.Painter, i int, pal palette) {
 		}
 		run := fit("AdLib FM", 10, true, w-8)
 		run.Paint(p, geom.Pt(r.Min.X+(w-run.Advance)/2, r.Min.Y+28), rgb(0xe8f0e0))
+	case "soundfont":
+		// A walnut card with ivory keys, and the bank's name, as a sample
+		// player's might be.
+		p.ShadowRRect(r, 6, paint.Fill{Gradient: &paint.Gradient{From: r.Min, To: r.Max, Start: rgb(0x6b3f22), End: rgb(0x3a2212)}}, shadow)
+		keys := xyxy(r.Min.X+6, r.Min.Y+8, r.Max.X-6, r.Min.Y+30)
+		n := 7
+		kw := keys.Size().W / float32(n)
+		for k := range n {
+			x := keys.Min.X + float32(k)*kw
+			p.RRect(xyxy(x+0.5, keys.Min.Y, x+kw-0.5, keys.Max.Y), 1.5, paint.Solid(rgb(0xf4efe2)))
+		}
+		for k := range n - 1 {
+			if k == 2 {
+				continue
+			}
+			x := keys.Min.X + float32(k+1)*kw
+			p.RRect(xyxy(x-kw*0.3, keys.Min.Y, x+kw*0.3, keys.Min.Y+13), 1, paint.Solid(rgb(0x1a1410)))
+		}
+		name := d.l.s.Font
+		if name == "" {
+			name = "NO BANK"
+		}
+		label(xyxy(r.Min.X+5, r.Max.Y-24, r.Max.X-5, r.Max.Y-8), rgb(0xd9b46a), "SOUNDFONT", rgb(0x3a2212), 9)
+		fit(name, 8, false, w-10).Paint(p, geom.Pt(r.Min.X+6, r.Min.Y+33), alpha(rgb(0xf4efe2), 0.85))
+		if f := d.l.s.Fetching; f >= 0 {
+			bar := xyxy(r.Min.X+6, r.Min.Y+44, r.Max.X-6, r.Min.Y+48)
+			p.RRect(bar, 2, paint.Solid(alpha(rgb(0x000000), 0.4)))
+			p.RRect(xyxy(bar.Min.X, bar.Min.Y, bar.Min.X+bar.Size().W*float32(f), bar.Max.Y), 2, paint.Solid(rgb(0xd9b46a)))
+		}
 	}
 	// The cartridge chosen glows from within.
 	if d.in[i] > 0.05 {

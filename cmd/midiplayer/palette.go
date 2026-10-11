@@ -73,6 +73,16 @@ var palettes = map[string]palette{
 			rgb(0x306230), rgb(0x0f380f), rgb(0x306230), rgb(0x0f380f)},
 		pixel: 5, scan: 0.08, round: 0, mono: 1,
 	},
+	// A sampled orchestra: walnut, ivory and brass, as a concert hall's.
+	"soundfont": {
+		bgTop: rgb(0x231610), bgBottom: rgb(0x0e0806), glow: rgb(0x5a3418),
+		panel: rgb(0x2c1d14), edge: rgb(0x6e4a30), ink: rgb(0xf6ecdc), dim: rgb(0xb59b80),
+		accent: rgb(0xe6b45a), accent2: rgb(0xd0705a), white: rgb(0xfff6e8),
+		ch: [maxCh]color.NRGBA{rgb(0xe6b45a), rgb(0x8fc7d6), rgb(0xd0705a), rgb(0xb7a3e0), rgb(0x9fd08c), rgb(0xe08f5c),
+			rgb(0xe8dc8a), rgb(0x7ab0e0), rgb(0xe07a8a), rgb(0xfff6e8), rgb(0xc89ae0), rgb(0x8ae0c8),
+			rgb(0xf0b0c8), rgb(0xa8e0a8), rgb(0xf0d098), rgb(0xa8b8f0)},
+		round: 1,
+	},
 	// ProTracker on an Amiga: grey panels, a black pattern, and the
 	// Workbench's blue and orange.
 	"pt": {

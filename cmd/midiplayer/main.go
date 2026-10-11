@@ -57,6 +57,7 @@ func main() {
 	after := flag.Duration("after", 3*time.Second, "with -shot, how long to play first")
 	silent := flag.Bool("silent", false, "play without the speakers, as for -shot")
 	mixerPage := flag.Bool("mixer", false, "open on the mixer")
+	font := flag.String("soundfont", "", "play on this SoundFont bank, an .sf2 or .sf3")
 	flag.Parse()
 	if *mixerPage {
 		startPage = 1
@@ -64,12 +65,12 @@ func main() {
 	if !slices.Contains(synth.GMStyles, *style) {
 		log.Fatalf("no style %q", *style)
 	}
-	if err := run(*style, *demo, *silent, *shot, *after, flag.Args()); err != nil {
+	if err := run(*style, *demo, *silent, *shot, *after, *font, flag.Args()); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(style string, demo, silent bool, shot string, after time.Duration, files []string) error {
+func run(style string, demo, silent bool, shot string, after time.Duration, font string, files []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	return gunim.Main(ctx, func(a *gunim.App) error {
@@ -94,6 +95,10 @@ func run(style string, demo, silent bool, shot string, after time.Duration, file
 		ap.style = style
 		if dir, err := os.UserConfigDir(); err == nil && shot == "" {
 			ap.loadMix(filepath.Join(dir, "gunim-midiplayer", "mix.json"))
+			ap.rememberFont(filepath.Join(dir, "gunim-midiplayer", "soundfont.txt"))
+		}
+		if font != "" {
+			ap.loadFont(font)
 		}
 		if demo {
 			ap.addDemo()

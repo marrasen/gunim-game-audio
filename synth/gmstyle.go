@@ -11,8 +11,9 @@ import (
 // nes, the NES's pulses, its stepped triangle for the bass, and its
 // noise; gb, the Game Boy's pulses and its wave channel for the bass;
 // and adlib, the two-operator FM of an AdLib or Sound Blaster card, as
-// a DOS game played its music.
-var GMStyles = []string{"gm", "sid", "nes", "gb", "adlib"}
+// a DOS game played its music; and soundfont, the sampled instruments of
+// a SoundFont bank set with SetSoundFont, which without one plays as gm.
+var GMStyles = []string{"gm", "sid", "nes", "gb", "adlib", "soundfont"}
 
 // gmRole is what an instrument plays, for a style that has fewer sounds
 // than General MIDI has instruments: each program plays the style's
@@ -82,7 +83,7 @@ func GMStylePatch(style string, program int) (*Patch, error) {
 	program &= 127
 	var p *Patch
 	switch style {
-	case "", "gm":
+	case "", "gm", "soundfont":
 		return GMPatch(program), nil
 	case "sid":
 		p = sidPatch(program)

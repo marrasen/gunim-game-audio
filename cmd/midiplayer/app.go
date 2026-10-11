@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -19,6 +21,7 @@ import (
 	"github.com/marrasen/gunim/driver"
 
 	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim-game-audio/tracker"
 )
@@ -59,11 +62,30 @@ type app struct {
 	spec     []float32
 	// chosen carries the files the open dialog chose to the serve loop.
 	chosen chan []string
+	// font is the SoundFont bank the soundfont style plays, and fontName
+	// its name; fonts carries a bank read, or fetched, to the serve loop,
+	// and fontSaved is the file that remembers which bank was last
+	// played. fetching is how far a bank's download has come, from 0 to
+	// 1, or -1 for none.
+	font      *soundfont.Font
+	fontName  string
+	fonts     chan fontLoaded
+	fontSaved string
+	fetching  float64
+	progress  chan float64
+}
+
+// fontLoaded is a SoundFont bank read from path, or why it could not be.
+type fontLoaded struct {
+	f    *soundfont.Font
+	path string
+	err  error
 }
 
 func newApp(c gunim.Client, mix *audio.Mixer) *app {
 	return &app{c: c, mixer: mix, cur: -1, solo: -1, speed: 1, volume: 0.9, style: "gm", repeat: RepeatAll,
 		chosen: make(chan []string, 1), mix: synth.DefaultGMMix(), an: audio.NewAnalyzer(mix, 32),
+		fonts: make(chan fontLoaded, 1), progress: make(chan float64, 8), fetching: -1,
 		spec: make([]float32, len(specFreqs))}
 }
 
@@ -122,6 +144,10 @@ func (a *app) add(paths []string) {
 		if u, err := url.Parse(p); err == nil && u.Scheme == "file" {
 			p = u.Path
 		}
+		if isBank(p) {
+			a.loadFont(p)
+			continue
+		}
 		if st, err := os.Stat(p); err == nil && st.IsDir() {
 			_ = filepath.WalkDir(p, func(q string, d os.DirEntry, err error) error {
 				if err == nil && !d.IsDir() && isMIDI(q) {
@@ -143,7 +169,7 @@ func (a *app) add(paths []string) {
 		a.list = append(a.list, Item{Name: name, Path: p, Length: f.length(), Tracker: f.mod != nil})
 		a.files = append(a.files, f)
 	}
-	if len(found) == 0 && len(paths) > 0 {
+	if len(found) == 0 && len(paths) > 0 && a.fetching < 0 && !anyBank(paths) {
 		a.say("No songs there")
 	}
 	if added := len(a.list) - first; added > 0 {
@@ -262,6 +288,7 @@ func (a *app) start(i int) {
 		a.score = newTrackerScore(f.mod, tp.Timeline(), a.list[i].Name)
 	} else {
 		mp := synth.NewMIDIPlayer(f.midi)
+		mp.SetSoundFont(a.font)
 		_ = mp.SetStyle(a.style)
 		mp.SetTranspose(a.transpose)
 		a.p = mp
@@ -304,6 +331,7 @@ func (a *app) state() Player {
 	}
 	a.an.Spectrum(specFreqs, a.spec, nil)
 	s.Spectrum = slices.Clone(a.spec)
+	s.Font, s.Fetching = a.fontName, a.fetching
 	s.Clock = Clock{Time: a.heard(), At: time.Now()}
 	if s.Playing {
 		s.Clock.Rate = a.speed
@@ -352,6 +380,9 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 	case StyleChosen:
 		if slices.Contains(synth.GMStyles, v.Style) {
 			a.style = v.Style
+			if v.Style == "soundfont" && a.font == nil && a.fetching < 0 {
+				a.say("No sound font yet: drop an .sf2 or .sf3 bank on the window, or press D to fetch MuseScore General (MIT licence, 40 MB)")
+			}
 			if mp := a.midi(); mp != nil {
 				_ = mp.SetStyle(v.Style)
 			}
@@ -389,6 +420,8 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 		a.start(v.Index)
 	case Removed:
 		a.remove(v.Index)
+	case FetchAsked:
+		a.fetch()
 	case MixSet:
 		a.mix = v.Mix
 		if a.p != nil {
@@ -467,6 +500,10 @@ func (a *app) serve(ctx context.Context, files []string) error {
 		case <-tick.C:
 		case paths := <-a.chosen:
 			a.add(paths)
+		case fl := <-a.fonts:
+			a.adoptFont(fl)
+		case x := <-a.progress:
+			a.fetching = x
 		case ev, ok := <-a.c.Intents():
 			if !ok {
 				return a.c.Err()
@@ -519,4 +556,153 @@ func (a *app) saveMix() {
 func (a *app) midi() *synth.MIDIPlayer {
 	mp, _ := a.p.(*synth.MIDIPlayer)
 	return mp
+}
+
+// isBank reports whether path is named as a SoundFont bank.
+func isBank(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".sf2", ".sf3":
+		return true
+	}
+	return false
+}
+
+func anyBank(paths []string) bool { return slices.ContainsFunc(paths, isBank) }
+
+// loadFont reads the bank at path, away from the serve loop, as a bank
+// can be large, and hands it to the loop.
+func (a *app) loadFont(path string) {
+	a.say("Loading the sound font " + filepath.Base(path) + "…")
+	go func() {
+		f, err := soundfont.Open(path)
+		a.fonts <- fontLoaded{f: f, path: path, err: err}
+	}()
+}
+
+// adoptFont plays the bank read from now on, in the soundfont style, and
+// remembers it for the next time.
+func (a *app) adoptFont(fl fontLoaded) {
+	if fl.err != nil {
+		a.say(fmt.Sprintf("%s is not a sound font I can play: %v", filepath.Base(fl.path), fl.err))
+		return
+	}
+	a.font = fl.f
+	a.fontName = strings.TrimSpace(fl.f.Name)
+	if a.fontName == "" {
+		a.fontName = strings.TrimSuffix(filepath.Base(fl.path), filepath.Ext(fl.path))
+	}
+	a.style = "soundfont"
+	if mp := a.midi(); mp != nil {
+		mp.SetSoundFont(a.font)
+		_ = mp.SetStyle(a.style)
+	}
+	if a.fontSaved != "" {
+		_ = os.MkdirAll(filepath.Dir(a.fontSaved), 0o755)
+		_ = os.WriteFile(a.fontSaved, []byte(fl.path), 0o644)
+	}
+	a.say("Playing on the sound font " + a.fontName)
+}
+
+// rememberFont reads the bank last played, as saved in file, and saves
+// the next there.
+func (a *app) rememberFont(file string) {
+	a.fontSaved = file
+	if b, err := os.ReadFile(file); err == nil {
+		if path := strings.TrimSpace(string(b)); path != "" {
+			if _, err := os.Stat(path); err == nil {
+				a.loadFont(path)
+			}
+		}
+	}
+}
+
+// fetch downloads the first of soundfont.Banks, MuseScore General, and
+// its licence, to the user's cache, and plays on it.
+func (a *app) fetch() {
+	if a.fetching >= 0 {
+		return
+	}
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		a.say("No cache folder to fetch a sound font to: " + err.Error())
+		return
+	}
+	bank := soundfont.Banks[0]
+	dir = filepath.Join(dir, "gunim-midiplayer", "soundfonts")
+	path := filepath.Join(dir, bank.File)
+	if _, err := os.Stat(path); err == nil {
+		a.loadFont(path)
+		return
+	}
+	a.fetching = 0
+	a.say(fmt.Sprintf("Fetching %s (%s licence, %d MB)…", bank.Name, bank.License, bank.Size>>20))
+	go func() {
+		err := download(bank, dir, path, func(x float64) {
+			select {
+			case a.progress <- x:
+			default:
+			}
+		})
+		a.progress <- -1
+		if err != nil {
+			a.fonts <- fontLoaded{path: path, err: fmt.Errorf("could not fetch it: %w", err)}
+			return
+		}
+		f, err := soundfont.Open(path)
+		a.fonts <- fontLoaded{f: f, path: path, err: err}
+	}()
+}
+
+// download fetches bank to path, and its licence beside it, telling
+// progress how far it has come.
+func download(bank soundfont.Bank, dir, path string, progress func(float64)) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	get := func(url, to string, track bool) error {
+		resp, err := http.Get(url)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("%s: %s", url, resp.Status)
+		}
+		tmp := to + ".part"
+		out, err := os.Create(tmp)
+		if err != nil {
+			return err
+		}
+		total := resp.ContentLength
+		var done int64
+		buf := make([]byte, 64<<10)
+		for {
+			n, rerr := resp.Body.Read(buf)
+			if n > 0 {
+				if _, err := out.Write(buf[:n]); err != nil {
+					out.Close()
+					return err
+				}
+				done += int64(n)
+				if track && total > 0 {
+					progress(float64(done) / float64(total))
+				}
+			}
+			if rerr == io.EOF {
+				break
+			}
+			if rerr != nil {
+				out.Close()
+				return rerr
+			}
+		}
+		if err := out.Close(); err != nil {
+			return err
+		}
+		return os.Rename(tmp, to)
+	}
+	if err := get(bank.LicenseURL, filepath.Join(dir, strings.TrimSuffix(bank.File, filepath.Ext(bank.File))+"-LICENSE.md"), false); err != nil {
+		return err
+	}
+	return get(bank.URL, path, true)
 }
