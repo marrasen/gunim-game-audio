@@ -486,6 +486,9 @@ func TestAModulePlaysAsATracker(t *testing.T) {
 
 func TestTheInstrumentListScrollsOnlyToKeepTheLatestInView(t *testing.T) {
 	tv := &trackView{latest: -1, insLit: make([]float32, 31)}
+	for i := range 31 {
+		tv.shown, tv.rowOf = append(tv.shown, i), append(tv.rowOf, i)
+	}
 	list := xyxy(0, 0, 200, 236) // 200 of room: 13 rows of 15 show
 	settle := func() {
 		for range 120 {

@@ -53,6 +53,12 @@ type trackView struct {
 	latest          int
 	manual          float32
 	insList         geom.Rect
+	// shown are the instruments the list shows, those with a name or a
+	// sample, and rowOf the row each instrument shows in, -1 for none;
+	// shownFor is the module they are for.
+	shown    []int
+	rowOf    []int
+	shownFor *tracker.Module
 	// patFlash flashes as a new pattern comes in.
 	patFlash float32
 	lastPat  int
@@ -146,6 +152,17 @@ func (tv *trackView) fall(dt float32, m *tracker.Module) {
 	if len(tv.insLit) != len(m.Instruments) {
 		tv.insLit = make([]float32, len(m.Instruments))
 	}
+	if tv.shownFor != m {
+		tv.shownFor = m
+		tv.shown, tv.rowOf = tv.shown[:0], make([]int, len(m.Instruments))
+		for i, in := range m.Instruments {
+			tv.rowOf[i] = -1
+			if strings.TrimSpace(in.Name) != "" || hasSound(in) {
+				tv.rowOf[i] = len(tv.shown)
+				tv.shown = append(tv.shown, i)
+			}
+		}
+	}
 	for i := range tv.insLit {
 		tv.insLit[i] = max(0, tv.insLit[i]-dt*2.2)
 	}
@@ -182,8 +199,9 @@ func (tv *trackView) newRow(ts *TrackerSong, ri int, box geom.Size) {
 			if len(tv.sparks) < 80 {
 				y := grid.Min.Y + grid.Size().H*0.42
 				from := geom.Pt(grid.Min.X+34+cw*(float32(ch)+0.5), y)
-				to := tv.insAt(box, ins-1)
-				tv.sparks = append(tv.sparks, tspark{from: from, to: to, col: tv.l.pal.ch[ch]})
+				if to, ok := tv.insAt(box, ins-1); ok {
+					tv.sparks = append(tv.sparks, tspark{from: from, to: to, col: tv.l.pal.ch[ch]})
+				}
 			}
 		}
 	}
@@ -195,14 +213,27 @@ func (tv *trackView) colW(grid geom.Rect, channels int) float32 {
 }
 
 // insAt returns where instrument i's row is in the list, in the view.
-func (tv *trackView) insAt(box geom.Size, i int) geom.Point {
+func (tv *trackView) insAt(box geom.Size, i int) (geom.Point, bool) {
+	if i < 0 || i >= len(tv.rowOf) || tv.rowOf[i] < 0 {
+		return geom.Point{}, false
+	}
 	list := xyxy(box.W-tvInsW, tvScopeH+14, box.W-10, box.H-tvScrollH-8)
-	y := list.Min.Y + 30 + float32(i)*tv.insRowH(list) - tv.insScroll(list)
-	return geom.Pt(list.Min.X+16, y+tv.insRowH(list)/2)
+	y := list.Min.Y + 30 + float32(tv.rowOf[i])*tv.insRowH(list) - tv.insScroll(list)
+	return geom.Pt(list.Min.X+16, y+tv.insRowH(list)/2), true
+}
+
+// hasSound reports whether an instrument has a sample with any sound.
+func hasSound(in tracker.Instrument) bool {
+	for _, s := range in.Samples {
+		if len(s.Data) > 2 {
+			return true
+		}
+	}
+	return false
 }
 
 func (tv *trackView) insRowH(list geom.Rect) float32 {
-	n := max(len(tv.insLit), 1)
+	n := max(len(tv.shown), 1)
 	return min(max((list.Size().H-36)/float32(n), 15), 22)
 }
 
@@ -214,7 +245,7 @@ func (tv *trackView) insScroll(list geom.Rect) float32 {
 // insMost returns how far the instrument list can scroll: none where it
 // fits.
 func (tv *trackView) insMost(list geom.Rect) float32 {
-	return max(0, float32(len(tv.insLit))*tv.insRowH(list)-(list.Size().H-36))
+	return max(0, float32(len(tv.shown))*tv.insRowH(list)-(list.Size().H-36))
 }
 
 // followIns scrolls the instrument list, where it does not fit, to the
@@ -231,8 +262,8 @@ func (tv *trackView) followIns(list geom.Rect, dt float32) {
 	room := list.Size().H - 36
 	if tv.manual > 0 {
 		tv.manual -= dt
-	} else if tv.latest >= 0 {
-		top := float32(tv.latest) * h
+	} else if tv.latest >= 0 && tv.latest < len(tv.rowOf) && tv.rowOf[tv.latest] >= 0 {
+		top := float32(tv.rowOf[tv.latest]) * h
 		switch {
 		case top < tv.insWant:
 			tv.insWant = top - h
@@ -636,8 +667,9 @@ func (tv *trackView) paintInstruments(p *paint.Painter, r geom.Rect, m *tracker.
 	defer end()
 	h := tv.insRowH(r)
 	off := tv.insScroll(r)
-	for i, in := range m.Instruments {
-		y := list.Min.Y + 4 + float32(i)*h - off
+	for row, i := range tv.shown {
+		in := m.Instruments[i]
+		y := list.Min.Y + 4 + float32(row)*h - off
 		if y < list.Min.Y-h || y > list.Max.Y {
 			continue
 		}
