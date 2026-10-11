@@ -269,3 +269,50 @@ func TestMIDIPlayerPlaysToTheEnd(t *testing.T) {
 		t.Errorf("sought to 8.5 s, Position = %v", got)
 	}
 }
+
+func TestMIDIPlayerSpeedMuteAndTime(t *testing.T) {
+	f, err := midi.Read(bytes.NewReader(demo()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := NewMIDIPlayer(f)
+	p.SetSpeed(2)
+	buf := make([]float32, 2*480)
+	for range 100 { // 1 s given
+		if _, err := p.Read(buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := p.Position(); math.Abs(got-2) > 0.01 {
+		t.Errorf("at twice the speed, 1 s plays %v s of the file, want 2", got)
+	}
+	if got := p.TimeAt(24000); math.Abs(got-1) > 0.01 {
+		t.Errorf("TimeAt half a second given = %v, want 1", got)
+	}
+	p.Seek(10)
+	p.SetSpeed(1)
+	for range 10 {
+		_, _ = p.Read(buf)
+	}
+	if got := p.TimeAt(48000 + 4800); math.Abs(got-10.1) > 0.01 {
+		t.Errorf("after a seek, TimeAt = %v, want 10.1", got)
+	}
+	// Every channel muted: silence, once the reverb's tail of what came
+	// before has died.
+	for ch := range 16 {
+		p.SetMute(ch, true)
+	}
+	for range 400 {
+		_, _ = p.Read(buf)
+	}
+	var peak float32
+	for range 20 {
+		_, _ = p.Read(buf)
+		for _, x := range buf {
+			peak = max(peak, abs32(x))
+		}
+	}
+	if peak > 1e-3 {
+		t.Errorf("all muted, the player peaks at %v", peak)
+	}
+}

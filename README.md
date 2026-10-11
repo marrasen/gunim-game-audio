@@ -699,6 +699,44 @@ mix.Play(synth.NewMIDIPlayer(f), audio.Options{})
 A `synth.GM` alone is the sound module, without the file: `Send` plays
 each message as it comes, and `SetStyle` sets its style.
 
+### The MIDI player
+
+`cmd/midiplayer` is a window to play MIDI files in. Drop files, or
+folders of them, anywhere on it: the window blurs, a record spins up to
+take them, and they go on the playlist. Open does the same, and so do
+files named on the command line; with none, it offers a demo song made
+in code.
+
+```sh
+go run github.com/marrasen/gunim-game-audio/cmd/midiplayer@latest
+go run ./cmd/midiplayer -demo
+go run ./cmd/midiplayer song.mid more-songs/
+```
+
+The song falls onto a piano as it plays, each note in its channel's
+colour, and lights its key as it lands. Each channel has a station on
+the stage, its instrument drawn playing what it plays: keys go down and
+hammers jump, strings shake, a bow saws, a choir opens its mouths, a
+speaker thumps, brass sends out rings, organ pipes puff air, a scope
+draws a synth's wave, and the drum kit bounces, its cymbals rocking and
+its hi-hat opening. A spark flies up from each key to its station. A
+click on a station mutes it; with Shift, it plays alone.
+
+The cartridges at the top pick the style: an orchestra's score, a
+Commodore 64's cartridge, a NES's, a Game Boy's, or an AdLib card. The
+sound changes, and the window with it: the machine's start-up screen
+types itself out, the colours turn to its palette, and a console's fat
+pixels and scanlines come in, down to the Game Boy's four greens.
+
+Under the piano, the timeline maps how busy the song is, in the colour
+of its busiest channel, for a click or a drag to move through. Beside
+it are skip, repeat, the speed, the transpose and the volume. Space
+plays and pauses, the arrows move five seconds, N and P skip, 1 to 5
+pick a style, + and - change the speed, L shows the playlist and O
+opens files.
+
+![The MIDI player](cmd/midiplayer/midiplayer.png)
+
 ## Licence
 
 The songs, in `songs/`, are © 2026 Marcus Johansson, but for Candy

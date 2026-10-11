@@ -29,10 +29,12 @@ type GM struct {
 	// is dry.
 	style string
 	room  float32
-	ctx   renderCtx
-	rev   *reverb
-	cho   *chorus
-	lim   *limiter
+	// transpose moves every note but the drums', in semitones.
+	transpose int
+	ctx       renderCtx
+	rev       *reverb
+	cho       *chorus
+	lim       *limiter
 	// Gain is the whole mix's level, before its limiter.
 	Gain float32
 	// The buffers: a channel's sound, the mix, and the sends to the
@@ -43,6 +45,10 @@ type GM struct {
 // gmChannel is a channel's state: what it plays and how its controllers
 // stand.
 type gmChannel struct {
+	// mute silences the channel, and open is how far its sound is let
+	// through, gliding to 0 as it is muted and back to 1.
+	mute    bool
+	open    float32
 	program int
 	bank    byte
 	drums   bool
@@ -96,6 +102,7 @@ func NewGM() *GM {
 	}
 	for i := range g.ch {
 		c := &g.ch[i]
+		c.open = 1
 		c.vs = newVoices(32, uint64(i)*104729+1)
 		c.hs = newHits(24)
 	}
@@ -178,7 +185,7 @@ func (g *GM) noteOn(c *gmChannel, key int, vel byte) {
 		}
 		return
 	}
-	n := note{pitch: float32(key) + c.shift, vel: velocity(vel), res: -1}
+	n := note{pitch: float32(key+g.transpose) + c.shift, vel: velocity(vel), res: -1}
 	v := c.vs.play(c.p, n)
 	c.held = append(c.held, gmHeld{key: key, v: v, age: v.age})
 }
@@ -298,6 +305,21 @@ func (g *GM) SetStyle(style string) error {
 	}
 	return nil
 }
+
+// SetMute mutes channel ch, from 0 to 15, or lets it sound again. Its
+// notes play on, unheard, so it comes back in time.
+func (g *GM) SetMute(ch int, mute bool) {
+	if ch >= 0 && ch < len(g.ch) {
+		g.ch[ch].mute = mute
+	}
+}
+
+// Muted reports whether channel ch is muted.
+func (g *GM) Muted(ch int) bool { return ch >= 0 && ch < len(g.ch) && g.ch[ch].mute }
+
+// SetTranspose moves every note but the drums' by semis semitones,
+// from the next note on.
+func (g *GM) SetTranspose(semis int) { g.transpose = semis }
 
 // Style returns the style the instruments play in.
 func (g *GM) Style() string { return g.style }
@@ -441,6 +463,17 @@ func (g *GM) render(dst []float32, n int) {
 		if !sounding {
 			continue
 		}
+		// A mute glides in and out over 20 ms, so it does not click.
+		from := c.open
+		to := float32(1)
+		if c.mute {
+			to = 0
+		}
+		step := float32(n) / (0.02 * rate)
+		c.open = min(max(to, from-step), from+step)
+		if from == 0 && c.open == 0 {
+			continue
+		}
 		gain := c.vol * c.vol * c.expr * c.expr
 		pl, pr := panGains(c.pan)
 		pl *= gain
@@ -448,7 +481,8 @@ func (g *GM) render(dst []float32, n int) {
 		rv, cv := c.rev*0.5*g.room, c.cho*0.7*g.room
 		chorusOn = chorusOn || cv > 0
 		for j := range tl {
-			l, r := tl[j]*pl, tr[j]*pr
+			o := from + (c.open-from)*float32(j)/float32(n)
+			l, r := tl[j]*pl*o, tr[j]*pr*o
 			ml[j] += l
 			mr[j] += r
 			rl[j] += l * rv
@@ -506,18 +540,36 @@ func (g *GM) shift(c *gmChannel, n int) {
 // A MIDIPlayer plays a MIDI file through a [GM] synthesizer, as a
 // source a mixer plays. It ends a moment after the file's last note
 // dies away, unless it loops.
+//
+// Its methods are safe to call while a mixer reads it.
 type MIDIPlayer struct {
 	mu     sync.Mutex
 	gm     *GM
 	events []midi.Event
 	next   int
-	// frame is the frames played since the file's start.
-	frame  int64
+	// pos is where the player is in the file, in frames, and speed how
+	// many of the file's frames it plays for each frame it gives.
+	pos    float64
+	speed  float64
 	length float64
 	// tail counts the frames since the file ended and its sound died.
-	tail   int
-	loop   bool
+	tail  int
+	loop  bool
+	ended bool
+	// out counts the frames the player has given, and marks say where in
+	// the file each run of them came from, for TimeAt.
+	out    int64
+	marks  [256]playMark
+	nmarks int
 	played atomic.Int64
+}
+
+// playMark says that the frame out the player gave came from frame pos
+// of the file, and those after it at speed.
+type playMark struct {
+	out   int64
+	pos   float64
+	speed float64
 }
 
 // tailFrames is how long a player plays on after the last note has
@@ -526,10 +578,12 @@ const tailFrames = 2 * rate
 
 // NewMIDIPlayer returns a player of f, from its start.
 func NewMIDIPlayer(f *midi.File) *MIDIPlayer {
-	return &MIDIPlayer{gm: NewGM(), events: f.Events(), length: f.Length()}
+	return &MIDIPlayer{gm: NewGM(), events: f.Events(), length: f.Length(), speed: 1}
 }
 
-// GM returns the synthesizer that plays the file.
+// GM returns the synthesizer that plays the file. Set it up before the
+// player plays; while it plays, set it through the player's own
+// methods, which take turns with the mixer.
 func (p *MIDIPlayer) GM() *GM { return p.gm }
 
 // SetLoop makes the player play the file again from its start each time
@@ -540,11 +594,76 @@ func (p *MIDIPlayer) SetLoop(loop bool) {
 	p.mu.Unlock()
 }
 
+// SetSpeed sets how fast the file plays: 1 as written, 2 twice as fast.
+// The notes keep their pitch.
+func (p *MIDIPlayer) SetSpeed(speed float64) {
+	p.mu.Lock()
+	p.speed = min(max(speed, 0.1), 4)
+	p.mu.Unlock()
+}
+
+// SetStyle sets the style the synthesizer plays in; see [GM.SetStyle].
+func (p *MIDIPlayer) SetStyle(style string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.gm.SetStyle(style)
+}
+
+// SetMute mutes channel ch, from 0 to 15, or lets it sound again.
+func (p *MIDIPlayer) SetMute(ch int, mute bool) {
+	p.mu.Lock()
+	p.gm.SetMute(ch, mute)
+	p.mu.Unlock()
+}
+
+// SetTranspose moves every note but the drums' by semis semitones,
+// from the next note on.
+func (p *MIDIPlayer) SetTranspose(semis int) {
+	p.mu.Lock()
+	p.gm.SetTranspose(semis)
+	p.mu.Unlock()
+}
+
 // Length returns how long the file plays, in seconds, to its last event.
 func (p *MIDIPlayer) Length() float64 { return p.length }
 
-// Position returns where the player is in the file, in seconds.
+// Position returns where the player is in the file, in seconds, as far
+// as it has given its sound: ahead of what is heard by what the
+// speakers hold back. TimeAt says what is heard.
 func (p *MIDIPlayer) Position() float64 { return float64(p.played.Load()) / rate }
+
+// Ended reports whether the player has played the file to its end, and
+// its sound has died away.
+func (p *MIDIPlayer) Ended() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.ended
+}
+
+// TimeAt returns where in the file, in seconds, the out'th frame the
+// player gave came from: given the frames a mixer's voice has played,
+// as heard, it is the time in the file heard.
+func (p *MIDIPlayer) TimeAt(out int64) float64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := min(p.nmarks, len(p.marks))
+	for i := 1; i <= n; i++ {
+		k := p.marks[(p.nmarks-i)%len(p.marks)]
+		if k.out <= out || i == n {
+			return max(k.pos+float64(out-k.out)*k.speed, 0) / rate
+		}
+	}
+	return 0
+}
+
+// mark records that the next frame given comes from where the player is.
+func (p *MIDIPlayer) mark() {
+	p.marks[p.nmarks%len(p.marks)] = playMark{out: p.out, pos: p.pos, speed: p.speed}
+	p.nmarks++
+	if p.nmarks >= 2*len(p.marks) {
+		p.nmarks -= len(p.marks)
+	}
+}
 
 // Seek moves the player to secs into the file: it silences the synth
 // and plays every message before then but the notes, so each channel's
@@ -557,7 +676,7 @@ func (p *MIDIPlayer) Seek(secs float64) {
 		g.control(&g.ch[i], 120, 0)
 	}
 	g.Reset()
-	p.next, p.tail = 0, 0
+	p.next, p.tail, p.ended = 0, 0, false
 	for p.next < len(p.events) && p.events[p.next].Time < secs {
 		e := p.events[p.next]
 		if k := e.Kind(); k != midi.NoteOn && k != midi.NoteOff {
@@ -565,8 +684,9 @@ func (p *MIDIPlayer) Seek(secs float64) {
 		}
 		p.next++
 	}
-	p.frame = int64(max(secs, 0) * rate)
-	p.played.Store(p.frame)
+	p.pos = max(secs, 0) * rate
+	p.played.Store(int64(p.pos))
+	p.mark()
 }
 
 // Read fills dst with the file's sound, as interleaved stereo frames. It
@@ -576,34 +696,37 @@ func (p *MIDIPlayer) Read(dst []float32) (int, error) {
 	defer p.mu.Unlock()
 	n := len(dst) / 2
 	at := 0
+	p.mark()
 	for at < n {
 		// Play the messages due now, then render up to the next.
-		for p.next < len(p.events) && int64(p.events[p.next].Time*rate) <= p.frame {
+		for p.next < len(p.events) && p.events[p.next].Time*rate <= p.pos {
 			p.gm.Event(p.events[p.next])
 			p.next++
 		}
 		m := n - at
 		if p.next < len(p.events) {
-			m = min(m, int(int64(p.events[p.next].Time*rate)-p.frame))
-		} else if p.loop && p.frame > 0 {
+			due := (p.events[p.next].Time*rate - p.pos) / p.speed
+			m = min(m, max(int(math.Ceil(due)), 1))
+		} else if p.loop && p.pos > 0 {
 			p.gm.Reset()
-			p.next, p.frame = 0, 0
+			p.next, p.pos = 0, 0
+			p.mark()
 			continue
-		} else {
-			if !p.gm.Sounding() {
-				if p.tail >= tailFrames {
-					clear(dst[2*at:])
-					p.played.Store(p.frame)
-					return at, io.EOF
-				}
-				m = min(m, tailFrames-p.tail)
-				p.tail += m
+		} else if !p.gm.Sounding() {
+			if p.tail >= tailFrames {
+				clear(dst[2*at:])
+				p.ended = true
+				p.played.Store(int64(p.pos))
+				return at, io.EOF
 			}
+			m = min(m, tailFrames-p.tail)
+			p.tail += m
 		}
 		p.gm.Read(dst[2*at : 2*(at+m)])
 		at += m
-		p.frame += int64(m)
+		p.out += int64(m)
+		p.pos += float64(m) * p.speed
 	}
-	p.played.Store(p.frame)
+	p.played.Store(int64(p.pos))
 	return n, nil
 }
