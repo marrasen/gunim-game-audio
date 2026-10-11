@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"time"
 
 	"github.com/marrasen/gunim"
+	"github.com/marrasen/gunim/anim"
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/input"
@@ -17,6 +19,7 @@ import (
 // and under it play and pause, skip, repeat, the time, the speed, the
 // transpose, the volume, Open and the playlist.
 type transport struct {
+	anim.Group
 	l    *look
 	list *playlist
 	size geom.Size
@@ -25,8 +28,15 @@ type transport struct {
 	ctls     []ctl
 	// over is the control under the pointer, and down the one held, -1
 	// for none; hot and squash light and press each by its index.
-	over, down  int
+	over, down0 int
 	hot, squash [16]float32
+	// down presses each control in, springing back with a wobble as it
+	// is let go, as Skiva's buttons do; the play button and the repeat
+	// turn from one icon to the next, the old turning out as the new
+	// turns in.
+	down      [16]*anim.Float
+	play, rep morph
+	ready     bool
 	// scrub is where a drag along the timeline is, in seconds, while it
 	// drags, and hoverAt where the pointer is over it, -1 for neither.
 	scrubbing bool
@@ -58,7 +68,37 @@ const (
 	cList
 )
 
+// morph is an icon that turns into another: from turning out as ic
+// turns in, as turn goes from 0 to 1.
+type morph struct {
+	ic, from *icon.Icon
+	turn     *anim.Float
+}
+
+// to turns the icon into ic, with a spring that overshoots a little.
+func (m *morph) to(ic *icon.Icon) {
+	if ic == m.ic {
+		return
+	}
+	if m.ic == nil {
+		m.ic = ic
+		return
+	}
+	m.from, m.ic = m.ic, ic
+	m.turn.Jump(0)
+	m.turn.Animate(1, anim.Spring{Response: 0.35, Damping: 0.75})
+}
+
 func (t *transport) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
+	if !t.ready {
+		t.ready = true
+		for i := range t.down {
+			t.down[i] = anim.NewFloat(0)
+			t.Add(t.down[i])
+		}
+		t.play.turn, t.rep.turn = anim.NewFloat(1), anim.NewFloat(1)
+		t.Add(t.play.turn, t.rep.turn)
+	}
 	t.size = c.Max
 	w, h := c.Max.W, c.Max.H
 	t.timeline = xyxy(14, 10, w-14, 40)
@@ -129,7 +169,7 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 			u.Invalidate()
 			return true
 		}
-		if t.down == cVolume+100 {
+		if t.down0 == cVolume+100 {
 			u.Send(t, VolumeSet{Volume: t.volumeAt(e.Pos.X)})
 			return true
 		}
@@ -157,10 +197,13 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 		if i < 0 {
 			return false
 		}
-		t.down = i
+		t.down0 = i
 		t.squash[i] = 1
+		if t.ready {
+			t.down[i].Animate(1, anim.Spring{Response: 0.12, Damping: 1})
+		}
 		if t.ctls[i].id == cVolume {
-			t.down = cVolume + 100
+			t.down0 = cVolume + 100
 			u.Send(t, VolumeSet{Volume: t.volumeAt(e.Pos.X)})
 		}
 		return true
@@ -170,15 +213,18 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 			u.Send(t, Sought{Time: t.timeAt(e.Pos.X)})
 			return true
 		}
-		if t.down == cVolume+100 {
-			t.down = -1
+		if t.down0 == cVolume+100 {
+			t.down0 = -1
 			return true
 		}
+		if t.ready && t.down0 >= 0 && t.down0 < len(t.down) {
+			t.down[t.down0].Animate(0, anim.Spring{Response: 0.4, Damping: 0.45})
+		}
 		i := t.ctlAt(e.Pos)
-		if i >= 0 && i == t.down {
+		if i >= 0 && i == t.down0 {
 			t.act(t.ctls[i].id, s, u)
 		}
-		t.down = -1
+		t.down0 = -1
 	default:
 		return false
 	}
@@ -311,15 +357,41 @@ func (t *transport) paintTimeline(p *paint.Painter, pal palette) {
 // paintCtl draws control i.
 func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 	s := t.l.s
-	hot, sq := t.hot[i], t.squash[i]
+	hot, sq := t.hot[i], float32(0)
+	if t.ready {
+		sq = t.down[i].Value()
+	}
 	mid := geom.Pt(c.r.Min.X+c.r.Size().W/2, c.r.Min.Y+c.r.Size().H/2)
-	end := p.Push(paint.Scale(1-0.08*sq+0.04*hot, mid))
+	end := p.Push(paint.Scale(1-0.1*sq+0.04*hot, mid))
 	defer end()
-	round := func(ic *icon.Icon, fill, ink color.NRGBA) {
+	sz := c.r.Size().H * 0.45
+	paintIcon := func(ic *icon.Icon, ink color.NRGBA, a, angle float32) {
+		if ic == nil || a <= 0.01 {
+			return
+		}
+		defer p.Push(paint.Rotate(angle, mid))()
+		p.Mask(icon.Stroke{Icon: ic, Width: 2, Progress: 1}, xyxy(mid.X-sz/2, mid.Y-sz/2, mid.X+sz/2, mid.Y+sz/2), alpha(ink, a))
+	}
+	disc := func(fill color.NRGBA) {
 		rr := c.r.Size().H / 2 * min(1, pal.round*3)
 		p.ShadowRRect(c.r, rr, paint.Solid(lighten(fill, 0.1*hot)), paint.Shadow{Blur: 6 + 6*hot, Offset: geom.Pt(0, 2), Color: alpha(color.NRGBA{A: 255}, 0.35)})
-		sz := c.r.Size().H * 0.45
-		p.Mask(icon.Stroke{Icon: ic, Width: 2, Progress: 1}, xyxy(mid.X-sz/2, mid.Y-sz/2, mid.X+sz/2, mid.Y+sz/2), ink)
+	}
+	round := func(ic *icon.Icon, fill, ink color.NRGBA) {
+		disc(fill)
+		paintIcon(ic, ink, 1, 0)
+	}
+	// turning draws a morph: the old icon turning a quarter out as it
+	// fades, the new one turning in from a quarter back.
+	turning := func(m *morph, fill, ink color.NRGBA) {
+		disc(fill)
+		turn := float32(1)
+		if m.turn != nil {
+			turn = m.turn.Value()
+		}
+		if turn < 1 {
+			paintIcon(m.from, ink, 1-turn, turn*math.Pi/2)
+		}
+		paintIcon(m.ic, ink, min(turn, 1), (turn-1)*math.Pi/2)
 	}
 	small := func(label string) {
 		run := shaped(label, 16, true)
@@ -358,7 +430,8 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		if s.Playing {
 			ic = icon.Pause
 		}
-		round(ic, pal.accent, darken(pal.accent, 0.8))
+		t.play.to(ic)
+		turning(&t.play, pal.accent, darken(pal.accent, 0.8))
 	case cRepeat:
 		ic := icon.Repeat
 		ink := alpha(pal.dim, 0.8)
@@ -368,7 +441,8 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		case RepeatOne:
 			ic, ink = icon.Repeat1, pal.accent
 		}
-		round(ic, alpha(pal.panel, 0), ink)
+		t.rep.to(ic)
+		turning(&t.rep, alpha(pal.panel, 0), ink)
 	case cOpen:
 		round(icon.FolderOpen, lighten(pal.panel, 0.08), pal.ink)
 	case cList:

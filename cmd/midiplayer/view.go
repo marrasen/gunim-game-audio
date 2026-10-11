@@ -188,7 +188,7 @@ func buildView(s Player) *root {
 	r.band = &band{l: l, hover: -1, press: -1}
 	r.roll = &roll{l: l}
 	r.list = &playlist{l: l, over: -1, down: -1}
-	r.trans = &transport{l: l, list: r.list, over: -1, down: -1, hoverAt: -1}
+	r.trans = &transport{l: l, list: r.list, over: -1, down0: -1, hoverAt: -1}
 	r.mixer = &mixer{l: l, hover: -1, drag: -1, lastClicked: -1}
 	r.tabs = &tabs{r: r, over: -1}
 	r.track = &trackView{l: l, lastRow: -1, lastPat: -1, latest: -1}

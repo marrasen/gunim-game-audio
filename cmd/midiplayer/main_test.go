@@ -13,6 +13,7 @@ import (
 	"github.com/marrasen/gunim/driver"
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/gunimtest"
+	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/widget"
 
@@ -512,5 +513,28 @@ func TestTheInstrumentListScrollsOnlyToKeepTheLatestInView(t *testing.T) {
 	settle()
 	if tv.insOff != held {
 		t.Errorf("instrument 21, in view, moved the list from %v to %v", held, tv.insOff)
+	}
+}
+
+func TestThePlayButtonTurnsIntoPause(t *testing.T) {
+	s := demoState(t)
+	s.Playing = false
+	h := newWindow(t, s)
+	tr := h.v.trans
+	if tr.play.ic != icon.Play || tr.play.turn.Value() != 1 {
+		t.Fatalf("paused, the button shows %v, turned %v", tr.play.ic, tr.play.turn.Value())
+	}
+	s.Playing = true
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(3)
+	if tr.play.ic != icon.Pause || tr.play.from != icon.Play {
+		t.Fatalf("playing, the button turns from %v to %v", tr.play.from, tr.play.ic)
+	}
+	if v := tr.play.turn.Value(); v <= 0 || v >= 1 {
+		t.Errorf("3 frames in, the turn is at %v, want under way", v)
+	}
+	h.frames(90)
+	if v := tr.play.turn.Value(); v != 1 {
+		t.Errorf("the turn settles at %v, want 1", v)
 	}
 }
