@@ -40,6 +40,9 @@ type sfVoice struct {
 	// change ramps.
 	level, gain float64
 	panL, panR  float32
+	// fine moves the note by a fraction of a semitone, as a song's
+	// tuning does, and gainBy turns it up or down, as its patch's gain.
+	fine, gainBy float64
 }
 
 // sfStep returns the sample's frames a frame of output moves through,
@@ -54,7 +57,7 @@ func (v *sfVoice) sfStep(semis float64) float64 {
 func (v *sfVoice) start(r *soundfont.Region, key, vel int, age uint64, gate int64) {
 	frames := r.Sample.Frames()
 	*v = sfVoice{on: len(frames) > 1, r: r, frames: frames, age: age, key: float64(key), vel: float64(vel) / 127,
-		released: -1, gate: gate}
+		released: -1, gate: gate, gainBy: 1}
 	v.end = min(len(frames)+r.End, len(frames))
 	if v.end <= 0 {
 		v.end = len(frames)
@@ -136,10 +139,10 @@ func (v *sfVoice) render(l, r []float32) {
 		if v.t > reg.ModDelay && (reg.ModLFOToPitch != 0 || reg.ModLFOToFilter != 0 || reg.ModLFOToVolume != 0) {
 			mlfo = math.Sin(2 * math.Pi * reg.ModHz * (v.t - reg.ModDelay))
 		}
-		step := v.sfStep(v.shift + vib + (mod*reg.ModToPitch+mlfo*reg.ModLFOToPitch)/100)
+		step := v.sfStep(v.shift + v.fine + vib + (mod*reg.ModToPitch+mlfo*reg.ModLFOToPitch)/100)
 		level := envAt(reg.Vol, v.t, v.released, v.relFrom, true)
 		v.level = level
-		gain := reg.Gain * v.vel * v.vel * level * sfLevel
+		gain := reg.Gain * v.vel * v.vel * level * sfLevel * v.gainBy
 		if reg.ModLFOToVolume != 0 {
 			gain *= math.Pow(10, mlfo*reg.ModLFOToVolume/20)
 		}
@@ -258,6 +261,15 @@ func (vv *sfVoices) render(l, r []float32, shift float64) bool {
 		}
 	}
 	return sounding
+}
+
+// releaseAll lets go of every voice.
+func (vv *sfVoices) releaseAll() {
+	for i := range vv.vs {
+		if vv.vs[i].on {
+			vv.vs[i].release()
+		}
+	}
 }
 
 // silence stops every voice at once.

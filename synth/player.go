@@ -133,6 +133,7 @@ type track struct {
 	name   string
 	vs     *voices
 	hs     *hits
+	sf     *sfVoices
 	ins    inserts
 	active bool
 	// since is how many phrases the track has played since it came in.
@@ -442,7 +443,12 @@ func (p *Player) takeRequests() {
 		beat := int64(p.c.fpb / float64(p.c.beats))
 		for _, d := range keys {
 			pitch := ck.notes[d]
-			p.kp.vs.play(p.kp.c.patch, note{pitch: float32(pitch), vel: 0.9, gate: beat / 2, res: -1})
+			kn := note{pitch: float32(pitch), vel: 0.9, gate: beat / 2, res: -1}
+			if p.kp.sf != nil && p.kp.c.patch.kind == kindFont {
+				p.kp.playFont(p.kp.c.patch, kn)
+			} else if p.kp.vs != nil {
+				p.kp.vs.play(p.kp.c.patch, kn)
+			}
 			p.publish([]Note{{Frame: p.at, Len: beat / 2, Track: "keypad", Pitch: pitch, Vel: 0.9}})
 		}
 	}
@@ -650,13 +656,18 @@ func newTrack(ct *ctrack, seed uint64) *track {
 func (t *track) retune(ct *ctrack) {
 	t.c = ct
 	p := ct.patch
-	if p.kind == kindDrums {
-		t.vs = nil
+	if p.kind == kindFont {
+		t.vs, t.hs = nil, nil
+		if t.sf == nil || len(t.sf.vs) < p.poly {
+			t.sf = newSFVoices(p.poly)
+		}
+	} else if p.kind == kindDrums {
+		t.vs, t.sf = nil, nil
 		if t.hs == nil {
 			t.hs = newHits(p.poly)
 		}
 	} else {
-		t.hs = nil
+		t.hs, t.sf = nil, nil
 		if t.vs == nil || len(t.vs.vs) < p.poly {
 			t.vs = newVoices(p.poly, t.rng.next())
 		}
@@ -687,6 +698,27 @@ func (t *track) retune(ct *ctrack) {
 func (t *track) release() {
 	if t.vs != nil {
 		t.vs.releaseAll()
+	}
+	if t.sf != nil {
+		t.sf.releaseAll()
+	}
+}
+
+// playFont plays note n of patch pt on its bank.
+func (t *track) playFont(pt *patch, n note) {
+	key := int(math.Round(float64(n.pitch)))
+	if key < 0 || key > 127 {
+		return
+	}
+	vel := min(max(int(n.vel*127+0.5), 1), 127)
+	src := pt.src
+	regions := pt.font.Regions(src.Bank, src.Program, key, vel)
+	for i := range regions {
+		v := t.sf.play(&regions[i], key, vel, max(n.gate, 1))
+		v.fine = float64(n.pitch) - float64(key)
+		v.gainBy = float64(pt.gain)
+		l, r := panGains(min(max(float32(regions[i].Pan)+n.pan, -1), 1))
+		v.panL, v.panR = l, r
 	}
 }
 
@@ -1144,6 +1176,8 @@ func (p *Player) fire(s *sched) {
 		if t.hs != nil {
 			t.hs.play(s.d, s.n.vel, s.n.pan, s.pitch, s.dur, s.tune)
 		}
+	} else if t.sf != nil && t.c.patch.kind == kindFont {
+		t.playFont(t.c.patch, s.n)
 	} else if t.vs != nil {
 		t.vs.play(t.c.patch, s.n)
 	}
@@ -1198,7 +1232,9 @@ func (p *Player) render(dst []float32, n int) {
 		clear(tl)
 		clear(tr)
 		var sounding bool
-		if t.vs != nil {
+		if t.sf != nil {
+			sounding = t.sf.render(tl, tr, 0)
+		} else if t.vs != nil {
 			sounding = t.vs.render(tl, tr, &p.ctx)
 		} else if t.hs != nil {
 			sounding = t.hs.render(tl, tr)
@@ -1642,7 +1678,12 @@ func (p *Player) playAuditions(as []audition) {
 			p.audit.hs.play(d, a.vel, 0, pitch, int64(p.c.fpb), 0)
 			continue
 		}
-		p.audit.vs.play(pt, note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1})
+		n := note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1}
+		if pt.kind == kindFont {
+			p.audit.playFont(pt, n)
+			continue
+		}
+		p.audit.vs.play(pt, n)
 	}
 }
 

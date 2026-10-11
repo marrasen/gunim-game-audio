@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
+
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // A Patch is an instrument: how a note sounds.
@@ -75,6 +78,14 @@ type Patch struct {
 	Kit map[string]Drum
 	// Gain is the patch's level, 1 by default.
 	Gain float64
+	// SoundFont plays the patch on the SoundFont bank a program
+	// registered by this name with RegisterSoundFont: its Program of
+	// Bank, sampled. Where no bank of the name is registered, as in a
+	// game that ships none, the patch plays as its other fields say, or,
+	// with none, as General MIDI's Program does on the engine's own
+	// instruments, so a song sounds without the bank, only less real.
+	SoundFont     string `json:",omitempty"`
+	Bank, Program int    `json:",omitempty"`
 }
 
 // Osc is one of a synth patch's oscillators.
@@ -291,6 +302,7 @@ const (
 	kindSynth = iota
 	kindPluck
 	kindDrums
+	kindFont
 )
 
 // patch is a Patch made ready to play: its names read into numbers.
@@ -316,6 +328,8 @@ type patch struct {
 	poly       int
 	kit        map[string]drum
 	gain       float32
+	// font is the bank a SoundFont patch plays.
+	font *soundfont.Font
 }
 
 type osc struct {
@@ -357,6 +371,33 @@ type drum struct {
 
 // compile readies p, named name for its errors.
 func (p *Patch) compile(name string) (*patch, error) {
+	if p.SoundFont != "" {
+		if f := SoundFontNamed(p.SoundFont); f != nil {
+			c := &patch{src: p, kind: kindFont, font: f, gain: 1, poly: p.Poly}
+			if p.Gain != 0 {
+				c.gain = float32(p.Gain)
+			}
+			if c.poly <= 0 {
+				c.poly = 16
+			}
+			c.poly = min(c.poly, 48)
+			return c, nil
+		}
+		// No bank: the patch as its other fields say, or General MIDI's.
+		fb := *p
+		fb.SoundFont = ""
+		if fb.Kind == "" && len(fb.Osc) == 0 && fb.Noise == 0 {
+			gm := GMPatch(p.Program & 127)
+			if p.Gain != 0 {
+				gm.Gain *= p.Gain
+			}
+			if p.Poly != 0 {
+				gm.Poly = p.Poly
+			}
+			fb = *gm
+		}
+		return fb.compile(name)
+	}
 	c := &patch{src: p, gain: 1, poly: p.Poly}
 	if p.Gain != 0 {
 		c.gain = float32(p.Gain)
@@ -573,4 +614,27 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sortStrings(keys)
 	return keys
+}
+
+// soundFonts are the banks registered, by name.
+var soundFonts sync.Map
+
+// RegisterSoundFont registers bank f by name, for patches that name it
+// to play on, as SoundFont says; nil unregisters it. Register a bank
+// before the songs that play it are played: a patch finds its bank as
+// its song starts.
+func RegisterSoundFont(name string, f *soundfont.Font) {
+	if f == nil {
+		soundFonts.Delete(name)
+		return
+	}
+	soundFonts.Store(name, f)
+}
+
+// SoundFontNamed returns the bank registered by name, or nil.
+func SoundFontNamed(name string) *soundfont.Font {
+	if f, ok := soundFonts.Load(name); ok {
+		return f.(*soundfont.Font)
+	}
+	return nil
 }

@@ -47,15 +47,20 @@ const (
 // scope, and a keyboard plays it.
 type patchPane struct {
 	*widget.Scroll
-	base    string
-	name    string
-	names   []string
-	song    *synth.Song
-	picker  *widget.Dropdown
-	about   *widget.Label
-	save    *widget.IconButton
-	load    *widget.IconButton
-	copy    *widget.IconButton
+	base   string
+	name   string
+	names  []string
+	song   *synth.Song
+	picker *widget.Dropdown
+	about  *widget.Label
+	save   *widget.IconButton
+	load   *widget.IconButton
+	copy   *widget.IconButton
+	// sampled picks what the patch plays on: its own sound, or a bank;
+	// program picks the bank's program.
+	sampled *widget.Dropdown
+	program *widget.Dropdown
+	sampleN []string
 	body    *switcher
 	oscs    [maxOsc]*oscSlot
 	oscRow  *widget.Flex
@@ -121,8 +126,23 @@ func newPatchPane(changed func(string) gunim.Intent) *patchPane {
 	importP := widget.NewIconButton(icon.FileInput, "Load a patch from a file as a new one")
 	importP.OnClick = widget.Sends(PatchLoad{})
 	pp.about = small("")
+	pp.sampled = widget.NewDropdown(widget.Labels("Own sound"))
+	pp.sampled.Label = "Plays on"
+	pp.sampled.Tooltip = "Its own sound, or a SoundFont bank's samples; where the bank is missing, as in a game that ships none, it plays its own sound"
+	pp.sampled.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+		name := ""
+		if i > 0 && i < len(pp.sampleN) {
+			name = pp.sampleN[i]
+		}
+		return SetValue{Path: pp.base + "/SoundFont", Str: name, IsStr: true}
+	}
+	pp.program = widget.NewDropdown(widget.Labels(synth.GMNames[:]...))
+	pp.program.Label = "Program"
+	pp.program.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+		return SetValue{Path: pp.base + "/Program", Num: float64(i)}
+	}
 	gap := widget.NewSpacer()
-	head := widget.Row(pp.picker, pp.about, gap, newSynth, newPluck, pp.copy, importP, pp.load, pp.save).Grow(gap, 1)
+	head := widget.Row(pp.picker, pp.about, gap, pp.sampled, pp.program, newSynth, newPluck, pp.copy, importP, pp.load, pp.save).Grow(gap, 1)
 	head.Cross = widget.CrossCenter
 
 	oscRow := make([]gunim.Node, maxOsc)
@@ -332,7 +352,14 @@ func (pp *patchPane) update(st Studio) {
 	if len(users) > 0 {
 		about = fmt.Sprintf("%s · played by %s", kind, joinNames(users))
 	}
+	if p.SoundFont != "" {
+		about = fmt.Sprintf("sampled from %s · %s", p.SoundFont, about)
+		if st.Font != p.SoundFont {
+			about = fmt.Sprintf("%s's bank is not loaded: plays its own sound · %s", p.SoundFont, about)
+		}
+	}
 	pp.about.Text = about
+	pp.showSampled(st, p)
 	pp.copy.OnClick, pp.load.OnClick, pp.save.OnClick = widget.Sends(PatchCopy{Name: pp.name}), widget.Sends(PatchLoad{Name: pp.name}), widget.Sends(PatchSave{Name: pp.name})
 	pp.body.which = 0
 	if p.Kind == "pluck" {
@@ -796,4 +823,32 @@ func (pp *patchPane) showTrack(st Studio) {
 	if pp.track == "" {
 		pp.trackName.Text = "none"
 	}
+}
+
+// showSampled shows what the patch plays on: its own sound, the bank
+// registered, or a bank it names that is not, and the program.
+func (pp *patchPane) showSampled(st Studio, p *synth.Patch) {
+	names := []string{""}
+	labels := []string{"Own sound"}
+	if st.Font != "" {
+		names, labels = append(names, st.Font), append(labels, st.Font)
+	}
+	if p.SoundFont != "" && p.SoundFont != st.Font {
+		names, labels = append(names, p.SoundFont), append(labels, p.SoundFont+" (not loaded)")
+	}
+	if !slices.Equal(names, pp.sampleN) {
+		pp.sampleN = names
+		pp.sampled.SetItems(widget.Labels(labels...))
+	}
+	pp.sampled.SetSelected(max(slices.Index(names, p.SoundFont), 0), nil)
+	pp.sampled.Disabled = len(names) == 1
+	progs := synth.GMNames[:]
+	if p.SoundFont != "" && p.SoundFont == st.Font && len(st.FontPrograms) == 128 {
+		progs = st.FontPrograms
+	}
+	if items := pp.program.Items(); len(items) != len(progs) || items[0].Label != progs[0] {
+		pp.program.SetItems(widget.Labels(progs...))
+	}
+	pp.program.SetSelected(p.Program&127, nil)
+	pp.program.Disabled = p.SoundFont == ""
 }
