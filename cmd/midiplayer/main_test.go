@@ -483,3 +483,31 @@ func TestAModulePlaysAsATracker(t *testing.T) {
 		t.Errorf("a MOD in General MIDI's style shows in %q, want pt", got)
 	}
 }
+
+func TestTheInstrumentListScrollsOnlyToKeepTheLatestInView(t *testing.T) {
+	tv := &trackView{latest: -1, insLit: make([]float32, 31)}
+	list := xyxy(0, 0, 200, 236) // 200 of room: 13 rows of 15 show
+	settle := func() {
+		for range 120 {
+			tv.followIns(list, 1.0/60)
+		}
+	}
+	for _, i := range []int{0, 5, 11, 3} {
+		tv.latest = i
+		settle()
+		if tv.insOff != 0 {
+			t.Fatalf("instrument %d, in view, scrolled the list to %v", i+1, tv.insOff)
+		}
+	}
+	tv.latest = 25
+	settle()
+	if off := tv.insOff; off <= 0 || float32(25)*15 < off || float32(26)*15 > off+200 {
+		t.Fatalf("instrument 26 left the list at %v", off)
+	}
+	held := tv.insOff
+	tv.latest = 20 // in view now
+	settle()
+	if tv.insOff != held {
+		t.Errorf("instrument 21, in view, moved the list from %v to %v", held, tv.insOff)
+	}
+}

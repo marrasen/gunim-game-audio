@@ -191,7 +191,7 @@ func buildView(s Player) *root {
 	r.trans = &transport{l: l, list: r.list, over: -1, down: -1, hoverAt: -1}
 	r.mixer = &mixer{l: l, hover: -1, drag: -1, lastClicked: -1}
 	r.tabs = &tabs{r: r, over: -1}
-	r.track = &trackView{l: l, lastRow: -1, lastPat: -1}
+	r.track = &trackView{l: l, lastRow: -1, lastPat: -1, latest: -1}
 	if len(s.Playlist) > 1 {
 		r.listOpen = 1
 	}
@@ -213,6 +213,7 @@ func (r *root) update(s Player, u *gunim.UI) {
 		l.fresh = 0
 		l.t = s.Clock.Time
 		r.band.reset()
+		r.track.insOff, r.track.insWant, r.track.latest, r.track.manual = 0, 0, -1, 0
 	}
 	if key := paletteKey(s); key != r.style {
 		r.from, r.to = l.pal, palettes[key]

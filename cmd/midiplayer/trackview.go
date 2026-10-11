@@ -9,6 +9,7 @@ import (
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/geom"
+	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/text"
 
@@ -44,6 +45,14 @@ type trackView struct {
 	scrollFor *tracker.Module
 	// sparks fly from the cells played to their instruments.
 	sparks []tspark
+	// insOff is how far the instrument list is scrolled, gliding to
+	// insWant; latest is the instrument last played, -1 for none;
+	// manual counts down the seconds the wheel's scroll holds; insList
+	// is where the list lies.
+	insOff, insWant float32
+	latest          int
+	manual          float32
+	insList         geom.Rect
 	// patFlash flashes as a new pattern comes in.
 	patFlash float32
 	lastPat  int
@@ -115,7 +124,9 @@ func (tv *trackView) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 	tv.paintScopes(p, xyxy(10, 10, box.W-10, tvScopeH+4), m)
 	tv.paintOrders(p, xyxy(10, tvScopeH+14, tvOrderW, box.H-tvScrollH-8), m, row, ri >= 0)
 	tv.paintPattern(p, grid, ts, ri, frac)
-	tv.paintInstruments(p, xyxy(box.W-tvInsW, tvScopeH+14, box.W-10, box.H-tvScrollH-8), m)
+	tv.insList = xyxy(box.W-tvInsW, tvScopeH+14, box.W-10, box.H-tvScrollH-8)
+	tv.followIns(tv.insList, dt)
+	tv.paintInstruments(p, tv.insList, m)
 	tv.paintSparks(p, dt)
 	tv.paintScroller(p, xyxy(0, box.H-tvScrollH, box.W, box.H), m)
 	tv.paintCounters(p, xyxy(tvOrderW+12, box.H-tvScrollH-8-0, box.W-tvInsW-12, box.H-tvScrollH-8), m, row)
@@ -167,6 +178,7 @@ func (tv *trackView) newRow(ts *TrackerSong, ri int, box geom.Size) {
 		ins := int(c.Instrument)
 		if ins > 0 && ins <= len(tv.insLit) {
 			tv.insLit[ins-1] = 1
+			tv.latest = ins - 1
 			if len(tv.sparks) < 80 {
 				y := grid.Min.Y + grid.Size().H*0.42
 				from := geom.Pt(grid.Min.X+34+cw*(float32(ch)+0.5), y)
@@ -194,22 +206,57 @@ func (tv *trackView) insRowH(list geom.Rect) float32 {
 	return min(max((list.Size().H-36)/float32(n), 15), 22)
 }
 
-// insScroll returns how far the instrument list is scrolled, to keep the
-// latest lit in view.
+// insScroll returns how far the instrument list is scrolled.
 func (tv *trackView) insScroll(list geom.Rect) float32 {
-	h := tv.insRowH(list)
-	total := float32(len(tv.insLit)) * h
-	room := list.Size().H - 36
-	if total <= room {
-		return 0
+	return min(max(tv.insOff, 0), tv.insMost(list))
+}
+
+// insMost returns how far the instrument list can scroll: none where it
+// fits.
+func (tv *trackView) insMost(list geom.Rect) float32 {
+	return max(0, float32(len(tv.insLit))*tv.insRowH(list)-(list.Size().H-36))
+}
+
+// followIns scrolls the instrument list, where it does not fit, to the
+// instrument last played, and only once that is out of view, gliding
+// there; for a while after the wheel scrolls it, it stays where the
+// wheel left it.
+func (tv *trackView) followIns(list geom.Rect, dt float32) {
+	most := tv.insMost(list)
+	if most <= 0 {
+		tv.insOff, tv.insWant = 0, 0
+		return
 	}
-	best, lit := 0, float32(0)
-	for i, v := range tv.insLit {
-		if v > lit {
-			best, lit = i, v
+	h := tv.insRowH(list)
+	room := list.Size().H - 36
+	if tv.manual > 0 {
+		tv.manual -= dt
+	} else if tv.latest >= 0 {
+		top := float32(tv.latest) * h
+		switch {
+		case top < tv.insWant:
+			tv.insWant = top - h
+		case top+h > tv.insWant+room:
+			tv.insWant = top + 2*h - room
 		}
 	}
-	return min(max(float32(best)*h-room/2, 0), total-room)
+	tv.insWant = min(max(tv.insWant, 0), most)
+	tv.insOff += (tv.insWant - tv.insOff) * min(1, dt*6)
+	if math.Abs(float64(tv.insWant-tv.insOff)) < 0.5 {
+		tv.insOff = tv.insWant
+	}
+}
+
+// Handle scrolls the instrument list with the wheel.
+func (tv *trackView) Handle(e input.Event, u *gunim.UI) bool {
+	s, ok := e.(input.Scroll)
+	if !ok || !tv.insList.Contains(s.Pos) || tv.insMost(tv.insList) <= 0 {
+		return false
+	}
+	tv.insWant = min(max(tv.insWant-s.Delta.Y, 0), tv.insMost(tv.insList))
+	tv.manual = 4
+	u.Invalidate()
+	return true
 }
 
 // paintStars draws stars flying out from the middle, faster as the song
