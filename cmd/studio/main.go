@@ -35,6 +35,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"slices"
 	"time"
 
 	"github.com/marrasen/gunim"
@@ -117,11 +118,13 @@ func run(song string, tier int, editor, on, shot string, after time.Duration) er
 	return err
 }
 
-// fontName and fontPrograms are the name -soundfont's bank is registered
-// by, music.SoundFont, and the names of its programs of bank 0, by number.
+// fontName, fontPrograms and fontKits are the name -soundfont's bank is
+// registered by, music.SoundFont, the names of its programs of bank 0,
+// by number, and its drum kits.
 var (
 	fontName     string
 	fontPrograms []string
+	fontKits     []FontKit
 )
 
 // registerFont reads the bank at path and registers it as the songs'
@@ -143,6 +146,13 @@ func registerFont(path string) error {
 		}
 		fontPrograms[i] = fmt.Sprintf("%03d %s", i+1, name)
 	}
+	fontKits = nil
+	for _, p := range f.Presets {
+		if p.Bank == 128 {
+			fontKits = append(fontKits, FontKit{Program: p.Program, Name: p.Name})
+		}
+	}
+	slices.SortFunc(fontKits, func(a, b FontKit) int { return a.Program - b.Program })
 	return nil
 }
 

@@ -3,6 +3,7 @@ package synth
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -186,6 +187,10 @@ type Drum struct {
 	// Gain is its level, 1 by default, and Pan its place between the
 	// speakers.
 	Gain, Pan float64
+	// Key is the note a SoundFont kit plays it on, where its patch names
+	// a bank: 0 takes General MIDI's for its name, as 36 for bd, or, for
+	// a drum named by a number, as GMKit's are, that note.
+	Key int
 }
 
 // drumNames are the drums a kit has by name.
@@ -367,10 +372,44 @@ type drum struct {
 	name string
 	kind int
 	gain float32
+	// key is the note a bank's kit plays it on, 0 for none; prog, where
+	// it is not -1, is instead the bank's program it plays, pitched, as
+	// the timpani; and fine the semitones a kit's Tune moves it.
+	key, prog int
+	fine      float64
 }
+
+// fontKeys are the notes General MIDI's kit plays the drums on, by
+// their names.
+var fontKeys = map[string]int{
+	"bd": 36, "kick": 36, "bd9": 36, "kick909": 36, "sn": 38, "snare": 38, "cp": 39, "clap": 39,
+	"hh": 42, "hat": 42, "oh": 46, "ohat": 46, "rim": 37, "lt": 43, "mt": 47, "ht": 50, "tom": 47,
+	"cr": 49, "crash": 49, "rd": 51, "ride": 51, "sh": 82, "shaker": 82, "cb": 56, "cowbell": 56,
+	"tamb": 54, "tambourine": 54, "mtl": 53, "metal": 53,
+}
+
+// fontProgs are the drums a bank plays on one of its instruments,
+// pitched, by their names: the timpani, tuned to the chord.
+var fontProgs = map[string]int{"tim": 47, "timpani": 47}
 
 // compile readies p, named name for its errors.
 func (p *Patch) compile(name string) (*patch, error) {
+	if p.SoundFont != "" && p.Kind == "drums" {
+		// A kit: the engine's drums, played on the bank's kit where the
+		// bank is registered.
+		fb := *p
+		fb.SoundFont = ""
+		c, err := fb.compile(name)
+		if err != nil {
+			return nil, err
+		}
+		c.src = p
+		if f := SoundFontNamed(p.SoundFont); f != nil {
+			c.font = f
+			c.poly = min(max(c.poly, 24), 48)
+		}
+		return c, nil
+	}
 	if p.SoundFont != "" {
 		if f := SoundFontNamed(p.SoundFont); f != nil {
 			c := &patch{src: p, kind: kindFont, font: f, gain: 1, poly: p.Poly}
@@ -584,6 +623,13 @@ func (p *Patch) compile(name string) (*patch, error) {
 		for n, t := range drumNames {
 			c.kit[n] = drum{Drum: Drum{Type: t, Tune: tomTune[n]}, name: n, kind: drumTypes[t], gain: 1}
 		}
+		for n, d := range c.kit {
+			d.key, d.prog = fontKeys[n], -1
+			if pr, ok := fontProgs[n]; ok {
+				d.key, d.prog = 0, pr
+			}
+			c.kit[n] = d
+		}
 		for n, d := range p.Kit {
 			t := d.Type
 			if t == "" {
@@ -597,7 +643,16 @@ func (p *Patch) compile(name string) (*patch, error) {
 				d.Tune = tomTune[n]
 			}
 			d.Type = t
-			cd := drum{Drum: d, name: n, kind: k, gain: 1}
+			cd := drum{Drum: d, name: n, kind: k, gain: 1, key: fontKeys[n], prog: -1, fine: p.Kit[n].Tune}
+			if pr, ok := fontProgs[n]; ok {
+				cd.key, cd.prog = 0, pr
+			}
+			if key, err := strconv.Atoi(n); err == nil && key > 0 && key < 128 {
+				cd.key = key
+			}
+			if d.Key > 0 {
+				cd.key, cd.prog = min(d.Key, 127), -1
+			}
 			if d.Gain != 0 {
 				cd.gain = float32(d.Gain)
 			}

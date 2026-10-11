@@ -11,12 +11,20 @@ import (
 // The vocabulary the two halves share: the state the window shows, and
 // the intents it sends back.
 type (
+	// FontKit is a bank's drum kit: its program, and its name.
+	FontKit struct {
+		Program int
+		Name    string
+	}
+
 	// Studio is what the window shows.
 	Studio struct {
 		// Font names the SoundFont bank registered for patches to play
-		// on, "" for none, and FontPrograms its programs' names.
+		// on, "" for none, FontPrograms its programs' names, and FontKits
+		// its drum kits, those of bank 128.
 		Font         string
 		FontPrograms []string
+		FontKits     []FontKit
 		// Songs are the songs' titles, Categories their categories, and
 		// Song the one open.
 		Songs, Categories []string

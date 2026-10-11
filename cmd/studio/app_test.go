@@ -797,3 +797,32 @@ func TestAPatchPlaysOnTheBankLoaded(t *testing.T) {
 	// Its song plays on: it sounds.
 	h.play(2 * time.Second)
 }
+
+func TestAKitPlaysOnTheBankLoaded(t *testing.T) {
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fontName, fontKits = "Test Bank", []FontKit{{0, "Kit"}}
+	synth.RegisterSoundFont(fontName, f)
+	defer func() {
+		synth.RegisterSoundFont(fontName, nil)
+		fontName, fontKits = "", nil
+	}()
+	h := newHarness(t, music.NotteDiNeon)
+	h.do(OpenEditor{Editor: "Kit", Track: "kick"})
+	h.settle()
+	kp := h.v.kit
+	if kp.sampled.Disabled || len(kp.sampleN) != 2 || !kp.fontKit.Disabled {
+		t.Fatalf("with a bank loaded, the kit offers %v, its kit disabled %v", kp.sampleN, kp.fontKit.Disabled)
+	}
+	h.do(SetValue{Path: "Patches/" + kp.name + "/SoundFont", Str: "Test Bank", IsStr: true}, SetValue{Path: "Patches/" + kp.name + "/Program", Num: 0})
+	h.settle()
+	if p := h.s.song.Patches[kp.name]; p.SoundFont != "Test Bank" {
+		t.Fatalf("the kit plays on %q", p.SoundFont)
+	}
+	if kp.sampled.Selected() != 1 || kp.fontKit.Disabled || kp.fontKit.Items()[0].Label != "Kit" {
+		t.Errorf("on the bank, the kit shows %d, %v, %q", kp.sampled.Selected(), kp.fontKit.Items()[0].Label, kp.about.Text)
+	}
+	h.play(2 * time.Second)
+}

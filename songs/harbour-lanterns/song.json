@@ -20,7 +20,7 @@
 		"flute": {"SoundFont": "general", "Program": 73, "Poly": 2, "Gain": 1},
 		"vibes": {"SoundFont": "general", "Program": 11, "Poly": 8, "Gain": 1},
 		"kit": {
-			"Kind": "drums",
+			"Kind": "drums", "SoundFont": "general", "Program": 40,
 			"Kit": {
 				"lt": {"Tune": -3, "Decay": 0.7, "Tone": 0.15, "Gain": 0.4},
 				"rim": {"Gain": 0.3, "Tone": 0.3, "Pan": -0.15},
@@ -52,7 +52,7 @@
 			"Name": "brushes", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
 			"Pattern": "[lt ~ ~ ~ ~ ~ ~ ~, ~ rim ~ rim, sh*8?0.4, rd ~ rd rd]",
 			"Params": {"vel": "[1 0.6 0.8 0.6]*2"},
-			"Gain": -3, "Reverb": 0.25, "Human": 0.3
+			"Gain": -6, "Reverb": 0.25, "Human": 0.3
 		},
 		{
 			"Name": "guitar", "Patch": "guitar", "Color": "#ffa86b",

@@ -479,3 +479,39 @@ func TestASongPatchPlaysOnARegisteredBankOrWithout(t *testing.T) {
 		t.Errorf("on its bank, key %d plays %.1f Hz at %v, want %.1f", key, hz, pk, want)
 	}
 }
+
+func TestAKitPlaysOnARegisteredBankOrWithout(t *testing.T) {
+	render := func(pattern string) (left, right float32) {
+		s := &Song{BPM: 120, Patches: map[string]*Patch{"kit": {Kind: "drums", SoundFont: "test bank"}},
+			Tracks: []*Track{{Name: "kit", Tier: 1, Patch: "kit", Pattern: pattern}}}
+		p := NewPlayer(s, 1)
+		if err := p.Err(); err != nil {
+			t.Fatal(err)
+		}
+		p.SetTier(1)
+		buf := make([]float32, 2*12000)
+		p.Read(buf)
+		for i := 0; i < len(buf); i += 2 {
+			left, right = max(left, abs32(buf[i])), max(right, abs32(buf[i+1]))
+		}
+		return left, right
+	}
+	// No bank: the engine's snare, in the middle.
+	if l, r := render("sn"); l < 0.01 || r < 0.01 {
+		t.Fatalf("without its bank, the snare peaks at %v and %v", l, r)
+	}
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	RegisterSoundFont("test bank", f)
+	defer RegisterSoundFont("test bank", nil)
+	// The bank's kit has the snare, key 38, panned hard right.
+	if l, r := render("sn"); r < 0.01 || l > r*0.05 {
+		t.Errorf("on its bank, the snare peaks at %v left and %v right; want the bank's, hard right", l, r)
+	}
+	// It has no crash, key 49: the engine's plays it.
+	if l, _ := render("cr"); l < 0.005 {
+		t.Errorf("a drum the bank lacks peaks at %v left; want the engine's", l)
+	}
+}

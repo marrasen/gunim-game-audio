@@ -22,7 +22,7 @@
 		"hit": {"SoundFont": "general", "Program": 55, "Poly": 8, "Gain": 1},
 		"timpani": {"SoundFont": "general", "Program": 47, "Poly": 4, "Gain": 1},
 		"orch": {
-			"Kind": "drums",
+			"Kind": "drums", "SoundFont": "general", "Program": 48,
 			"Kit": {
 				"bd": {"Type": "boom", "Decay": 0.5, "Gain": 0.8},
 				"sn": {"Tone": 0.5, "Decay": 0.9, "Gain": 0.55},
@@ -82,7 +82,7 @@
 			"Pattern": "[[bd ~ ~ bd ~ ~ bd ~], cr] [[bd ~ ~ bd ~ ~ bd ~], [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ht mt lt lt]]",
 			"Bars": 2,
 			"Params": {"vel": "[1 0.8]*8"},
-			"Gain": -5, "Reverb": 0.22
+			"Gain": -3, "Reverb": 0.22
 		},
 		{
 			"Name": "brass", "Tier": 4, "Patch": "brass", "Color": "#ffe05f",

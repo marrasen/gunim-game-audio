@@ -821,12 +821,25 @@ if err == nil {
 "strings": {"SoundFont": "general", "Program": 48}
 ```
 
+A drums patch plays a bank's kit the same way: its `Program` is the
+kit, as 40 for Brush or 48 for Orchestra, from bank 128. Each drum
+plays General MIDI's note for its name, `bd` 36, `sn` 38, `hh` 42, `cr`
+49 and so on, or the note its `Key` says; a drum named by a number, as
+GMKit's are, plays that note. `tim` plays the bank's timpani, tuned to
+the chord. The drums the bank has no sound for, as `riser` or `boom`,
+play the engine's.
+
+```json
+"kit": {"Kind": "drums", "SoundFont": "general", "Program": 48, "Kit": {"sn": {"Gain": 0.6}}}
+```
+
 Where no bank of the name is registered, as in a game that ships
 none, the patch plays as its other fields say, or with none as General
 MIDI's program on the engine's own instruments, so the song sounds
 everywhere, and better where the bank is. In gunim music studio,
 `-soundfont bank.sf3` registers a bank as `general`, and the patch
-editor's Plays on and Program pick it and its program. The jukebox,
+editor's Plays on and Program pick it and its program; the kit editor's
+Plays on and Kit pick it and its kit. The jukebox,
 `cmd/play` and `cmd/render` take `-soundfont` too.
 
 ## Licence

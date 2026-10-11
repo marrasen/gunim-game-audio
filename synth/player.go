@@ -662,9 +662,17 @@ func (t *track) retune(ct *ctrack) {
 			t.sf = newSFVoices(p.poly)
 		}
 	} else if p.kind == kindDrums {
-		t.vs, t.sf = nil, nil
+		t.vs = nil
 		if t.hs == nil {
 			t.hs = newHits(p.poly)
+		}
+		switch {
+		case p.font == nil:
+			t.sf = nil
+		case t.sf == nil || len(t.sf.vs) < p.poly:
+			// A kit on a bank plays its drums there, and the engine's
+			// drums the bank has none for, as a riser.
+			t.sf = newSFVoices(p.poly)
 		}
 	} else {
 		t.hs, t.sf = nil, nil
@@ -720,6 +728,55 @@ func (t *track) playFont(pt *patch, n note) {
 		l, r := panGains(min(max(float32(regions[i].Pan)+n.pan, -1), 1))
 		v.panL, v.panR = l, r
 	}
+}
+
+// playDrum plays drum d of patch pt at velocity vel, panned by pan,
+// pitched to pitch where it is pitched, and lasting dur frames, as the
+// engine's drums take them: on pt's bank where it has the drum, or else
+// on the engine's.
+func (t *track) playDrum(pt *patch, d drum, vel, pan, pitch float32, dur int64, tune float32) {
+	if t.sf != nil && pt.font != nil && t.playFontDrum(pt, d, vel, pan, pitch, tune) {
+		return
+	}
+	if t.hs != nil {
+		t.hs.play(d, vel, pan, pitch, dur, tune)
+	}
+}
+
+// fontDrumGate is how long a bank's drum is held: a drum's sample plays
+// to its end, but one that loops, as a roll does, is let go.
+const fontDrumGate = 3 * rate
+
+// playFontDrum plays drum d on pt's bank, and reports whether the bank
+// has it.
+func (t *track) playFontDrum(pt *patch, d drum, vel, pan, pitch, tune float32) bool {
+	src := pt.src
+	bank, prog, key := 128, src.Program, d.key
+	if src.Bank != 0 {
+		bank = src.Bank
+	}
+	if d.prog >= 0 {
+		bank, prog, key = 0, d.prog, int(math.Round(float64(pitch)))
+	}
+	if key <= 0 || key > 127 {
+		return false
+	}
+	v127 := min(max(int(vel*127+0.5), 1), 127)
+	regions := pt.font.Regions(bank, prog, key, v127)
+	if len(regions) == 0 {
+		return false
+	}
+	for i := range regions {
+		v := t.sf.play(&regions[i], key, v127, fontDrumGate)
+		v.fine = d.fine + float64(tune)
+		if d.prog >= 0 {
+			v.fine += float64(pitch) - float64(key)
+		}
+		v.gainBy = float64(pt.gain * d.gain)
+		l, r := panGains(min(max(float32(regions[i].Pan+d.Pan)+pan, -1), 1))
+		v.panL, v.panR = l, r
+	}
+	return true
 }
 
 // startBar starts the next bar: it starts or ends a sting, chooses the
@@ -1173,9 +1230,7 @@ func (p *Player) paramAt(t *track, i, cycle int, at float64) (float64, bool) {
 func (p *Player) fire(s *sched) {
 	t := s.t
 	if s.drum {
-		if t.hs != nil {
-			t.hs.play(s.d, s.n.vel, s.n.pan, s.pitch, s.dur, s.tune)
-		}
+		t.playDrum(t.c.patch, s.d, s.n.vel, s.n.pan, s.pitch, s.dur, s.tune)
 	} else if t.sf != nil && t.c.patch.kind == kindFont {
 		t.playFont(t.c.patch, s.n)
 	} else if t.vs != nil {
@@ -1236,8 +1291,9 @@ func (p *Player) render(dst []float32, n int) {
 			sounding = t.sf.render(tl, tr, 0)
 		} else if t.vs != nil {
 			sounding = t.vs.render(tl, tr, &p.ctx)
-		} else if t.hs != nil {
-			sounding = t.hs.render(tl, tr)
+		}
+		if t.hs != nil {
+			sounding = t.hs.render(tl, tr) || sounding
 		}
 		t.sounding = sounding
 		ct := t.c
@@ -1675,7 +1731,7 @@ func (p *Player) playAuditions(as []audition) {
 				ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
 				pitch = float32(ch.Root + 36)
 			}
-			p.audit.hs.play(d, a.vel, 0, pitch, int64(p.c.fpb), 0)
+			p.audit.playDrum(pt, d, a.vel, 0, pitch, int64(p.c.fpb), 0)
 			continue
 		}
 		n := note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1}
