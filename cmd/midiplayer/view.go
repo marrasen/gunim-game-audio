@@ -576,11 +576,16 @@ func (r *root) Handle(e input.Event, u *gunim.UI) bool {
 		return true
 	case input.Drop:
 		r.drag = 0
-		if len(e.Paths) == 0 {
+		paths := e.Paths
+		if f, ok := e.Data.(input.Files); ok && len(paths) == 0 {
+			paths = f.Paths
+		}
+		if len(paths) == 0 {
+			u.Invalidate()
 			return false
 		}
 		r.dropped = 1
-		u.Send(r, FilesDropped{Paths: e.Paths})
+		u.Send(r, FilesDropped{Paths: paths})
 		u.Invalidate()
 		return true
 	}

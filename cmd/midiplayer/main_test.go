@@ -167,6 +167,11 @@ func TestADroppedFileThatIsNoMIDIFileSaysSo(t *testing.T) {
 	if len(a.list) != 1 || a.cur != 0 || a.list[0].Name != "demo" {
 		t.Fatalf("a folder: %v, playing %d", a.list, a.cur)
 	}
+	// A file dropped while a song plays plays at once, after the list.
+	a.add([]string{"file://" + good})
+	if len(a.list) != 2 || a.cur != 1 || !a.playing() {
+		t.Fatalf("a file dropped while one plays: %d on the list, playing %d", len(a.list), a.cur)
+	}
 }
 
 // window runs the player's window offscreen, showing s.

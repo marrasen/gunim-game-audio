@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -68,11 +69,15 @@ func isMIDI(path string) bool {
 }
 
 // add puts the MIDI files among paths, and those in folders among them,
-// on the playlist, and plays the first of them where nothing plays. It
-// reads each file now, so one that is no MIDI file says so at once.
+// on the playlist, and plays the first of them at once. It reads each
+// file now, so one that is no MIDI file says so at once.
 func (a *app) add(paths []string) {
 	var found []string
 	for _, p := range paths {
+		// Some file managers hand over a URI in place of a path.
+		if u, err := url.Parse(p); err == nil && u.Scheme == "file" {
+			p = u.Path
+		}
 		if st, err := os.Stat(p); err == nil && st.IsDir() {
 			_ = filepath.WalkDir(p, func(q string, d os.DirEntry, err error) error {
 				if err == nil && !d.IsDir() && isMIDI(q) {
@@ -85,28 +90,24 @@ func (a *app) add(paths []string) {
 		found = append(found, p)
 	}
 	first := len(a.list)
-	bad := 0
 	for _, p := range found {
 		f, err := readMIDI(p)
-		it := Item{Name: displayName(p, f), Path: p}
 		if err != nil {
-			bad++
 			a.say(fmt.Sprintf("%s is not a MIDI file I can play: %v", filepath.Base(p), err))
 			continue
 		}
-		it.Length = f.Length()
-		a.list = append(a.list, it)
+		a.list = append(a.list, Item{Name: displayName(p, f), Path: p, Length: f.Length()})
 		a.files = append(a.files, f)
 	}
 	if len(found) == 0 && len(paths) > 0 {
 		a.say("No MIDI files there")
 	}
-	if first < len(a.list) && (a.cur < 0 || a.voice == nil || a.ended) {
+	if added := len(a.list) - first; added > 0 {
 		a.start(first)
-	} else if added := len(a.list) - first; added > 0 {
-		a.say(fmt.Sprintf("Added %d to the playlist", added))
+		if added > 1 {
+			a.say(fmt.Sprintf("Playing %s, and %d more after it", a.list[first].Name, added-1))
+		}
 	}
-	_ = bad
 }
 
 // addDemo puts the demo song on the playlist and plays it.
