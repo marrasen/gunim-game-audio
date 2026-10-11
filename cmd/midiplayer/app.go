@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -20,6 +18,7 @@ import (
 	"github.com/marrasen/gunim/audio"
 	"github.com/marrasen/gunim/driver"
 
+	"github.com/marrasen/gunim-game-audio/internal/fontcache"
 	"github.com/marrasen/gunim-game-audio/midi"
 	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
@@ -652,22 +651,15 @@ func (a *app) fetch() {
 	if a.fetching >= 0 {
 		return
 	}
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		a.say("No cache folder to fetch a sound font to: " + err.Error())
-		return
-	}
 	bank := soundfont.Banks[0]
-	dir = filepath.Join(dir, "gunim-midiplayer", "soundfonts")
-	path := filepath.Join(dir, bank.File)
-	if _, err := os.Stat(path); err == nil {
+	if path, ok := fontcache.Fetched(bank); ok {
 		a.loadFont(path)
 		return
 	}
 	a.fetching = 0
 	a.say(fmt.Sprintf("Fetching %s (%s licence, %d MB)…", bank.Name, bank.License, bank.Size>>20))
 	go func() {
-		err := download(bank, dir, path, func(x float64) {
+		path, err := fontcache.Download(bank, func(x float64) {
 			select {
 			case a.progress <- x:
 			default:
@@ -681,58 +673,4 @@ func (a *app) fetch() {
 		f, err := soundfont.Open(path)
 		a.fonts <- fontLoaded{f: f, path: path, err: err}
 	}()
-}
-
-// download fetches bank to path, and its licence beside it, telling
-// progress how far it has come.
-func download(bank soundfont.Bank, dir, path string, progress func(float64)) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	get := func(url, to string, track bool) error {
-		resp, err := http.Get(url)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("%s: %s", url, resp.Status)
-		}
-		tmp := to + ".part"
-		out, err := os.Create(tmp)
-		if err != nil {
-			return err
-		}
-		total := resp.ContentLength
-		var done int64
-		buf := make([]byte, 64<<10)
-		for {
-			n, rerr := resp.Body.Read(buf)
-			if n > 0 {
-				if _, err := out.Write(buf[:n]); err != nil {
-					out.Close()
-					return err
-				}
-				done += int64(n)
-				if track && total > 0 {
-					progress(float64(done) / float64(total))
-				}
-			}
-			if rerr == io.EOF {
-				break
-			}
-			if rerr != nil {
-				out.Close()
-				return rerr
-			}
-		}
-		if err := out.Close(); err != nil {
-			return err
-		}
-		return os.Rename(tmp, to)
-	}
-	if err := get(bank.LicenseURL, filepath.Join(dir, strings.TrimSuffix(bank.File, filepath.Ext(bank.File))+"-LICENSE.md"), false); err != nil {
-		return err
-	}
-	return get(bank.URL, path, true)
 }

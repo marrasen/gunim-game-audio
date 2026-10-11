@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +20,7 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/internal/fontcache"
 	"github.com/marrasen/gunim-game-audio/internal/sftest"
 	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
@@ -854,5 +857,51 @@ func TestATierClimbsOnARollTheStudioShows(t *testing.T) {
 	h.settle()
 	if got := h.s.song.Mix.Transitions.Roll; got != "sn" || h.v.fx.roll.Selected() != 2 {
 		t.Errorf("chosen the snare roll, the song rolls %q, shown as item %d", got, h.v.fx.roll.Selected())
+	}
+}
+
+func TestABankDroppedOnTheWindowPlays(t *testing.T) {
+	// The bank is remembered in a config folder of the test's own.
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("AppData", cfg)
+	t.Setenv("HOME", cfg)
+	file := filepath.Join(t.TempDir(), "Test Bank.sf2")
+	if err := os.WriteFile(file, sftest.Build(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	defer useFont(nil, "")
+	h := newHarness(t, music.HarbourLanterns)
+	if got := h.v.font.Items()[0].Label; !strings.Contains(got, "no sound font") {
+		t.Fatalf("with no bank, the sound font shows %q", got)
+	}
+	h.do(FontDropped{Paths: []string{filepath.Join(t.TempDir(), "song.mid"), file}})
+	select {
+	case fl := <-h.s.fonts:
+		h.s.adoptFont(fl)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the bank dropped was never read")
+	}
+	h.settle()
+	if fontName != music.SoundFont || h.v.font.Items()[0].Label != "Sound font: on Test Bank" || !strings.HasSuffix(h.v.about.Text, "on Test Bank") {
+		t.Fatalf("the bank dropped is registered as %q, shown as %q", fontName, h.v.font.Items()[0].Label)
+	}
+	if got := fontcache.Remembered(); got != file {
+		t.Errorf("the bank remembered is %q, want %q", got, file)
+	}
+	h.do(OpenEditor{Editor: "Patch", Track: "piano"})
+	h.settle()
+	if !strings.Contains(h.v.patch.about.Text, "sampled from general") || strings.Contains(h.v.patch.about.Text, "not loaded") {
+		t.Errorf("on the bank dropped, the piano says %q", h.v.patch.about.Text)
+	}
+	if got := h.v.patch.sampled.Items()[h.v.patch.sampled.Selected()].Label; got != "general" {
+		t.Errorf("on the bank dropped, the piano plays on %q", got)
+	}
+	h.play(time.Second)
+	// And back to the engine's own sounds.
+	h.do(FontNone{})
+	h.settle()
+	if fontName != "" || !strings.Contains(h.v.patch.about.Text, "not loaded") {
+		t.Errorf("without the bank, the piano says %q", h.v.patch.about.Text)
 	}
 }

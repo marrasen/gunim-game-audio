@@ -25,6 +25,11 @@ type (
 		Font         string
 		FontPrograms []string
 		FontKits     []FontKit
+		// FontBank is the bank's own name, as MuseScore General, and
+		// Fetching how far a bank's download has come, from 0 to 1, or -1
+		// for none.
+		FontBank string
+		Fetching float32
 		// Songs are the songs' titles, Categories their categories, and
 		// Song the one open.
 		Songs, Categories []string
@@ -299,6 +304,13 @@ type (
 	VolumeSet struct{ Volume float32 }
 	// Saved asks to save the song as a song.json.
 	Saved struct{}
+	// FontChoose asks to choose a SoundFont bank's file, FontFetch to
+	// download MuseScore General, and FontNone to play the engine's own
+	// sounds; FontDropped carries files dropped on the window.
+	FontChoose  struct{}
+	FontFetch   struct{}
+	FontNone    struct{}
+	FontDropped struct{ Paths []string }
 )
 
 func init() {
@@ -319,6 +331,10 @@ func init() {
 	gunim.RegisterType[Transposed]("studio.transpose")
 	gunim.RegisterType[VolumeSet]("studio.volume")
 	gunim.RegisterType[Saved]("studio.save")
+	gunim.RegisterType[FontChoose]("studio.font.choose")
+	gunim.RegisterType[FontFetch]("studio.font.fetch")
+	gunim.RegisterType[FontNone]("studio.font.none")
+	gunim.RegisterType[FontDropped]("studio.font.dropped")
 	gunim.RegisterType[SetValue]("studio.set")
 	gunim.RegisterType[AddItem]("studio.add")
 	gunim.RegisterType[ClearValue]("studio.clear")

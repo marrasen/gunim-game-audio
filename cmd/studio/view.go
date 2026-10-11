@@ -17,6 +17,7 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	"github.com/marrasen/gunim-game-audio/internal/songpicker"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // The studio's own tokens.
@@ -33,6 +34,7 @@ type view struct {
 	*widget.Pad
 	songs     *songpicker.Picker
 	about     *widget.Label
+	font      *widget.MenuButton
 	play      *widget.Button
 	tiers     *widget.Segmented
 	tierLabel *widget.Label
@@ -114,10 +116,23 @@ func buildView(s Studio) *root {
 	v.volume.OnChange = func(x float32, _ *gunim.UI) gunim.Intent { return VolumeSet{Volume: x} }
 	save := widget.NewIconButton(icon.Save, "Save the song as a song.json")
 	save.OnClick = widget.Sends(Saved{})
+	v.font = widget.NewMenuButton("", fontItems(s))
+	v.font.Icon = icon.Piano
+	v.font.OnPick = func(i int, _ *gunim.UI) gunim.Intent {
+		switch i {
+		case 1:
+			return FontChoose{}
+		case 2:
+			return FontFetch{}
+		case 3:
+			return FontNone{}
+		}
+		return nil
+	}
 	gap := widget.NewSpacer()
 	top := widget.Row(title, v.songs, v.play, restart, v.tierLabel, v.tiers, v.stings, v.sting, gap,
 		widget.NewSized(v.bpm.TextField, 104, 0), down, v.key, up, widget.NewIcon(icon.Volume2, "Volume"),
-		widget.NewSized(v.volume, 110, 0), save).Grow(gap, 1)
+		widget.NewSized(v.volume, 110, 0), v.font, save).Grow(gap, 1)
 	top.Cross = widget.CrossCenter
 	v.about = small("")
 
@@ -189,6 +204,52 @@ func buildView(s Studio) *root {
 
 func (r *root) update(s Studio, u *gunim.UI) { r.view.update(s, u) }
 
+// fontNow says what the songs' sampled instruments play on: a bank, the
+// bank downloading, or the engine's own sounds.
+func fontNow(s Studio) string {
+	switch {
+	case s.Fetching >= 0:
+		return fmt.Sprintf("downloading %s, %.0f%%", soundfont.Banks[0].Name, s.Fetching*100)
+	case s.FontBank != "":
+		return "on " + s.FontBank
+	}
+	return "no sound font, the engine's own sounds"
+}
+
+// fontItems are the sound font menu's items: a caption of what plays
+// now, then choosing a bank's file, downloading MuseScore General, and
+// the engine's own sounds.
+func fontItems(s Studio) []widget.MenuItem {
+	bank := soundfont.Banks[0]
+	return []widget.MenuItem{
+		{Label: "Sound font: " + fontNow(s), Caption: true},
+		{Label: "Choose a bank…", Hint: ".sf2 or .sf3", Icon: icon.FolderOpen},
+		{Label: "Download " + bank.Name, Hint: fmt.Sprintf("%d MB · %s licence", bank.Size>>20, bank.License), Icon: icon.Download,
+			Disabled: s.Fetching >= 0 || s.FontBank == bank.Name},
+		{Label: "The engine's own sounds", Icon: icon.Cpu, Disabled: s.Font == ""},
+	}
+}
+
+// Handle takes SoundFont banks dropped on the window.
+func (r *root) Handle(e input.Event, u *gunim.UI) bool {
+	switch e := e.(type) {
+	case input.DragOver:
+		f, ok := e.Data.(input.Files)
+		return ok && (len(f.Paths) == 0 || slices.ContainsFunc(f.Paths, isBank))
+	case input.Drop:
+		paths := e.Paths
+		if f, ok := e.Data.(input.Files); ok && len(paths) == 0 {
+			paths = f.Paths
+		}
+		if len(paths) == 0 {
+			return false
+		}
+		u.Send(r, FontDropped{Paths: paths})
+		return true
+	}
+	return false
+}
+
 // Overhear tells the wheel's guard of each move and turn of the wheel,
 // wherever it lands.
 func (r *root) Overhear(e input.Event, _ *gunim.UI) { wheel.overhear(e) }
@@ -198,7 +259,12 @@ func (v *view) update(s Studio, u *gunim.UI) {
 	v.s = s
 	v.songs.SetSongs(s.Songs, s.Categories)
 	v.songs.Choose(s.Song, u)
-	v.about.Text = s.About
+	v.about.Text = s.About + " · " + fontNow(s)
+	if items := fontItems(s); !slices.Equal(items, v.font.Items()) {
+		v.font.SetItems(items)
+	}
+	v.font.Active = s.FontBank != ""
+	v.font.Tooltip = "Sound font: " + fontNow(s) + ". Drop an .sf2 or .sf3 on the window to play on it."
 	if s.Playing {
 		v.play.Label, v.play.Icon = "Pause", icon.Pause
 	} else {
