@@ -224,9 +224,11 @@ func (kp *kitPane) showSampled(st Studio, p *synth.Patch) {
 	if p.SoundFont != "" && p.SoundFont != st.Font {
 		names, labels = append(names, p.SoundFont), append(labels, p.SoundFont+" (not loaded)")
 	}
-	if !slices.Equal(names, kp.sampleN) {
+	// Labels too: a bank loaded, or let go, keeps the names but not
+	// their labels.
+	if items := widget.Labels(labels...); !slices.Equal(names, kp.sampleN) || !slices.Equal(items, kp.sampled.Items()) {
 		kp.sampleN = names
-		kp.sampled.SetItems(widget.Labels(labels...))
+		kp.sampled.SetItems(items)
 	}
 	kp.sampled.SetSelected(max(slices.Index(names, p.SoundFont), 0), nil)
 	kp.sampled.Disabled = len(names) == 1

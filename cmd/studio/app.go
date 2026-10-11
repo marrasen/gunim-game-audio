@@ -23,6 +23,8 @@ import (
 	"github.com/marrasen/gunim/driver"
 
 	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/internal/fontcache"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
@@ -62,6 +64,12 @@ type studio struct {
 	seed      uint64
 	saved     chan string
 	loads     chan loaded
+	// fonts carries a SoundFont bank read, or fetched, to the serve loop,
+	// and progress how far a download has come; fetching is that, from 0
+	// to 1, or -1 for none.
+	fonts    chan fontLoaded
+	progress chan float64
+	fetching float64
 	// focus is what the editors show, and preview and drum the sounds
 	// rendered of it, with the patches they were rendered from, as JSON.
 	focus     Focus
@@ -95,6 +103,7 @@ type studio struct {
 func newStudio(c gunim.Client, mix *audio.Mixer, songName string) (*studio, error) {
 	s := &studio{c: c, mix: mix, volume: 0.8, drafts: map[string]string{}, errs: map[string]string{},
 		freqs: audioui.LogFreqs(spectrumPoints), seed: uint64(time.Now().UnixNano()), saved: make(chan string, 1), loads: make(chan loaded, 1),
+		fonts: make(chan fontLoaded, 1), progress: make(chan float64, 8), fetching: -1,
 		levels: audioui.NewLevels(), scope: make([]float32, 1024)}
 	s.an = audio.NewAnalyzer(s.mix, 16)
 	for _, name := range music.Songs() {
@@ -248,6 +257,24 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		}
 	case Restarted:
 		s.start()
+	case FontChoose:
+		go func() {
+			paths, err := s.c.ChooseFiles(ctx, driver.ChooseOptions{Title: "Choose a SoundFont bank", Filters: bankFiles})
+			if err == nil && len(paths) > 0 {
+				s.loadFont(paths[0])
+			}
+		}()
+	case FontFetch:
+		s.fetch()
+	case FontNone:
+		useFont(nil, "")
+		s.refont("Playing the engine's own sounds")
+	case FontDropped:
+		if i := slices.IndexFunc(v.Paths, isBank); i >= 0 {
+			s.loadFont(v.Paths[i])
+		} else {
+			s.status = "Drop a SoundFont bank, an .sf2 or .sf3 file, to play on it"
+		}
 	case TierChosen:
 		s.p.SetTier(v.Tier)
 	case TierFollowed:
@@ -616,6 +643,7 @@ func (s *studio) state() Studio {
 		Chords: slices.Clone(look.Chords), Chord: look.ChordIndex, ChordText: s.chordText, ChordErr: s.chordErr, Stings: look.Stings, Sting: look.Sting,
 		Stopped: look.Stopped, Keypad: look.Keypad, Status: s.status}
 	st.Font, st.FontPrograms, st.FontKits = fontName, fontPrograms, fontKits
+	st.FontBank, st.Fetching = fontBank, float32(s.fetching)
 	if look.Wander {
 		st.Tiers = 0
 	}
@@ -767,6 +795,10 @@ func (s *studio) serve(ctx context.Context) error {
 			}
 		case l := <-s.loads:
 			s.adopt(l)
+		case fl := <-s.fonts:
+			s.adoptFont(fl)
+		case x := <-s.progress:
+			s.fetching = x
 		case ev, ok := <-s.c.Intents():
 			if !ok {
 				return s.c.Err()
@@ -971,4 +1003,88 @@ func (s *studio) adopt(l loaded) {
 	}
 	s.status = "Loaded " + filepath.Base(l.file) + " as " + name
 	s.gen++
+}
+
+// bankFiles are the files the bank's open dialog shows.
+var bankFiles = []driver.FileFilter{{Name: "SoundFont banks", Patterns: []string{"*.sf2", "*.sf3"}}}
+
+// isBank reports whether path is named as a SoundFont bank.
+func isBank(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".sf2", ".sf3":
+		return true
+	}
+	return false
+}
+
+// fontLoaded is a SoundFont bank read from path, or why it could not be.
+type fontLoaded struct {
+	f    *soundfont.Font
+	path string
+	err  error
+}
+
+// loadFont reads the bank at path away from the serve loop, as a bank
+// can be large, and hands it to the loop.
+func (s *studio) loadFont(path string) {
+	s.status = "Loading the sound font " + filepath.Base(path) + "…"
+	go func() {
+		f, err := soundfont.Open(path)
+		s.fonts <- fontLoaded{f: f, path: path, err: err}
+	}()
+}
+
+// adoptFont plays the song on the bank read from now on, and remembers
+// it for the next time, here and in the MIDI player.
+func (s *studio) adoptFont(fl fontLoaded) {
+	if fl.err != nil {
+		s.status = fmt.Sprintf("%s is not a sound font I can play: %v", filepath.Base(fl.path), fl.err)
+		return
+	}
+	useFont(fl.f, fl.path)
+	fontcache.Remember(fl.path)
+	s.refont("Playing on the sound font " + fontBank)
+}
+
+// refont has the song's patches play on the bank registered now, or on
+// their own sounds where there is none, from the next block on.
+func (s *studio) refont(msg string) {
+	if err := s.edit(func(*synth.Song) {}); err != nil {
+		s.status = err.Error()
+		return
+	}
+	s.previewOf, s.drumOf = "", ""
+	// The editors show what the patches play on afresh.
+	s.gen++
+	s.status = msg
+}
+
+// fetch downloads the first of soundfont.Banks, MuseScore General, and
+// its licence, to the user's cache, and plays on it.
+func (s *studio) fetch() {
+	if s.fetching >= 0 {
+		return
+	}
+	bank := soundfont.Banks[0]
+	if path, ok := fontcache.Fetched(bank); ok {
+		s.loadFont(path)
+		return
+	}
+	s.fetching = 0
+	s.status = fmt.Sprintf("Fetching %s (%s licence, %d MB)…", bank.Name, bank.License, bank.Size>>20)
+	go func() {
+		path, err := fontcache.Download(bank, func(x float64) {
+			select {
+			case s.progress <- x:
+			default:
+			}
+		})
+		s.progress <- -1
+		if err != nil {
+			s.fonts <- fontLoaded{path: path, err: fmt.Errorf("could not fetch it: %w", err)}
+			return
+		}
+		f, err := soundfont.Open(path)
+		s.fonts <- fontLoaded{f: f, path: path, err: err}
+	}()
 }

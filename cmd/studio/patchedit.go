@@ -836,9 +836,11 @@ func (pp *patchPane) showSampled(st Studio, p *synth.Patch) {
 	if p.SoundFont != "" && p.SoundFont != st.Font {
 		names, labels = append(names, p.SoundFont), append(labels, p.SoundFont+" (not loaded)")
 	}
-	if !slices.Equal(names, pp.sampleN) {
+	// Labels too: a bank loaded, or let go, keeps the names but not
+	// their labels.
+	if items := widget.Labels(labels...); !slices.Equal(names, pp.sampleN) || !slices.Equal(items, pp.sampled.Items()) {
 		pp.sampleN = names
-		pp.sampled.SetItems(widget.Labels(labels...))
+		pp.sampled.SetItems(items)
 	}
 	pp.sampled.SetSelected(max(slices.Index(names, p.SoundFont), 0), nil)
 	pp.sampled.Disabled = len(names) == 1

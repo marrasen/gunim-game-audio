@@ -47,6 +47,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/widget"
 
+	"github.com/marrasen/gunim-game-audio/internal/fontcache"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
@@ -100,7 +101,8 @@ func run(style string, demo, silent bool, shot string, after time.Duration, font
 		if dir, err := os.UserConfigDir(); err == nil && shot == "" {
 			ap.loadMix(filepath.Join(dir, "gunim-midiplayer", "mix.json"))
 			ap.loadPrefs(filepath.Join(dir, "gunim-midiplayer", "prefs.json"))
-			ap.rememberFont(filepath.Join(dir, "gunim-midiplayer", "soundfont.txt"))
+			// The bank is remembered where the studio finds it too.
+			ap.rememberFont(fontcache.Saved())
 		}
 		if font != "" {
 			ap.loadFont(font)

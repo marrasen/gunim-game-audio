@@ -840,11 +840,18 @@ play the engine's.
 Where no bank of the name is registered, as in a game that ships
 none, the patch plays as its other fields say, or with none as General
 MIDI's program on the engine's own instruments, so the song sounds
-everywhere, and better where the bank is. In gunim music studio,
-`-soundfont bank.sf3` registers a bank as `general`, and the patch
-editor's Plays on and Program pick it and its program; the kit editor's
-Plays on and Kit pick it and its kit. The jukebox,
-`cmd/play` and `cmd/render` take `-soundfont` too.
+everywhere, and better where the bank is.
+
+In gunim music studio, the piano button by the save button loads a
+bank: choose an `.sf2` or `.sf3`, download MuseScore General, or go
+back to the engine's own sounds. Dropping a bank on the window loads it
+too, and so does `-soundfont bank.sf3`. The studio and the MIDI player
+remember the bank played last, and share it: either opens on the bank
+the other last played, or on MuseScore General where either downloaded
+it. The bank is registered as `general`; the patch editor's Plays on
+and Program pick it and a program, and the kit editor's Plays on and
+Kit pick it and a kit. The jukebox, `cmd/play` and `cmd/render` take
+`-soundfont` too.
 
 ## Licence
 

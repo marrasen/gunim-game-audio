@@ -35,7 +35,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/marrasen/gunim"
@@ -46,7 +48,9 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/internal/fontcache"
 	"github.com/marrasen/gunim-game-audio/soundfont"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 func main() {
@@ -55,20 +59,25 @@ func main() {
 	editor := flag.String("editor", "", "the editor to open, by its tab: Stage, Mixer, Patch, Kit, Effects, Pattern or Beat")
 	on := flag.String("track", "", "with -editor, the track to open it on")
 	shot := flag.String("shot", "", "write the window to this PNG file after -after, and quit")
-	font := flag.String("soundfont", "", "a SoundFont bank, .sf2 or .sf3, for patches to play on, as the songs' General MIDI bank")
+	font := flag.String("soundfont", "", "a SoundFont bank, .sf2 or .sf3, for patches to play on, as the songs' General MIDI bank; without it, the bank played last")
 	after := flag.Duration("after", 6*time.Second, "how long -shot waits")
 	flag.Parse()
 	if *font != "" {
 		if err := registerFont(*font); err != nil {
 			log.Fatal(err)
 		}
+		fontcache.Remember(*font)
 	}
-	if err := run(*song, *tier, *editor, *on, *shot, *after); err != nil {
+	if err := run(*song, *tier, *editor, *on, *shot, *after, *font == ""); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(song string, tier int, editor, on, shot string, after time.Duration) error {
+// run opens the studio's window, with song open at tier, editor open on
+// track on; shot writes the window to a file after after; and find
+// loads the bank played last, or one fetched before, as the studio
+// opens.
+func run(song string, tier int, editor, on, shot string, after time.Duration, find bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	err := gunim.Main(ctx, func(a *gunim.App) error {
@@ -94,6 +103,9 @@ func run(song string, tier int, editor, on, shot string, after time.Duration) er
 		if tier > 0 {
 			s.p.SetTier(tier)
 		}
+		if path := fontcache.Find(); find && path != "" {
+			s.loadFont(path)
+		}
 		if editor != "" {
 			s.handle(ctx, OpenEditor{Editor: editor, Track: on})
 		}
@@ -118,11 +130,12 @@ func run(song string, tier int, editor, on, shot string, after time.Duration) er
 	return err
 }
 
-// fontName, fontPrograms and fontKits are the name -soundfont's bank is
+// fontName, fontPrograms and fontKits are the name the bank loaded is
 // registered by, music.SoundFont, the names of its programs of bank 0,
-// by number, and its drum kits.
+// by number, and its drum kits; fontBank is the bank's own name.
 var (
 	fontName     string
+	fontBank     string
 	fontPrograms []string
 	fontKits     []FontKit
 )
@@ -134,9 +147,25 @@ func registerFont(path string) error {
 	if err != nil {
 		return err
 	}
+	useFont(f, path)
+	return nil
+}
+
+// useFont registers bank f, read from path, as the songs' General MIDI
+// bank, for patches to play on; nil plays the engine's own sounds.
+func useFont(f *soundfont.Font, path string) {
+	if f == nil {
+		synth.RegisterSoundFont(music.SoundFont, nil)
+		fontName, fontBank, fontPrograms, fontKits = "", "", nil, nil
+		return
+	}
 	// Registered as the library's songs name it, so they play on it, and
 	// the patches made here play on a game's bank.
 	fontName = music.SoundFont
+	fontBank = strings.TrimSpace(f.Name)
+	if fontBank == "" {
+		fontBank = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	}
 	music.UseSoundFont(f)
 	fontPrograms = make([]string, 128)
 	for i := range fontPrograms {
@@ -153,7 +182,6 @@ func registerFont(path string) error {
 		}
 	}
 	slices.SortFunc(fontKits, func(a, b FontKit) int { return a.Program - b.Program })
-	return nil
 }
 
 func writeShot(ctx context.Context, c gunim.Client, path string) error {
