@@ -17,6 +17,7 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 func demoFile(t *testing.T) *midi.File {
@@ -312,4 +313,88 @@ func TestEveryStyleAndNoSongDrawsWithoutFault(t *testing.T) {
 	if h.v.l.score != nil {
 		t.Error("the window still shows a song")
 	}
+}
+
+func TestTheMixerSetsTheMix(t *testing.T) {
+	s := demoState(t)
+	s.Mix = synth.DefaultGMMix()
+	h := newWindow(t, s)
+	h.post(input.KeyPress{Char: 'm'})
+	h.frames(60)
+	mx := h.v.mixer
+	if h.v.page != 1 || mx.size.W == 0 {
+		t.Fatal("M does not show the mixer")
+	}
+	origin := h.v.mixer.originIn(h)
+	find := func(pred func(c mctl) bool) mctl {
+		for _, c := range mx.ctls {
+			if pred(c) {
+				return c
+			}
+		}
+		t.Fatal("no such control")
+		return mctl{}
+	}
+	at := func(r geom.Rect) geom.Point {
+		return geom.Pt(origin.X+r.Min.X+r.Size().W/2, origin.Y+r.Min.Y+r.Size().H/2)
+	}
+	lastMix := func() synth.GMMix {
+		var got synth.GMMix
+		for {
+			select {
+			case ev := <-h.w.Client().Intents():
+				if in, ok := ev.Intent.(MixSet); ok {
+					got = in.Mix
+				}
+			default:
+				return got
+			}
+		}
+	}
+	// Channel 1's fader dragged up.
+	fader := find(func(c mctl) bool { return c.kind == kFader && c.ch == 0 })
+	cap := geom.Pt(at(fader.r).X, origin.Y+fader.r.Max.Y-fader.r.Size().H*faderPos(0, -60, 12))
+	h.post(input.PointerMove{Pos: cap}, input.PointerDown{Pos: cap, Button: input.ButtonPrimary, Clicks: 1},
+		input.PointerMove{Pos: cap.Add(geom.Pt(0, -30))}, input.PointerUp{Pos: cap.Add(geom.Pt(0, -30)), Button: input.ButtonPrimary})
+	if got := lastMix().Channels[0].Gain; got <= 0.5 {
+		t.Errorf("channel 1's fader dragged up sets its gain to %v", got)
+	}
+	// Channel 2's high knob dragged down cuts its highs.
+	hi := find(func(c mctl) bool { return c.kind == kKnob && c.ch == 1 && c.label == "HI" })
+	p := at(hi.r)
+	h.post(input.PointerMove{Pos: p}, input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1},
+		input.PointerMove{Pos: p.Add(geom.Pt(0, 40))}, input.PointerUp{Pos: p.Add(geom.Pt(0, 40)), Button: input.ButtonPrimary})
+	if got := lastMix().Channels[1].High; got >= -1 {
+		t.Errorf("channel 2's high knob dragged down sets it to %v dB", got)
+	}
+	// The compressor's switch, and the equaliser's middle band dragged up.
+	comp := find(func(c mctl) bool { return c.kind == kToggle })
+	h.click(at(comp.r), 0)
+	if !lastMix().Comp.On {
+		t.Error("the compressor's switch does not switch it on")
+	}
+	band := mx.eqAt(mx.local.EQ[2])
+	band = band.Add(origin)
+	h.post(input.PointerMove{Pos: band}, input.PointerDown{Pos: band, Button: input.ButtonPrimary, Clicks: 1},
+		input.PointerMove{Pos: band.Add(geom.Pt(0, -30))}, input.PointerUp{Pos: band.Add(geom.Pt(0, -30)), Button: input.ButtonPrimary})
+	if got := lastMix().EQ[2].Gain; got < 2 {
+		t.Errorf("the equaliser's middle band dragged up lifts %v dB", got)
+	}
+	// Mute on channel 3's strip.
+	mute := find(func(c mctl) bool { return c.kind == kButton && c.ch == 2 && c.label == "M" })
+	h.click(at(mute.r), 0)
+	for {
+		in := h.intent()
+		if cc, ok := in.(ChannelClicked); ok {
+			if cc.Channel != 2 || cc.Solo {
+				t.Errorf("channel 3's mute sent %#v", cc)
+			}
+			break
+		}
+	}
+}
+
+// originIn returns where the mixer lies in the window.
+func (m *mixer) originIn(h *window) geom.Point {
+	return geom.Pt(margin, 6+headerH+8)
 }

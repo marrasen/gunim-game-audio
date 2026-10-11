@@ -1,10 +1,23 @@
 package main
 
 import (
+	"math"
 	"time"
 
 	"github.com/marrasen/gunim"
+
+	"github.com/marrasen/gunim-game-audio/synth"
 )
+
+// specFreqs are the frequencies the spectrum is measured at: 96 of them
+// from 20 Hz to 20 kHz, as many in each octave.
+var specFreqs = func() []float32 {
+	f := make([]float32, 96)
+	for i := range f {
+		f[i] = float32(20 * math.Pow(1000, float64(i)/float64(len(f)-1)))
+	}
+	return f
+}()
 
 // The vocabulary the two halves share.
 type (
@@ -41,6 +54,12 @@ type (
 		// twice.
 		Message    string
 		MessageGen int
+		// Mix is how the channels are mixed, Meters how loud the mix has
+		// been since the last state, and Spectrum how loud the sound heard
+		// is at each of specFreqs, in decibels.
+		Mix      synth.GMMix
+		Meters   synth.GMMeters
+		Spectrum []float32
 	}
 	// Item is a file of the playlist.
 	Item struct {
@@ -93,6 +112,8 @@ type (
 	Picked struct{ Index int }
 	// Removed travels when a song is taken off the playlist.
 	Removed struct{ Index int }
+	// MixSet travels as the mixer changes.
+	MixSet struct{ Mix synth.GMMix }
 )
 
 // The ways to repeat.
@@ -118,6 +139,7 @@ func init() {
 	gunim.RegisterType[RepeatToggled]("midiplayer.repeat")
 	gunim.RegisterType[Picked]("midiplayer.pick")
 	gunim.RegisterType[Removed]("midiplayer.remove")
+	gunim.RegisterType[MixSet]("midiplayer.mix")
 }
 
 // heard returns the time heard at now, from c.

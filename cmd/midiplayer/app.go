@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -24,8 +25,8 @@ import (
 // app is the application half: the playlist, the song playing and how
 // it plays.
 type app struct {
-	c   gunim.Client
-	mix *audio.Mixer
+	c     gunim.Client
+	mixer *audio.Mixer
 	// list is the playlist, files its files read, nil until read, and
 	// cur the one playing, -1 for none.
 	list  []Item
@@ -47,13 +48,22 @@ type app struct {
 	repeat    Repeat
 	msg       string
 	msgGen    int
+	// mix is how the channels are mixed, kept from song to song and saved
+	// to mixFile, where set, a moment after it changes; an measures the
+	// sound heard.
+	mix      synth.GMMix
+	mixFile  string
+	mixDirty time.Time
+	an       *audio.Analyzer
+	spec     []float32
 	// chosen carries the files the open dialog chose to the serve loop.
 	chosen chan []string
 }
 
 func newApp(c gunim.Client, mix *audio.Mixer) *app {
-	return &app{c: c, mix: mix, cur: -1, solo: -1, speed: 1, volume: 0.9, style: "gm", repeat: RepeatAll,
-		chosen: make(chan []string, 1)}
+	return &app{c: c, mixer: mix, cur: -1, solo: -1, speed: 1, volume: 0.9, style: "gm", repeat: RepeatAll,
+		chosen: make(chan []string, 1), mix: synth.DefaultGMMix(), an: audio.NewAnalyzer(mix, 32),
+		spec: make([]float32, len(specFreqs))}
 }
 
 // midiFiles are the files the open dialog shows.
@@ -179,10 +189,11 @@ func (a *app) start(i int) {
 	_ = a.p.SetStyle(a.style)
 	a.p.SetSpeed(a.speed)
 	a.p.SetTranspose(a.transpose)
+	a.p.SetMix(a.mix)
 	a.applyMutes()
 	a.score = newScore(f, a.list[i].Name)
 	a.gen++
-	a.voice = a.mix.Play(a.p, audio.Options{Volume: a.volume})
+	a.voice = a.mixer.Play(a.p, audio.Options{Volume: a.volume})
 }
 
 // applyMutes sets what each channel plays: muted, or alone.
@@ -209,7 +220,12 @@ func (a *app) playing() bool { return a.voice != nil && !a.voice.Paused() && !a.
 func (a *app) state() Player {
 	s := Player{Playlist: slices.Clone(a.list), Current: a.cur, Score: a.score, ScoreGen: a.gen, Playing: a.playing(),
 		Style: a.style, Muted: a.muted, Solo: a.solo, Speed: a.speed, Transpose: a.transpose, Volume: a.volume,
-		Repeat: a.repeat, Message: a.msg, MessageGen: a.msgGen}
+		Repeat: a.repeat, Message: a.msg, MessageGen: a.msgGen, Mix: a.mix}
+	if a.p != nil {
+		s.Meters = a.p.TakeMeters()
+	}
+	a.an.Spectrum(specFreqs, a.spec, nil)
+	s.Spectrum = slices.Clone(a.spec)
 	s.Clock = Clock{Time: a.heard(), At: time.Now()}
 	if s.Playing {
 		s.Clock.Rate = a.speed
@@ -295,6 +311,12 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 		a.start(v.Index)
 	case Removed:
 		a.remove(v.Index)
+	case MixSet:
+		a.mix = v.Mix
+		if a.p != nil {
+			a.p.SetMix(a.mix)
+		}
+		a.mixDirty = time.Now()
 	}
 }
 
@@ -374,6 +396,43 @@ func (a *app) serve(ctx context.Context, files []string) error {
 			a.handle(ctx, ev.Intent)
 		}
 		a.follow()
+		if !a.mixDirty.IsZero() && time.Since(a.mixDirty) > time.Second {
+			a.mixDirty = time.Time{}
+			a.saveMix()
+		}
 		_ = a.c.Update("midiplayer", a.state())
+	}
+}
+
+// loadMix reads the mix saved in file, where there is one, and saves
+// the mix there from now on.
+func (a *app) loadMix(file string) {
+	a.mixFile = file
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return
+	}
+	m := synth.DefaultGMMix()
+	if err := json.Unmarshal(b, &m); err != nil {
+		a.say("The saved mix could not be read: " + err.Error())
+		return
+	}
+	a.mix = m
+}
+
+// saveMix saves the mix to its file.
+func (a *app) saveMix() {
+	if a.mixFile == "" {
+		return
+	}
+	b, err := json.MarshalIndent(a.mix, "", "\t")
+	if err == nil {
+		err = os.MkdirAll(filepath.Dir(a.mixFile), 0o755)
+	}
+	if err == nil {
+		err = os.WriteFile(a.mixFile, b, 0o644)
+	}
+	if err != nil {
+		a.say("The mix could not be saved: " + err.Error())
 	}
 }

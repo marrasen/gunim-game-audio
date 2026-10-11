@@ -15,7 +15,13 @@
 // to 5 pick a style, + and - change the speed, L shows the playlist and
 // O opens files.
 //
-// -style picks the style to start in, and -demo plays the demo song.
+// The Mixer tab, or M, shows the mixer: a strip for each channel, with
+// its equaliser, drive, sends, pan, mute, solo and fader, and the
+// master's equaliser, reverb, delay, chorus, compressor, limiter and
+// fader. The mix is kept for the next time.
+//
+// -style picks the style to start in, -mixer opens on the mixer, and
+// -demo plays the demo song.
 // -shot writes a picture of the window to a PNG file after -after, and
 // quits, for the documentation; -silent plays without the speakers.
 package main
@@ -27,6 +33,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -45,7 +52,11 @@ func main() {
 	shot := flag.String("shot", "", "write a picture of the window to this PNG file, and quit")
 	after := flag.Duration("after", 3*time.Second, "with -shot, how long to play first")
 	silent := flag.Bool("silent", false, "play without the speakers, as for -shot")
+	mixerPage := flag.Bool("mixer", false, "open on the mixer")
 	flag.Parse()
+	if *mixerPage {
+		startPage = 1
+	}
 	if !slices.Contains(synth.GMStyles, *style) {
 		log.Fatalf("no style %q", *style)
 	}
@@ -77,6 +88,9 @@ func run(style string, demo, silent bool, shot string, after time.Duration, file
 		}
 		ap := newApp(w.Client(), mix)
 		ap.style = style
+		if dir, err := os.UserConfigDir(); err == nil && shot == "" {
+			ap.loadMix(filepath.Join(dir, "gunim-midiplayer", "mix.json"))
+		}
 		if demo {
 			ap.addDemo()
 		}

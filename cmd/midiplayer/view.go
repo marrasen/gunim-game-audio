@@ -11,6 +11,7 @@ import (
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/geom"
+	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/text"
@@ -140,12 +141,18 @@ func (l *look) update(now time.Time, dt float32) {
 // background and what lies over everything, and takes drops of files
 // and the keys.
 type root struct {
-	l        *look
-	deck     *deck
-	band     *band
-	roll     *roll
-	trans    *transport
-	list     *playlist
+	l     *look
+	deck  *deck
+	band  *band
+	roll  *roll
+	trans *transport
+	list  *playlist
+	mixer *mixer
+	tabs  *tabs
+	// page is the page shown, the stage or the mixer, and pg slides
+	// between them, from 0, the stage, to 1, the mixer.
+	page     int
+	pg       float32
 	gen      int
 	style    string
 	from, to palette
@@ -171,13 +178,15 @@ type root struct {
 
 func buildView(s Player) *root {
 	l := &look{s: s, score: s.Score, pal: palettes[s.Style]}
-	r := &root{l: l, gen: s.ScoreGen, style: s.Style, from: palettes[s.Style], to: palettes[s.Style], blend: 1,
+	r := &root{l: l, page: startPage, pg: float32(startPage), gen: s.ScoreGen, style: s.Style, from: palettes[s.Style], to: palettes[s.Style], blend: 1,
 		msgGen: s.MessageGen}
 	r.deck = &deck{l: l, over: -1, down: -1}
 	r.band = &band{l: l, hover: -1, press: -1}
 	r.roll = &roll{l: l}
 	r.list = &playlist{l: l, over: -1, down: -1}
 	r.trans = &transport{l: l, list: r.list, over: -1, down: -1, hoverAt: -1}
+	r.mixer = &mixer{l: l, hover: -1, drag: -1, lastClicked: -1}
+	r.tabs = &tabs{r: r, over: -1}
 	if len(s.Playlist) > 1 {
 		r.listOpen = 1
 	}
@@ -186,7 +195,7 @@ func buildView(s Player) *root {
 
 // Children implements [gunim.Composite].
 func (r *root) Children() []gunim.Node {
-	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans}
+	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs}
 }
 
 // update shows s.
@@ -231,7 +240,12 @@ func (r *root) Step(dt time.Duration) bool {
 		r.listOpen = want
 	}
 	r.spin += t
-	moving := r.l.playing || r.blend < 1 || r.boot > 0 || r.toast > 0 || r.dropped > 0 || r.drag > 0 ||
+	pw := float32(r.page)
+	r.pg += (pw - r.pg) * min(1, t*9)
+	if math.Abs(float64(pw-r.pg)) < 0.002 {
+		r.pg = pw
+	}
+	moving := r.pg != pw || r.page == 1 || r.l.playing || r.blend < 1 || r.boot > 0 || r.toast > 0 || r.dropped > 0 || r.drag > 0 ||
 		r.listOpen != want || r.l.fresh < 1 || r.l.pulse > 0 || r.l.score == nil
 	for _, c := range r.l.ch {
 		moving = moving || c.level > 0.002 || c.hit > 0
@@ -272,10 +286,23 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 	if panel > 1 {
 		bandRight -= 12 * ease(r.listOpen)
 	}
-	r.band.bounds = xyxy(margin, midTop, bandRight, midBot-rollH-12)
-	r.roll.bounds = xyxy(margin, midBot-rollH, w-margin, midBot)
+	// The stage slides down and away as the mixer rises in its place.
+	pg := ease(r.pg)
+	off := (h + 40) * pg
+	if r.pg >= 1 {
+		off = 4 * h
+	}
+	r.band.bounds = xyxy(margin, midTop+off, bandRight, midBot-rollH-12+off)
+	r.roll.bounds = xyxy(margin, midBot-rollH+off, w-margin, midBot+off)
 	place(0, r.band.bounds)
 	place(1, r.roll.bounds)
+	moff := (h + 40) * (1 - pg)
+	if r.pg <= 0 {
+		moff = 4 * h
+	}
+	place(5, xyxy(margin, midTop+moff, bandRight, midBot+moff))
+	// The tabs, left of the deck.
+	place(6, xyxy(w-margin-deckW-206, top+30, w-margin-deckW-16, top+64))
 	// The playlist slides in from the right, beside the band, and out
 	// past the window's edge.
 	x := w - margin - panel + (margin+30)*(1-ease(r.listOpen))
@@ -297,11 +324,30 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 		Radial: true, Start: glow, End: alpha(pal.glow, 0)}})
 	r.paintStars(p, box)
 	r.paintTitle(p, f, box)
-	// The parts.
+	// The parts: the stage and the mixer each fade as they slide.
+	pg := ease(r.pg)
 	for i := range kids.Len() {
+		var a float32 = 1
+		switch i {
+		case 0, 1:
+			a = 1 - pg
+		case 5:
+			a = pg
+		}
+		if a <= 0.001 {
+			continue
+		}
+		if a < 0.999 {
+			end := p.Layer(paint.LayerOpts{Bounds: geom.Rect{Max: box.Point()}, Opacity: a})
+			kids.At(i).Paint(p)
+			end()
+			continue
+		}
 		kids.At(i).Paint(p)
 	}
-	r.paintSparks(p)
+	if r.pg < 0.5 {
+		r.paintSparks(p)
+	}
 	r.paintBoot(p, box)
 	r.paintToast(p, box)
 	r.paintScan(p, box)
@@ -351,7 +397,7 @@ func (r *root) paintTitle(p *paint.Painter, f gunim.Frame, box geom.Size) {
 		title = sc.Title
 		info = fmt.Sprintf("%s  ·  %d channels  ·  %.0f BPM  ·  %s", clock(sc.Length), len(sc.used()), sc.BPM, styleName(r.l.s.Style))
 	}
-	maxW := box.W - 2*margin - min(float32(470), box.W*0.45) - 24
+	maxW := box.W - 2*margin - min(float32(470), box.W*0.45) - 230
 	big := fit(title, 30, true, maxW)
 	// The title rises into place as a song loads.
 	rise := 1 - ease(r.l.fresh*2)
@@ -593,8 +639,8 @@ func (r *root) Handle(e input.Event, u *gunim.UI) bool {
 }
 
 // CatchKey plays the keys nothing focused took: Space plays and pauses,
-// the arrows move five seconds, N and P skip, 1 to 5 pick a style, L
-// shows the playlist and O opens.
+// the arrows move five seconds, N and P skip, 1 to 5 pick a style, M
+// shows the mixer or the stage, L shows the playlist and O opens.
 func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 	k, ok := e.(input.KeyPress)
 	if !ok {
@@ -614,6 +660,9 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 		u.Send(r, Skipped{By: -1})
 	case k.Char == 'o' || k.Char == 'O':
 		u.Send(r, OpenAsked{})
+	case k.Char == 'm':
+		r.page = 1 - r.page
+		u.Invalidate()
 	case k.Char == 'l':
 		r.list.open = !r.list.open
 		r.list.closed = !r.list.open
@@ -629,6 +678,10 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 	}
 	return true
 }
+
+// startPage is the page the window opens on: 0 the stage, 1 the
+// mixer.
+var startPage int
 
 // styleOrder is the order of the styles on the deck.
 var styleOrder = []string{"gm", "sid", "nes", "gb", "adlib"}
@@ -674,4 +727,78 @@ func fit(s string, size float32, bold bool, w float32) text.Run {
 func clock(secs float64) string {
 	s := int(max(secs, 0))
 	return fmt.Sprintf("%d:%02d", s/60, s%60)
+}
+
+// tabs are the two pages' tabs: the stage and the mixer. The pill
+// slides to the page shown.
+type tabs struct {
+	r    *root
+	over int
+	size geom.Size
+}
+
+func (t *tabs) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
+	t.size = c.Max
+	return c.Max
+}
+
+func (t *tabs) tabAt(pos geom.Point) int {
+	if pos.Y < 0 || pos.Y > t.size.H || pos.X < 0 || pos.X > t.size.W {
+		return -1
+	}
+	return min(int(pos.X/(t.size.W/2)), 1)
+}
+
+func (t *tabs) Handle(e input.Event, u *gunim.UI) bool {
+	switch e := e.(type) {
+	case input.PointerMove:
+		if o := t.tabAt(e.Pos); o != t.over {
+			t.over = o
+			u.Invalidate()
+		}
+		return false
+	case input.PointerLeave:
+		t.over = -1
+		u.Invalidate()
+	case input.PointerDown:
+		if i := t.tabAt(e.Pos); i >= 0 && e.Button == input.ButtonPrimary {
+			t.r.page = i
+			u.Invalidate()
+			return true
+		}
+		return false
+	default:
+		return false
+	}
+	return true
+}
+
+func (t *tabs) Paint(p *paint.Painter, _ gunim.Frame, box geom.Size, _ gunim.Children) {
+	pal := t.r.l.pal
+	rad := box.H / 2 * min(1, pal.round*3)
+	full := geom.Rect{Max: box.Point()}
+	p.RRect(full, rad, paint.Solid(alpha(darken(pal.panel, 0.3), 0.9)))
+	p.RRectStroke(full, rad, paint.Fill{}, paint.Stroke{Width: 1, Color: alpha(pal.edge, 0.7)})
+	half := box.W / 2
+	x := half * ease(t.r.pg)
+	p.ShadowRRect(xyxy(x+3, 3, x+half-3, box.H-3), rad-3, paint.Solid(pal.accent),
+		paint.Shadow{Blur: 10, Color: alpha(pal.accent, 0.4)})
+	for i, label := range []string{"Stage", "Mixer"} {
+		ic := icon.Music
+		if i == 1 {
+			ic = icon.SlidersVertical
+		}
+		on := i == t.r.page
+		ink := pal.ink
+		if on {
+			ink = darken(pal.accent, 0.8)
+		} else if i == t.over {
+			ink = lighten(pal.ink, 0.2)
+		}
+		run := shaped(label, 13, true)
+		w := 16 + 6 + run.Advance
+		x0 := float32(i)*half + (half-w)/2
+		p.Mask(icon.Stroke{Icon: ic, Width: 2, Progress: 1}, xyxy(x0, box.H/2-8, x0+16, box.H/2+8), pal.tone(ink))
+		run.Paint(p, geom.Pt(x0+22, (box.H-run.Height())/2), ink)
+	}
 }

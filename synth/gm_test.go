@@ -316,3 +316,61 @@ func TestMIDIPlayerSpeedMuteAndTime(t *testing.T) {
 		t.Errorf("all muted, the player peaks at %v", peak)
 	}
 }
+
+func TestGMMixStripsMetersAndMaster(t *testing.T) {
+	play := func(m GMMix) (GMMeters, float32) {
+		g := NewGM()
+		g.SetMix(m)
+		g.Send(midi.Program, 19, 0, nil) // an organ, held
+		g.Send(midi.NoteOn, 60, 100, nil)
+		g.Send(midi.NoteOn|1, 64, 100, nil)
+		p := peak(t, g, 0.5)
+		return g.TakeMeters(), p
+	}
+	flat := DefaultGMMix()
+	m0, p0 := play(flat)
+	if m0.Channels[0] <= 0 || m0.Channels[1] <= 0 || m0.Left <= 0 || m0.Channels[2] != 0 {
+		t.Fatalf("the meters read %+v", m0)
+	}
+	// Channel 1 turned down 60 dB: its meter falls, and channel 2's holds.
+	quiet := flat
+	quiet.Channels[0].Gain = -60
+	m1, _ := play(quiet)
+	if m1.Channels[0] > m0.Channels[0]/100 || math.Abs(float64(m1.Channels[1]-m0.Channels[1])) > 1e-3 {
+		t.Errorf("channel 1 at -60 dB meters %v, from %v; channel 2 %v, from %v", m1.Channels[0], m0.Channels[0], m1.Channels[1], m0.Channels[1])
+	}
+	// The master turned up 12 dB, the limiter holds it under its ceiling.
+	loud := flat
+	loud.Gain = 12
+	loud.Limiter.Ceiling = -3
+	m2, p2 := play(loud)
+	if p2 > float32(dbGain(-3))*1.02 || m2.Limit <= 0 {
+		t.Errorf("12 dB up, the limiter at -3 dB lets through %v (%v), reducing %v dB", p2, p0, m2.Limit)
+	}
+	// The delay sends: echoes ring on after the notes stop.
+	echo := flat
+	echo.Channels[0].Delay = 1
+	echo.Delay.Feedback = 0.6
+	g := NewGM()
+	g.SetMix(echo)
+	g.Send(midi.NoteOn, 60, 110, nil)
+	peak(t, g, 0.1)
+	g.Send(midi.NoteOff, 60, 0, nil)
+	peak(t, g, 0.6)
+	if p := peak(t, g, 0.4); p < 1e-3 {
+		t.Errorf("the delay's echoes are gone 0.6 s after the note: %v", p)
+	}
+}
+
+func TestGMBandResponse(t *testing.T) {
+	b := GMBand{Freq: 1000, Gain: 6, Q: 1}
+	if got := GMBandResponse(2, b, 1000); math.Abs(got-6) > 0.1 {
+		t.Errorf("a bell of 6 dB at 1 kHz lifts 1 kHz by %v dB", got)
+	}
+	if got := GMBandResponse(2, b, 50); math.Abs(got) > 0.3 {
+		t.Errorf("a bell at 1 kHz lifts 50 Hz by %v dB", got)
+	}
+	if got := GMBandResponse(0, GMBand{Freq: 100, Gain: -9, Q: 0.7}, 20); math.Abs(got+9) > 0.5 {
+		t.Errorf("a low shelf of -9 dB at 100 Hz takes 20 Hz down %v dB", got)
+	}
+}

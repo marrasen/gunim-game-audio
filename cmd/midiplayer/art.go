@@ -140,7 +140,8 @@ func (pn pen) line(p *paint.Painter, a, b geom.Point, w float32, c color.NRGBA) 
 	}
 	mid := geom.Pt((a.X+b.X)/2, (a.Y+b.Y)/2)
 	end := p.Push(paint.Rotate(float32(math.Atan2(float64(dy), float64(dx))), mid))
-	p.RRect(xyxy(mid.X-l/2, mid.Y-w/2, mid.X+l/2, mid.Y+w/2), w/2, paint.Solid(c))
+	// Round caps past each end, so lines that meet join.
+	p.RRect(xyxy(mid.X-l/2-w/2, mid.Y-w/2, mid.X+l/2+w/2, mid.Y+w/2), w/2, paint.Solid(c))
 	end()
 }
 

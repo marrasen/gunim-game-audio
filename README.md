@@ -732,10 +732,25 @@ Under the piano, the timeline maps how busy the song is, in the colour
 of its busiest channel, for a click or a drag to move through. Beside
 it are skip, repeat, the speed, the transpose and the volume. Space
 plays and pauses, the arrows move five seconds, N and P skip, 1 to 5
-pick a style, + and - change the speed, L shows the playlist and O
-opens files.
+pick a style, + and - change the speed, M shows the mixer, L shows the
+playlist and O opens files.
 
 ![The MIDI player](cmd/midiplayer/midiplayer.png)
+
+The Mixer tab, or M, slides the stage away for a mixing desk. Each
+channel has a strip: a high, middle and low equaliser, drive, its
+sends to the reverb, the chorus and the delay, its pan, mute and solo,
+and a fader beside its meter. The master has a five-band equaliser,
+drawn as a curve over the spectrum of the sound heard, its handles
+dragged across for the frequency and up and down for the gain, and the
+wheel to narrow or widen each; the reverb, delay and chorus the strips
+send to; a compressor and a limiter, each showing how far it turns the
+sound down; and the master fader between its meters. A knob or a fader
+drags up and down, finer with Shift, and a double click sets it back.
+The mix is kept for the next time, and Reset sets it all back.
+`-mixer` opens the player on it.
+
+![The mixer](cmd/midiplayer/mixer.png)
 
 ## Licence
 
