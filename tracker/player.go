@@ -682,7 +682,7 @@ func (p *Player) firstTick(c *channel) {
 	case 0xF:
 		switch {
 		case c.param == 0:
-		case c.param < 32:
+		case c.param < 32 || m.VBlank:
 			p.speed = c.param
 		default:
 			p.bpm = c.param

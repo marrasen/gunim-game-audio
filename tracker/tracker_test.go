@@ -280,3 +280,29 @@ func TestNotesAreNamedAsTheirTrackersShowThem(t *testing.T) {
 		}
 	}
 }
+
+func TestAnOldMODIsTimedByTheVerticalBlank(t *testing.T) {
+	// F40 then F05: by the CIA, BPM 64 at speed 5, which plays the 50
+	// orders for over 10 minutes; by the vertical blank, speed 64 for a
+	// row and then speed 5 at 125, which plays them in half the time.
+	var p [64][4]modCell
+	p[0][0] = modCell{period: 428, sample: 1, effect: 0xF, param: 0x40}
+	p[1][0] = modCell{effect: 0xF, param: 5}
+	orders := make([]int, 50)
+	m, err := Read(bytes.NewReader(buildMOD([][64][4]modCell{p}, orders)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.VBlank {
+		t.Fatal("the module is timed by the CIA")
+	}
+	want := 50 * (64*0.02 + 63*5*0.02)
+	if got := Scan(m).Length; math.Abs(got-want) > 0.01 {
+		t.Errorf("by the vertical blank, the song lasts %.2f s, want %.2f", got, want)
+	}
+	// One short enough by the CIA stays so.
+	m2, _ := Read(bytes.NewReader(buildMOD([][64][4]modCell{p}, orders[:4])))
+	if m2.VBlank {
+		t.Error("a short module is timed by the vertical blank")
+	}
+}

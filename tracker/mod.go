@@ -145,6 +145,7 @@ func readMODBody(b []byte, samples, channels, songAt, patAt int) (*Module, error
 			s.LoopStart, s.LoopLen, s.Loop = ls, min(ll, len(data)-ls), 1
 		}
 	}
+	m.VBlank = vblank(m)
 	m.Pan = make([]int, channels)
 	for ch := range channels {
 		// The Amiga plays channels 1 and 4 left and 2 and 3 right; here
@@ -156,6 +157,32 @@ func readMODBody(b []byte, samples, channels, songAt, patAt int) (*Module, error
 		}
 	}
 	return m, nil
+}
+
+// vblank reports whether a MOD is timed by the vertical blank, as
+// libopenmpt judges it: one that sets a speed of 32 or more, which the
+// CIA's timing takes as a BPM, and plays for 10 minutes or more so, but
+// for less by the vertical blank.
+func vblank(m *Module) bool {
+	high := false
+	for _, p := range m.Patterns {
+		for _, c := range p.Cells {
+			if c.Effect == 0xF && c.Param >= 0x20 {
+				high = true
+			}
+		}
+	}
+	if !high {
+		return false
+	}
+	cia := Scan(m).Length
+	if cia < 600 {
+		return false
+	}
+	m.VBlank = true
+	short := Scan(m).Length < cia
+	m.VBlank = false
+	return short
 }
 
 func (r *reader) u16be() int { s := r.take(2); return int(s[0])<<8 | int(s[1]) }

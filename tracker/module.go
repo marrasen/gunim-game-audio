@@ -44,6 +44,10 @@ type Module struct {
 	// Pan is each channel's place between the speakers to begin with,
 	// from 0, left, to 255, right.
 	Pan []int
+	// VBlank says the module is timed by the Amiga's vertical blank, 50
+	// ticks a second, as the oldest MODs are: every Fxx then sets the
+	// speed, and the BPM stays at 125.
+	VBlank bool
 	// clock is what an Amiga period divides into to give a sample's
 	// rate, in FastTracker's periods, four of the Amiga's.
 	clock float64
