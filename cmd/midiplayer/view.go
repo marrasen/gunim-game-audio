@@ -15,6 +15,8 @@ import (
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/text"
+	"github.com/marrasen/gunim/theme"
+	"github.com/marrasen/gunim/widget"
 
 	"github.com/marrasen/gunim-game-audio/synth"
 )
@@ -163,6 +165,15 @@ type root struct {
 	tabs  *tabs
 	track *trackView
 	font  *fontCard
+	// controls are the window's minimize, maximize and close buttons,
+	// at its top right: the player draws its own title bar, and
+	// captions are the parts of its header with nothing on them, which
+	// move the window as the system's title bar does.
+	controls *widget.WindowControls
+	ctlTheme *widget.Themed
+	captions []geom.Rect
+	// deckAt is where the deck lies.
+	deckAt geom.Rect
 	// page is the page shown, the stage or the mixer, and pg slides
 	// between them, from 0, the stage, to 1, the mixer.
 	page     int
@@ -204,6 +215,8 @@ func buildView(s Player) *root {
 	r.tabs = &tabs{r: r, over: -1}
 	r.track = &trackView{l: l, lastRow: -1, lastPat: -1, latest: -1}
 	r.font = &fontCard{l: l, over: -1}
+	r.controls = widget.NewWindowControls()
+	r.ctlTheme = widget.NewThemed(r.controls, titleBarTheme(key))
 	if len(s.Playlist) > 1 {
 		r.listOpen, r.list.open = 1, true
 	}
@@ -212,7 +225,7 @@ func buildView(s Player) *root {
 
 // Children implements [gunim.Composite].
 func (r *root) Children() []gunim.Node {
-	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs, r.track, r.font}
+	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs, r.track, r.font, r.ctlTheme}
 }
 
 // update shows s.
@@ -228,6 +241,7 @@ func (r *root) update(s Player, u *gunim.UI) {
 		r.track.insOff, r.track.insWant, r.track.latest, r.track.manual = 0, 0, -1, 0
 	}
 	if key := paletteKey(s); key != r.style {
+		r.ctlTheme.Use(titleBarTheme(key))
 		r.from, r.to = l.pal, palettes[key]
 		r.style, r.blend = key, 0
 		if s.Style != r.bootStyle {
@@ -295,8 +309,15 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 		k.Place(rc.Min)
 	}
 	// The deck of styles at the top right, under the title bar.
-	deckW := min(float32(560), w*0.45)
-	place(3, xyxy(w-margin-deckW, top, w-margin, top+headerH))
+	// The window's buttons at the top right, and the deck left of them.
+	ctl := kids.At(9)
+	cs := ctl.Layout(gunim.Constraints{Max: geom.Sz(w, 32)})
+	ctl.Place(geom.Pt(w-cs.W, 0))
+	right := w - cs.W - 10
+	deckW := min(float32(560), w*0.42)
+	deck := xyxy(right-deckW, top, right, top+headerH)
+	r.deckAt = deck
+	place(3, deck)
 	// The transport along the bottom.
 	place(4, xyxy(margin, h-margin-transH, w-margin, h-margin))
 	midTop := top + headerH + 8
@@ -342,7 +363,16 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 	}
 	place(5, xyxy(margin, midTop+moff, bandRight, midBot+moff))
 	// The tabs, left of the deck.
-	place(6, xyxy(w-margin-deckW-206, top+30, w-margin-deckW-16, top+64))
+	tabsR := xyxy(deck.Min.X-206, top+30, deck.Min.X-16, top+64)
+	place(6, tabsR)
+	// What of the header has nothing on it moves the window.
+	hb := top + headerH
+	r.captions = append(r.captions[:0],
+		xyxy(0, 0, tabsR.Min.X-8, hb),
+		xyxy(tabsR.Min.X-8, 0, deck.Min.X, tabsR.Min.Y-4),
+		xyxy(tabsR.Min.X-8, tabsR.Max.Y+4, deck.Min.X, hb),
+		xyxy(tabsR.Max.X+8, tabsR.Min.Y-4, deck.Min.X, tabsR.Max.Y+4),
+		xyxy(deck.Min.X, 0, w-cs.W, top))
 	// The playlist slides in from the right, beside the band, and out
 	// past the window's edge.
 	x := w - margin - panel + (margin+30)*(1-ease(r.listOpen))
@@ -469,7 +499,7 @@ func (r *root) paintTitle(p *paint.Painter, f gunim.Frame, box geom.Size) {
 				t.Module.Channels, sc.BPM, len(t.Module.Instruments))
 		}
 	}
-	maxW := box.W - 2*margin - min(float32(560), box.W*0.45) - 230
+	maxW := box.W - 2*margin - min(float32(560), box.W*0.42) - 230 - 150
 	big := fit(title, 30, true, maxW)
 	// The title rises into place as a song loads.
 	rise := 1 - ease(r.l.fresh*2)
@@ -832,6 +862,17 @@ func (l *look) chanName(ch int) string {
 	}
 	return synth.GMNames[l.ch[ch].program&127]
 }
+
+// titleBarTheme is the window's buttons' theme in the palette of style
+// key: no fill of their own, over the player's drawing, and its ink.
+func titleBarTheme(key string) theme.Theme {
+	return theme.Make("titlebar."+key, theme.Set(widget.MenubarFill, color.NRGBA{}), theme.Set(widget.Ink, palettes[key].ink))
+}
+
+// CaptionRects implements [gunim.Caption]: the parts of the header with
+// nothing on them move the window, and a double click there maximizes
+// it.
+func (r *root) CaptionRects(geom.Size) []geom.Rect { return r.captions }
 
 // paletteKey returns the palette s shows in: its style's, but for a
 // tracker's module in General MIDI's style, which shows in its

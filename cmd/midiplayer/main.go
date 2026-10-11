@@ -80,10 +80,9 @@ func run(style string, demo, silent bool, shot string, after time.Duration, font
 	defer stop()
 	return gunim.Main(ctx, func(a *gunim.App) error {
 		w, err := a.NewWindow(gunim.WindowOptions{
-			Title:         "gunim MIDI player",
-			Size:          geom.Sz(1360, 880),
-			Root:          widget.NewSurface(),
-			UnderTitleBar: true,
+			Title: "gunim MIDI player",
+			Size:  geom.Sz(1360, 880),
+			Root:  widget.NewSurface(),
 		})
 		if err != nil {
 			return err

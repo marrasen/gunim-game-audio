@@ -293,13 +293,8 @@ func TestTheWindowTakesClicksDropsAndKeys(t *testing.T) {
 	}
 }
 
-// boundsOf returns where the deck lies in the window: at the top
-// right, under the title bar.
-func boundsOf(h *window, d *deck) (geom.Rect, bool) {
-	w := float32(1360)
-	deckW := min(float32(560), w*0.45)
-	return xyxy(w-margin-deckW, 6, w-margin, 6+headerH), d.size.W > 0
-}
+// boundsOf returns where the deck lies in the window.
+func boundsOf(h *window, d *deck) (geom.Rect, bool) { return h.v.deckAt, d.size.W > 0 }
 
 func TestEveryStyleAndNoSongDrawsWithoutFault(t *testing.T) {
 	s := demoState(t)
