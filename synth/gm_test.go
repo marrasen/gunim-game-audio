@@ -515,3 +515,41 @@ func TestAKitPlaysOnARegisteredBankOrWithout(t *testing.T) {
 		t.Errorf("a drum the bank lacks peaks at %v left; want the engine's", l)
 	}
 }
+
+func TestATierClimbsOnARoll(t *testing.T) {
+	s := &Song{BPM: 120, PhraseBars: 4, Chords: []string{"Dm"},
+		Patches: map[string]*Patch{"kit": {Kind: "drums"}, "keys": GMPatch(0)},
+		Tracks:  []*Track{{Name: "keys", Tier: 1, Patch: "keys", Pattern: "c0"}, {Name: "kit", Tier: 2, Patch: "kit", Pattern: "bd"}},
+		Mix:     Mix{Transitions: &Transitions{Patch: "kit", Lift: 2, Roll: "tim"}}}
+	p := NewPlayer(s, 1)
+	if err := p.Err(); err != nil {
+		t.Fatal(err)
+	}
+	p.SetTier(1)
+	buf := make([]float32, 2*1024)
+	read := func(bars float64) {
+		for n := int(bars * p.c.fpb); n > 0; n -= len(buf) / 2 {
+			p.Read(buf[:2*min(len(buf)/2, n)])
+		}
+	}
+	read(1.5)
+	p.SetTier(2)
+	read(0.6)
+	// Into bar 3, the roll's two bars are queued: 16 16ths, then 32 32nds,
+	// swelling, on D, the chord's root.
+	var vels []float32
+	for _, q := range p.queue {
+		if q.t == p.trans && q.d.name == "tim" {
+			vels = append(vels, q.n.vel)
+			if q.pitch != 38 {
+				t.Fatalf("the timpani rolls on %v, want 38, D", q.pitch)
+			}
+		}
+	}
+	if len(vels) != 48 {
+		t.Fatalf("the roll has %d hits, want 48", len(vels))
+	}
+	if vels[0] > 0.3 || vels[len(vels)-1] < 0.9 {
+		t.Errorf("the roll swells from %v to %v", vels[0], vels[len(vels)-1])
+	}
+}

@@ -29,7 +29,10 @@
 				"cr": {"Gain": 0.4, "Decay": 1.4},
 				"ht": {"Tune": 4, "Gain": 0.5},
 				"mt": {"Gain": 0.5},
-				"lt": {"Tune": -4, "Gain": 0.55}
+				"lt": {"Tune": -4, "Gain": 0.55},
+				"tim": {"Gain": 0.8},
+				"boom": {"Key": 36, "Gain": 0.9},
+				"down": {"Gain": 0.4}
 			}
 		}
 	},
@@ -100,6 +103,7 @@
 	"Mix": {
 		"Reverb": {"Size": 1.2, "Decay": 3, "Tone": 0.5, "PreDelay": 0.03},
 		"Delay": {"Beats": 0.5, "Feedback": 0.2, "Tone": 0.4},
-		"Gain": -6.5
+		"Gain": -6.5,
+		"Transitions": {"Patch": "orch", "Lift": 2, "Gain": -4, "Reverb": 0.4, "Roll": "tim"}
 	}
 }

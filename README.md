@@ -125,7 +125,10 @@ p.Sting("victory")        // from the next beat, in place of the song
 
 The tier changes at the next phrase. Where a song marks its
 transitions, a riser plays in the bar before a climb, an impact lands
-with it, and a down sweeps as the tier falls. A boss's health maps to
+with it, and a down sweeps as the tier falls. A song's transitions can
+roll a drum in the riser's place instead, `"Roll": "tim"` or `"sn"`:
+16ths, then 32nds in the last bar, swelling into the new tier, as Ember
+Crown's timpani do over two bars. A boss's health maps to
 the tier the same way: full health tier 1, and each quarter lost one
 tier more.
 

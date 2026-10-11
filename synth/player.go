@@ -1,6 +1,7 @@
 package synth
 
 import (
+	"cmp"
 	"errors"
 	"math"
 	"slices"
@@ -915,7 +916,12 @@ func (p *Player) lift(sb int) {
 	}
 	if mod(sb, c.phraseBars) == c.phraseBars-c.trans.lift && int(p.tierReq.Load()) > p.tier {
 		p.risen = true
-		p.hit(c.trans.riser, p.barStart, int64(float64(c.trans.lift)*c.fpb), 0.85)
+		end := p.barStart + int64(float64(c.trans.lift)*c.fpb)
+		if c.trans.rolls {
+			p.roll(p.barStart, end)
+			return
+		}
+		p.hit(c.trans.riser, p.barStart, end-p.barStart, 0.85)
 	}
 }
 
@@ -933,7 +939,43 @@ func (p *Player) liftLate() {
 	end := p.barStart + int64(float64(c.phraseBars-mod(sb, c.phraseBars))*c.fpb)
 	if left := end - p.at; float64(left) > c.fpb/4 {
 		p.risen = true
+		if c.trans.rolls {
+			p.roll(p.at, end)
+			// The roll's hits go among those queued, in time.
+			slices.SortStableFunc(p.queue[p.qi:], func(a, b sched) int { return cmp.Compare(a.frame, b.frame) })
+			return
+		}
 		p.trans.hs.play(c.trans.riser, 0.85, 0, 0, left, 0)
+	}
+}
+
+// roll queues the transitions' roll from frame from to end: 16ths, on
+// the song's grid, and 32nds in its last bar, swelling from soft to
+// loud, a timpani's on the chord's root.
+func (p *Player) roll(from, end int64) {
+	c := p.c
+	tr := c.trans
+	sixteenth := c.fpb / float64(c.beats*4)
+	lastBar := float64(end) - c.fpb
+	var pitch float32
+	if tr.roll.kind == drTimpani {
+		ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
+		pitch = float32(ch.Root + 36)
+	}
+	// From the bar's grid, the first step at or after from.
+	at := float64(p.barStart) + math.Ceil((float64(from)-float64(p.barStart))/sixteenth-1e-9)*sixteenth
+	span := float64(end) - at
+	for at < float64(end)-1 {
+		x := 1 - (float64(end)-at)/max(span, 1)
+		vel := float32(0.18 + 0.82*x*x)
+		vel *= 1 + 0.04*p.rng.bipolar()
+		p.queue = append(p.queue, sched{frame: int64(at), t: p.trans, drum: true, d: tr.roll, pitch: pitch,
+			dur: int64(sixteenth), n: note{vel: min(vel, 1)}})
+		step := sixteenth
+		if at >= lastBar {
+			step /= 2
+		}
+		at += step
 	}
 }
 
