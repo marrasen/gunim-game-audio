@@ -1,10 +1,14 @@
 // Command midiplayer plays MIDI files through the synth engine's
-// General MIDI instruments, in a window that shows the music played.
+// General MIDI instruments, and tracker modules, MOD and XM, through
+// their own samples, in a window that shows the music played.
 //
 //	go run github.com/marrasen/gunim-game-audio/cmd/midiplayer@latest [file.mid ...]
 //
-// Drop MIDI files, or folders of them, on the window to play them, or
-// press Open. The song falls onto a piano as it plays, and each channel
+// Drop MIDI files, MODs and XMs, or folders of them, on the window to
+// play them, or press Open. A module shows as a tracker shows it: its
+// pattern scrolling under the row heard, a scope for each channel, its
+// orders and instruments, and an Amiga demo's copper bars, stars and
+// scroller of its samples' names. The song falls onto a piano as it plays, and each channel
 // has a station of its own on the stage, its instrument playing what it
 // plays: a click mutes it, and a click with Shift plays it alone. The
 // cartridges at the top pick the style the instruments play in, and the

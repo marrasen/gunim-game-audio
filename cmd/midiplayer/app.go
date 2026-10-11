@@ -20,6 +20,7 @@ import (
 
 	"github.com/marrasen/gunim-game-audio/midi"
 	"github.com/marrasen/gunim-game-audio/synth"
+	"github.com/marrasen/gunim-game-audio/tracker"
 )
 
 // app is the application half: the playlist, the song playing and how
@@ -27,12 +28,12 @@ import (
 type app struct {
 	c     gunim.Client
 	mixer *audio.Mixer
-	// list is the playlist, files its files read, nil until read, and
-	// cur the one playing, -1 for none.
+	// list is the playlist, files its files read, and cur the one
+	// playing, -1 for none.
 	list  []Item
-	files []*midi.File
+	files []songFile
 	cur   int
-	p     *synth.MIDIPlayer
+	p     songPlayer
 	voice *audio.Voice
 	score *Score
 	gen   int
@@ -40,7 +41,7 @@ type app struct {
 	// seen to.
 	ended     bool
 	style     string
-	muted     [16]bool
+	muted     [maxCh]bool
 	solo      int
 	speed     float64
 	transpose int
@@ -66,16 +67,49 @@ func newApp(c gunim.Client, mix *audio.Mixer) *app {
 		spec: make([]float32, len(specFreqs))}
 }
 
-// midiFiles are the files the open dialog shows.
-var midiFiles = []driver.FileFilter{{Name: "MIDI files", Patterns: []string{"*.mid", "*.midi", "*.kar", "*.smf"}}}
+// songFile is a song of the playlist, read: a MIDI file, or a
+// tracker's module.
+type songFile struct {
+	midi *midi.File
+	mod  *tracker.Module
+}
 
-// isMIDI reports whether path is named as a MIDI file.
+// length returns how long the song plays, in seconds.
+func (f songFile) length() float64 {
+	if f.mod != nil {
+		return tracker.Scan(f.mod).Length
+	}
+	return f.midi.Length()
+}
+
+// songPlayer is what plays a song: a MIDI file's player, or a module's.
+type songPlayer interface {
+	Read(dst []float32) (int, error)
+	Length() float64
+	Seek(secs float64)
+	SetSpeed(speed float64)
+	SetMute(ch int, mute bool)
+	SetMix(m synth.GMMix)
+	TakeMeters() synth.GMMeters
+	TimeAt(out int64) float64
+	Ended() bool
+}
+
+// midiFiles are the files the open dialog shows.
+var midiFiles = []driver.FileFilter{
+	{Name: "Songs", Patterns: []string{"*.mid", "*.midi", "*.kar", "*.smf", "*.mod", "*.xm"}},
+	{Name: "MIDI files", Patterns: []string{"*.mid", "*.midi", "*.kar", "*.smf"}},
+	{Name: "Tracker modules", Patterns: []string{"*.mod", "*.xm"}},
+}
+
+// isMIDI reports whether path is named as a song the player plays: a
+// MIDI file, or a MOD or an XM, which the Amiga named mod.name.
 func isMIDI(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".mid", ".midi", ".kar", ".smf", ".rmi":
+	case ".mid", ".midi", ".kar", ".smf", ".rmi", ".mod", ".xm":
 		return true
 	}
-	return false
+	return strings.HasPrefix(strings.ToLower(filepath.Base(path)), "mod.")
 }
 
 // add puts the MIDI files among paths, and those in folders among them,
@@ -101,16 +135,16 @@ func (a *app) add(paths []string) {
 	}
 	first := len(a.list)
 	for _, p := range found {
-		f, err := readMIDI(p)
+		f, name, err := readSong(p)
 		if err != nil {
-			a.say(fmt.Sprintf("%s is not a MIDI file I can play: %v", filepath.Base(p), err))
+			a.say(fmt.Sprintf("%s is not a song I can play: %v", filepath.Base(p), err))
 			continue
 		}
-		a.list = append(a.list, Item{Name: displayName(p, f), Path: p, Length: f.Length()})
+		a.list = append(a.list, Item{Name: name, Path: p, Length: f.length(), Tracker: f.mod != nil})
 		a.files = append(a.files, f)
 	}
 	if len(found) == 0 && len(paths) > 0 {
-		a.say("No MIDI files there")
+		a.say("No songs there")
 	}
 	if added := len(a.list) - first; added > 0 {
 		a.start(first)
@@ -128,8 +162,45 @@ func (a *app) addDemo() {
 		return
 	}
 	a.list = append(a.list, Item{Name: "Neon Overture (demo)", Length: f.Length()})
-	a.files = append(a.files, f)
+	a.files = append(a.files, songFile{midi: f})
 	a.start(len(a.list) - 1)
+}
+
+// readSong reads the song at path, a MIDI file or a module, by its name
+// or else by what it holds, and returns it and its name.
+func readSong(path string) (songFile, string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return songFile{}, "", err
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	tryMod := ext == ".mod" || ext == ".xm" || strings.HasPrefix(strings.ToLower(filepath.Base(path)), "mod.")
+	readMod := func() (songFile, string, error) {
+		m, err := tracker.Read(bytes.NewReader(b))
+		if err != nil {
+			return songFile{}, "", err
+		}
+		name := strings.TrimSpace(m.Title)
+		if name == "" || strings.EqualFold(name, "untitled") {
+			name = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		}
+		return songFile{mod: m}, name, nil
+	}
+	if tryMod {
+		if f, name, err := readMod(); err == nil {
+			return f, name, nil
+		}
+	}
+	f, err := readMIDI(path)
+	if err == nil {
+		return songFile{midi: f}, displayName(path, f), nil
+	}
+	if !tryMod {
+		if sf, name, err2 := readMod(); err2 == nil {
+			return sf, name, nil
+		}
+	}
+	return songFile{}, "", err
 }
 
 // readMIDI reads the MIDI file at path.
@@ -185,13 +256,20 @@ func (a *app) start(i int) {
 	}
 	f := a.files[i]
 	a.cur, a.ended = i, false
-	a.p = synth.NewMIDIPlayer(f)
-	_ = a.p.SetStyle(a.style)
+	if f.mod != nil {
+		tp := tracker.NewPlayer(f.mod)
+		a.p = tp
+		a.score = newTrackerScore(f.mod, tp.Timeline(), a.list[i].Name)
+	} else {
+		mp := synth.NewMIDIPlayer(f.midi)
+		_ = mp.SetStyle(a.style)
+		mp.SetTranspose(a.transpose)
+		a.p = mp
+		a.score = newScore(f.midi, a.list[i].Name)
+	}
 	a.p.SetSpeed(a.speed)
-	a.p.SetTranspose(a.transpose)
 	a.p.SetMix(a.mix)
 	a.applyMutes()
-	a.score = newScore(f, a.list[i].Name)
 	a.gen++
 	a.voice = a.mixer.Play(a.p, audio.Options{Volume: a.volume})
 }
@@ -201,7 +279,7 @@ func (a *app) applyMutes() {
 	if a.p == nil {
 		return
 	}
-	for ch := range 16 {
+	for ch := range maxCh {
 		a.p.SetMute(ch, a.muted[ch] || a.solo >= 0 && a.solo != ch)
 	}
 }
@@ -274,12 +352,12 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 	case StyleChosen:
 		if slices.Contains(synth.GMStyles, v.Style) {
 			a.style = v.Style
-			if a.p != nil {
-				_ = a.p.SetStyle(v.Style)
+			if mp := a.midi(); mp != nil {
+				_ = mp.SetStyle(v.Style)
 			}
 		}
 	case ChannelClicked:
-		ch := v.Channel & 15
+		ch := min(max(v.Channel, 0), maxCh-1)
 		if v.Solo {
 			if a.solo == ch {
 				a.solo = -1
@@ -297,8 +375,8 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 		}
 	case TransposeSet:
 		a.transpose = min(max(v.Semis, -24), 24)
-		if a.p != nil {
-			a.p.SetTranspose(a.transpose)
+		if mp := a.midi(); mp != nil {
+			mp.SetTranspose(a.transpose)
 		}
 	case VolumeSet:
 		a.volume = min(max(v.Volume, 0), 1)
@@ -435,4 +513,10 @@ func (a *app) saveMix() {
 	if err != nil {
 		a.say("The mix could not be saved: " + err.Error())
 	}
+}
+
+// midi returns the MIDI file's player, where one plays.
+func (a *app) midi() *synth.MIDIPlayer {
+	mp, _ := a.p.(*synth.MIDIPlayer)
+	return mp
 }

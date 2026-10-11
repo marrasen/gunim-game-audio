@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/tracker"
 )
 
 // A Score is a song made ready to draw: its notes, each with its start
@@ -23,21 +24,35 @@ type Score struct {
 	BarBeats int
 	BPM      float64
 	// Channels say what each channel plays.
-	Channels [16]ChannelInfo
+	Channels [maxCh]ChannelInfo
 	// Density is how busy each channel is through the song, in
 	// densityBins slices of it, from 0 to 1.
-	Density [][16]float32
+	Density [][maxCh]float32
 	// MaxLen is how long the longest note lasts.
 	MaxLen float64
 	// index files the notes by the half seconds they sound in; span
 	// makes it, on the window's side.
 	index [][]int32
+	// Tracker is the module and its rows, where the song is a tracker's;
+	// nil for a MIDI file.
+	Tracker *TrackerSong
 }
 
-// Note is a note of a channel, from Start to End seconds.
+// TrackerSong is a module made ready to draw: the module, its patterns,
+// instruments and samples, and when each row plays.
+type TrackerSong struct {
+	Module *tracker.Module
+	Rows   []tracker.RowAt
+}
+
+// Note is a note of a channel, from Start to End seconds; Ins is a
+// module's instrument that plays it, from 1, and Freq the rate it plays
+// its sample at.
 type Note struct {
 	Ch, Key, Vel uint8
+	Ins          uint8
 	Start, End   float64
+	Freq         float64
 }
 
 // ProgramAt is a channel's change of instrument, at Time seconds.
@@ -158,7 +173,7 @@ func (s *Score) beats(f *midi.File, evs []midi.Event) {
 
 // density measures how busy each channel is in each slice of the song.
 func (s *Score) density() {
-	s.Density = make([][16]float32, densityBins)
+	s.Density = make([][maxCh]float32, densityBins)
 	per := s.Length / densityBins
 	for _, n := range s.Notes {
 		a := int(n.Start / per)
@@ -282,4 +297,55 @@ func (s *Score) used() []int {
 		}
 	}
 	return slices.Clip(chs)
+}
+
+// newTrackerScore makes module m ready to draw, from its timeline: its
+// notes, each lasting to the next on its channel, a beat each four rows,
+// and a bar each sixteen.
+func newTrackerScore(m *tracker.Module, tl *tracker.Timeline, title string) *Score {
+	s := &Score{Title: title, Length: max(tl.Length, 0.1), BarBeats: 4, Tracker: &TrackerSong{Module: m, Rows: tl.Rows}}
+	for i := range s.Channels {
+		s.Channels[i].Low = 127
+	}
+	last := make([]int, m.Channels)
+	for i := range last {
+		last[i] = -1
+	}
+	for _, n := range tl.Notes {
+		if n.Ch < 0 || n.Ch >= maxCh {
+			continue
+		}
+		key := uint8(min(max(int(n.Note)-1+12, 0), 127))
+		if j := last[n.Ch]; j >= 0 {
+			s.Notes[j].End = min(s.Notes[j].End, n.Time)
+		}
+		last[n.Ch] = len(s.Notes)
+		s.Notes = append(s.Notes, Note{Ch: uint8(n.Ch), Key: key, Vel: 100, Ins: uint8(n.Instrument), Start: n.Time,
+			End: min(n.Time+3, s.Length), Freq: n.Freq})
+		c := &s.Channels[n.Ch]
+		c.Notes++
+		c.Low, c.High = min(c.Low, key), max(c.High, key)
+	}
+	for i := range s.Notes {
+		n := &s.Notes[i]
+		n.End = max(n.End, n.Start+0.03)
+		s.MaxLen = max(s.MaxLen, n.End-n.Start)
+	}
+	for _, r := range tl.Rows {
+		if r.Row%4 == 0 {
+			s.Beats = append(s.Beats, r.Time)
+		}
+	}
+	// A tracker's BPM is its own: it times the ticks, not the beats.
+	s.BPM = float64(m.BPM)
+	if len(tl.Rows) > 0 {
+		s.BPM = float64(tl.Rows[0].BPM)
+	}
+	s.density()
+	return s
+}
+
+// rowAt returns the index of the row playing at t, -1 before the first.
+func (t *TrackerSong) rowAt(sec float64) int {
+	return sort.Search(len(t.Rows), func(i int) bool { return t.Rows[i].Time > sec }) - 1
 }

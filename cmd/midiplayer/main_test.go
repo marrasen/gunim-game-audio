@@ -92,16 +92,16 @@ func TestTheAppPlaysAndControlsTheSong(t *testing.T) {
 	}
 	a.handle(ctx, StyleChosen{Style: "nes"})
 	a.handle(ctx, StyleChosen{Style: "amiga"})
-	if a.style != "nes" || a.p.GM().Style() != "nes" {
-		t.Errorf("the style is %q, the synth's %q, want nes", a.style, a.p.GM().Style())
+	if a.style != "nes" || a.midi().GM().Style() != "nes" {
+		t.Errorf("the style is %q, the synth's %q, want nes", a.style, a.midi().GM().Style())
 	}
 	a.handle(ctx, ChannelClicked{Channel: 2})
-	if !a.p.GM().Muted(2) || a.p.GM().Muted(3) {
+	if !a.midi().GM().Muted(2) || a.midi().GM().Muted(3) {
 		t.Error("a click on channel 3 did not mute it alone")
 	}
 	a.handle(ctx, ChannelClicked{Channel: 5, Solo: true})
 	for ch := range 16 {
-		if want := ch != 5; a.p.GM().Muted(ch) != want {
+		if want := ch != 5; a.midi().GM().Muted(ch) != want {
 			t.Errorf("with channel 6 alone, channel %d muted %v", ch+1, !want)
 		}
 	}
@@ -397,4 +397,89 @@ func TestTheMixerSetsTheMix(t *testing.T) {
 // originIn returns where the mixer lies in the window.
 func (m *mixer) originIn(h *window) geom.Point {
 	return geom.Pt(margin, 6+headerH+8)
+}
+
+// testMOD is a MOD of 4 channels: a looped square wave, named, playing
+// a note on each channel in turn, a row apart, through one pattern.
+func testMOD() []byte {
+	var b bytes.Buffer
+	b.Write(append([]byte("tracker test"), make([]byte, 8)...))
+	for i := range 31 {
+		h := make([]byte, 30)
+		if i == 0 {
+			copy(h, "greetings to all")
+			h[22], h[23] = 0, 16 // 32 bytes
+			h[25] = 64
+			h[28], h[29] = 0, 16
+		}
+		b.Write(h)
+	}
+	b.Write([]byte{1, 127})
+	b.Write(make([]byte, 128))
+	b.WriteString("M.K.")
+	periods := []int{428, 381, 339, 320}
+	for row := range 64 {
+		for ch := range 4 {
+			cell := []byte{0, 0, 0, 0}
+			if row%4 == ch {
+				p := periods[ch]
+				cell = []byte{byte(p >> 8), byte(p), 0x10, 0}
+			}
+			b.Write(cell)
+		}
+	}
+	for i := range 32 {
+		if i < 16 {
+			b.WriteByte(90)
+		} else {
+			b.WriteByte(256 - 90)
+		}
+	}
+	return b.Bytes()
+}
+
+func TestAModulePlaysAsATracker(t *testing.T) {
+	a, play := newTestApp(t)
+	dir := t.TempDir()
+	// Named as neither, it is known by what it holds.
+	path := filepath.Join(dir, "song.bin")
+	if err := os.WriteFile(path, testMOD(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.add([]string{path})
+	if len(a.list) != 1 || !a.list[0].Tracker || a.list[0].Name != "tracker test" {
+		t.Fatalf("the module on the list: %+v", a.list)
+	}
+	s := a.state()
+	if s.Score == nil || s.Score.Tracker == nil || len(s.Score.Tracker.Rows) != 64 || len(s.Score.used()) != 4 {
+		t.Fatalf("the module's score: %+v", s.Score)
+	}
+	play(time.Second)
+	if h := a.heard(); h < 0.9 || h > 1.1 {
+		t.Errorf("after a second, %.2f s of the module is heard", h)
+	}
+	ctx := context.Background()
+	a.handle(ctx, ChannelClicked{Channel: 1, Solo: true})
+	a.handle(ctx, Sought{Time: 5})
+	play(200 * time.Millisecond)
+	m := a.p.TakeMeters()
+	play(200 * time.Millisecond)
+	m = a.p.TakeMeters()
+	if m.Channels[1] <= 0 || m.Channels[0] != 0 || m.Channels[2] != 0 {
+		t.Errorf("channel 2 alone meters %v", m.Channels[:4])
+	}
+	// The window shows it as a tracker, in every style.
+	h := newWindow(t, a.state())
+	if h.v.track.size.W == 0 || h.v.track.lastRow < 0 {
+		t.Errorf("the tracker's view is %v, at row %d", h.v.track.size, h.v.track.lastRow)
+	}
+	st := a.state()
+	for _, style := range styleOrder {
+		st.Style = style
+		_ = h.w.Client().Update("midiplayer", st)
+		h.frames(30)
+	}
+	if got := paletteKey(Player{Score: st.Score, Style: "gm"}); got != "pt" {
+		t.Errorf("a MOD in General MIDI's style shows in %q, want pt", got)
+	}
 }

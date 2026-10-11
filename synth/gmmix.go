@@ -7,7 +7,7 @@ import "math"
 // and limiter, in that order. [DefaultGMMix] leaves the sound as the
 // file has it.
 type GMMix struct {
-	Channels [16]GMStrip
+	Channels [BusChannels]GMStrip
 	Reverb   GMReverb
 	Chorus   GMChorus
 	Delay    GMDelay
@@ -90,7 +90,7 @@ func DefaultGMMix() GMMix {
 // to 1 and over, and how far the compressor and the limiter turned it
 // down, in decibels.
 type GMMeters struct {
-	Channels    [16]float32
+	Channels    [BusChannels]float32
 	Left, Right float32
 	Comp, Limit float32
 }

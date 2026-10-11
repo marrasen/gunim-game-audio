@@ -15,6 +15,8 @@ import (
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/text"
+
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // look is what every part of the window draws from, worked out once a
@@ -35,7 +37,7 @@ type look struct {
 	phase float64
 	pulse float32
 	// ch is what each channel plays now.
-	ch [16]chanLive
+	ch [maxCh]chanLive
 	// fresh counts up from 0 to 1 over the second after a song loads.
 	fresh float32
 	// keyX says where on the window each key of the piano is, from its
@@ -44,7 +46,7 @@ type look struct {
 	keyY float32
 	// station says where each channel's station is on the window, empty
 	// for none.
-	station [16]geom.Rect
+	station [maxCh]geom.Rect
 	// playing says the song moves, so everything animates.
 	playing bool
 }
@@ -104,7 +106,7 @@ func (l *look) update(now time.Time, dt float32) {
 	}
 	l.beat, l.phase = beat, phase
 	l.pulse = max(0, l.pulse-dt*2.5)
-	var energy [16]float32
+	var energy [maxCh]float32
 	sc.span(l.t-0.6, l.t, func(n *Note) {
 		c := &l.ch[n.Ch]
 		ln := liveNote{key: n.Key, vel: float32(n.Vel) / 127, age: l.t - n.Start, left: n.End - l.t}
@@ -149,6 +151,7 @@ type root struct {
 	list  *playlist
 	mixer *mixer
 	tabs  *tabs
+	track *trackView
 	// page is the page shown, the stage or the mixer, and pg slides
 	// between them, from 0, the stage, to 1, the mixer.
 	page     int
@@ -177,8 +180,9 @@ type root struct {
 }
 
 func buildView(s Player) *root {
-	l := &look{s: s, score: s.Score, pal: palettes[s.Style]}
-	r := &root{l: l, page: startPage, pg: float32(startPage), gen: s.ScoreGen, style: s.Style, from: palettes[s.Style], to: palettes[s.Style], blend: 1,
+	l := &look{s: s, score: s.Score, pal: palettes[paletteKey(s)]}
+	key := paletteKey(s)
+	r := &root{l: l, page: startPage, pg: float32(startPage), gen: s.ScoreGen, style: key, bootStyle: s.Style, from: palettes[key], to: palettes[key], blend: 1,
 		msgGen: s.MessageGen}
 	r.deck = &deck{l: l, over: -1, down: -1}
 	r.band = &band{l: l, hover: -1, press: -1}
@@ -187,6 +191,7 @@ func buildView(s Player) *root {
 	r.trans = &transport{l: l, list: r.list, over: -1, down: -1, hoverAt: -1}
 	r.mixer = &mixer{l: l, hover: -1, drag: -1, lastClicked: -1}
 	r.tabs = &tabs{r: r, over: -1}
+	r.track = &trackView{l: l, lastRow: -1, lastPat: -1}
 	if len(s.Playlist) > 1 {
 		r.listOpen = 1
 	}
@@ -195,7 +200,7 @@ func buildView(s Player) *root {
 
 // Children implements [gunim.Composite].
 func (r *root) Children() []gunim.Node {
-	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs}
+	return []gunim.Node{r.band, r.roll, r.list, r.deck, r.trans, r.mixer, r.tabs, r.track}
 }
 
 // update shows s.
@@ -209,11 +214,14 @@ func (r *root) update(s Player, u *gunim.UI) {
 		l.t = s.Clock.Time
 		r.band.reset()
 	}
-	if s.Style != r.style {
-		r.from, r.to = l.pal, palettes[s.Style]
-		r.style, r.blend = s.Style, 0
-		r.boot, r.bootStyle = 1, s.Style
+	if key := paletteKey(s); key != r.style {
+		r.from, r.to = l.pal, palettes[key]
+		r.style, r.blend = key, 0
+		if s.Style != r.bootStyle {
+			r.boot = 1
+		}
 	}
+	r.bootStyle = s.Style
 	if s.MessageGen != r.msgGen && s.Message != "" {
 		r.msgGen, r.msg, r.toast = s.MessageGen, s.Message, 1
 	}
@@ -292,10 +300,22 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 	if r.pg >= 1 {
 		off = 4 * h
 	}
-	r.band.bounds = xyxy(margin, midTop+off, bandRight, midBot-rollH-12+off)
-	r.roll.bounds = xyxy(margin, midBot-rollH+off, w-margin, midBot+off)
+	// A tracker's module shows as a tracker does, in the band's and the
+	// roll's place.
+	trackerSong := r.l.score != nil && r.l.score.Tracker != nil
+	gone := float32(0)
+	if trackerSong {
+		gone = 4 * h
+	}
+	r.band.bounds = xyxy(margin, midTop+off+gone, bandRight, midBot-rollH-12+off+gone)
+	r.roll.bounds = xyxy(margin, midBot-rollH+off+gone, w-margin, midBot+off+gone)
 	place(0, r.band.bounds)
 	place(1, r.roll.bounds)
+	tgone := float32(0)
+	if !trackerSong {
+		tgone = 4 * h
+	}
+	place(7, xyxy(margin, midTop+off+tgone, bandRight, midBot+off+tgone))
 	moff := (h + 40) * (1 - pg)
 	if r.pg <= 0 {
 		moff = 4 * h
@@ -329,7 +349,7 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 	for i := range kids.Len() {
 		var a float32 = 1
 		switch i {
-		case 0, 1:
+		case 0, 1, 7:
 			a = 1 - pg
 		case 5:
 			a = pg
@@ -345,7 +365,7 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 		}
 		kids.At(i).Paint(p)
 	}
-	if r.pg < 0.5 {
+	if r.pg < 0.5 && (r.l.score == nil || r.l.score.Tracker == nil) {
 		r.paintSparks(p)
 	}
 	r.paintBoot(p, box)
@@ -391,11 +411,22 @@ func (r *root) paintTitle(p *paint.Painter, f gunim.Frame, box geom.Size) {
 	logo.Paint(p, geom.Pt(x, top), pal.accent)
 	sub := shaped("MIDI PLAYER", 15, false)
 	sub.Paint(p, geom.Pt(x+logo.Advance+6, top), alpha(pal.ink, 0.65))
-	title := "Drop a MIDI file to play it"
+	title := "Drop a MIDI, MOD or XM file to play it"
 	info := "Or press Open, or try the demo"
 	if sc := r.l.score; sc != nil {
 		title = sc.Title
 		info = fmt.Sprintf("%s  ·  %d channels  ·  %.0f BPM  ·  %s", clock(sc.Length), len(sc.used()), sc.BPM, styleName(r.l.s.Style))
+		if t := sc.Tracker; t != nil {
+			kind := "FastTracker II XM"
+			if t.Module.Format == "MOD" {
+				kind = "ProTracker MOD"
+				if t.Module.Tracker == "Soundtracker" {
+					kind = "Soundtracker MOD"
+				}
+			}
+			info = fmt.Sprintf("%s  ·  %s  ·  %d channels  ·  %.0f BPM  ·  %d instruments", clock(sc.Length), kind,
+				t.Module.Channels, sc.BPM, len(t.Module.Instruments))
+		}
 	}
 	maxW := box.W - 2*margin - min(float32(470), box.W*0.45) - 230
 	big := fit(title, 30, true, maxW)
@@ -576,11 +607,11 @@ func (r *root) paintDrop(p *paint.Painter, box geom.Size) {
 			msg = fmt.Sprintf("Drop to play %d files", r.dragN)
 		}
 		if !r.dragOK {
-			msg = "Those are not MIDI files"
+			msg = "Those are not songs I can play"
 		}
 		run := shaped(msg, 26, true)
 		run.Paint(p, geom.Pt(cx-run.Advance/2, cy+rad+28), pal.ink)
-		sub := shaped(".mid  ·  .midi  ·  .kar  ·  or a folder of them", 13, false)
+		sub := shaped(".mid  ·  .midi  ·  .kar  ·  .mod  ·  .xm  ·  or a folder of them", 13, false)
 		sub.Paint(p, geom.Pt(cx-sub.Advance/2, cy+rad+66), pal.dim)
 		end()
 	}
@@ -677,6 +708,47 @@ func (r *root) CatchKey(e input.Event, u *gunim.UI) bool {
 		return false
 	}
 	return true
+}
+
+// chanName names what channel ch plays now: the instrument of the
+// General MIDI program it plays, the drums, or a module's instrument it
+// last started.
+func (l *look) chanName(ch int) string {
+	sc := l.score
+	switch {
+	case sc == nil:
+		return "Channel"
+	case sc.Tracker != nil:
+		name := ""
+		sc.span(l.t-8, l.t, func(n *Note) {
+			if int(n.Ch) == ch && n.Start <= l.t && int(n.Ins) >= 1 && int(n.Ins) <= len(sc.Tracker.Module.Instruments) {
+				name = strings.TrimSpace(sc.Tracker.Module.Instruments[n.Ins-1].Name)
+				if name == "" {
+					name = fmt.Sprintf("Instrument %02X", n.Ins)
+				}
+			}
+		})
+		if name == "" {
+			return fmt.Sprintf("Channel %d", ch+1)
+		}
+		return name
+	case sc.Channels[ch].Drums:
+		return "Drums"
+	}
+	return synth.GMNames[l.ch[ch].program&127]
+}
+
+// paletteKey returns the palette s shows in: its style's, but for a
+// tracker's module in General MIDI's style, which shows in its
+// tracker's own, ProTracker's or FastTracker's.
+func paletteKey(s Player) string {
+	if s.Score != nil && s.Score.Tracker != nil && s.Style == "gm" {
+		if s.Score.Tracker.Module.Format == "MOD" {
+			return "pt"
+		}
+		return "ft2"
+	}
+	return s.Style
 }
 
 // startPage is the page the window opens on: 0 the stage, 1 the

@@ -39,7 +39,7 @@ type (
 		Style string
 		// Muted are the channels muted, and Solo the one played alone,
 		// -1 for none.
-		Muted [16]bool
+		Muted [maxCh]bool
 		Solo  int
 		// Speed is how fast the song plays, 1 as written, and Transpose
 		// how many semitones it is moved.
@@ -68,6 +68,8 @@ type (
 		Length float64
 		// Err says why it could not be read.
 		Err string
+		// Tracker says it is a tracker's module.
+		Tracker bool
 	}
 	// Clock says where a song is heard: Time seconds into it at At,
 	// moving Rate seconds a second, 0 while paused.

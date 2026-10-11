@@ -752,6 +752,25 @@ The mix is kept for the next time, and Reset sets it all back.
 
 ![The mixer](cmd/midiplayer/mixer.png)
 
+The player plays tracker modules too: the MODs of ProTracker and the
+Amiga, of 4 to 32 channels or of the Soundtracker's 15 samples, and
+the XMs of FastTracker 2, through their own samples, by package
+`tracker`. A module shows as a tracker shows it. Its pattern scrolls
+smoothly up under a glowing bar at the row heard, each channel a column
+of notes, instruments, volumes and effects, as its tracker writes them,
+and a cell that plays pops and throws a spark to its instrument. Over
+it, each channel has a scope, the wave of the sample it plays at the
+pitch it plays it, and a meter; beside it, the order list slides to the
+order heard, and the instruments light as they play, each with its
+sample's wave. Behind it all, an Amiga demo's copper bars sweep with
+the beat and stars fly faster as the song grows louder, and along the
+bottom a scroller waves the song's name and its samples' names, where
+tracker musicians wrote their greetings. A MOD wears ProTracker's grey
+and an XM FastTracker's blue, unless a cartridge picks a machine's
+look; the mixer mixes a module's channels as it does a MIDI file's.
+
+![A module playing](cmd/midiplayer/tracker.png)
+
 ## Licence
 
 The songs, in `songs/`, are © 2026 Marcus Johansson, but for Candy

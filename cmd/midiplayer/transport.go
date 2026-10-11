@@ -384,6 +384,9 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		if s.Transpose == 0 {
 			v = "0"
 		}
+		if sc := t.l.score; sc != nil && sc.Tracker != nil {
+			v = "—"
+		}
 		readout(v, "TRANSPOSE", s.Transpose != 0)
 	case cVolume:
 		track := xyxy(c.r.Min.X, mid.Y-3, c.r.Max.X, mid.Y+3)

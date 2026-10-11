@@ -30,7 +30,7 @@ type band struct {
 	// hover is the station under the pointer, -1 for none, and press the
 	// one pressed; hot is how lit each channel's station is by hover.
 	hover, press int
-	hot          [16]float32
+	hot          [maxCh]float32
 	// The empty band's buttons, and which the pointer is over.
 	openBtn, demoBtn geom.Rect
 	overBtn          int
@@ -267,7 +267,7 @@ func (b *band) paintEmpty(p *paint.Painter, box geom.Size) {
 		g := shaped(glyphs[i%4], 30, true)
 		g.Paint(p, geom.Pt(snap(x-g.Advance/2, pal.pixel), snap(y-20, pal.pixel)), alpha(pal.ch[i], 0.85))
 	}
-	msg := shaped("Drop MIDI files here", 22, true)
+	msg := shaped("Drop MIDI, MOD or XM files here", 22, true)
 	msg.Paint(p, geom.Pt(cx-msg.Advance/2, cy+18), pal.ink)
 	// The two buttons under the slot.
 	bw, bh := float32(150), float32(40)
