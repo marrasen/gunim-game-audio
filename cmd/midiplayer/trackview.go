@@ -70,6 +70,8 @@ type tspark struct {
 	from, to geom.Point
 	age      float32
 	col      color.NRGBA
+	// label is the cell's note, as the pattern writes it, which flies.
+	label string
 }
 
 func (tv *trackView) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
@@ -196,11 +198,12 @@ func (tv *trackView) newRow(ts *TrackerSong, ri int, box geom.Size) {
 		if ins > 0 && ins <= len(tv.insLit) {
 			tv.insLit[ins-1] = 1
 			tv.latest = ins - 1
-			if len(tv.sparks) < 80 {
+			if len(tv.sparks) < int(90*tv.l.fx) {
 				y := grid.Min.Y + grid.Size().H*0.42
 				from := geom.Pt(grid.Min.X+34+cw*(float32(ch)+0.5), y)
 				if to, ok := tv.insAt(box, ins-1); ok {
-					tv.sparks = append(tv.sparks, tspark{from: from, to: to, col: tv.l.pal.ch[ch]})
+					tv.sparks = append(tv.sparks, tspark{from: from, to: to, col: tv.l.pal.ch[ch],
+						label: tracker.NoteName(c.Note, m.OctaveShift)})
 				}
 			}
 		}
@@ -299,12 +302,13 @@ func (tv *trackView) paintStars(p *paint.Painter, box geom.Size) {
 		loud += v
 	}
 	cx, cy := box.W/2, box.H*0.45
+	fx := tv.l.fx
 	defer p.Blend(paint.BlendAdd)()
-	for i := range 90 {
+	for i := range int(90*min(1, fx*1.4)) + int(70*tv.l.bananas()) {
 		seed := float64(i)*7.31 + 1
 		a := math.Mod(seed*2.399, 2*math.Pi)
 		speed := 0.08 + 0.12*math.Mod(seed*0.618, 1)
-		z := math.Mod(tv.t*speed*(1+float64(min(loud, 3))*0.8)+math.Mod(seed*0.37, 1), 1)
+		z := math.Mod(tv.t*speed*(0.3+1.4*float64(fx))*(1+float64(min(loud, 3))*0.8)+math.Mod(seed*0.37, 1), 1)
 		d := float32(z*z) * max(box.W, box.H) * 0.7
 		x, y := cx+cosf(a)*d, cy+sinf(a)*d
 		s := 1 + 2.5*float32(z)
@@ -317,13 +321,17 @@ func (tv *trackView) paintStars(p *paint.Painter, box geom.Size) {
 // the pattern, brighter on the beat.
 func (tv *trackView) paintCopper(p *paint.Painter, r geom.Rect) {
 	pal := tv.l.pal
+	strength := min(1, tv.l.fx*1.6) + 0.6*tv.l.bananas()
+	if strength < 0.02 {
+		return
+	}
 	defer p.Blend(paint.BlendAdd)()
 	for i := range 5 {
 		ph := tv.t*1.3 + float64(i)*0.55
 		y := r.Min.Y + r.Size().H*(0.5+0.42*sinf(ph))
 		h := float32(26)
 		c := pal.ch[(i*5+2)%maxCh]
-		a := 0.16 + 0.22*tv.l.pulse
+		a := (0.16 + 0.22*tv.l.pulse) * strength
 		p.RRect(xyxy(r.Min.X, y-h/2, r.Max.X, y+h/2), 0, paint.Fill{Gradient: &paint.Gradient{From: geom.Pt(0, y-h/2),
 			To: geom.Pt(0, y+h/2), Start: alpha(c, 0), End: alpha(c, 0),
 			Stops: []paint.Stop{{At: 0.5, Color: alpha(lighten(c, 0.3), a)}}}})
@@ -585,7 +593,7 @@ func (tv *trackView) paintCell(p *paint.Painter, c tracker.Cell, at geom.Point, 
 	empty := alpha(pal.dim, 0.3)
 	scale := float32(1)
 	if cur {
-		scale += 0.25 * ease(tv.pop[ch])
+		scale += (0.05 + 0.35*tv.l.fx) * ease(tv.pop[ch])
 	}
 	cw := size * 0.61
 	endScale := func() {}
@@ -594,7 +602,7 @@ func (tv *trackView) paintCell(p *paint.Painter, c tracker.Cell, at geom.Point, 
 	}
 	defer endScale()
 	if cur && c.Note != 0 && tv.pop[ch] > 0.05 {
-		pen{pal: pal}.glow(p, at.X+cw*1.5, at.Y+tvRowH/2, 30*tv.pop[ch], alpha(col, 0.8))
+		pen{pal: pal}.glow(p, at.X+cw*1.5, at.Y+tvRowH/2, (8+40*tv.l.fx)*tv.pop[ch], alpha(col, 0.8))
 	}
 	x := at.X
 	put := func(s string, c color.NRGBA, bold bool) {
@@ -716,10 +724,16 @@ func (tv *trackView) paintSparks(p *paint.Painter, dt float32) {
 			continue
 		}
 		e := ease(s.age)
-		pos := geom.Pt(s.from.X+(s.to.X-s.from.X)*e, s.from.Y+(s.to.Y-s.from.Y)*e-60*sinf(float64(s.age)*math.Pi))
-		sz := 4 + 3*(1-s.age)
-		pen{pal: pal}.glow(p, pos.X, pos.Y, sz*4, alpha(s.col, 0.9*(1-s.age)))
-		pen{pal: pal}.circle(p, pos.X, pos.Y, sz/2, alpha(lighten(s.col, 0.5), 1-s.age))
+		fx := tv.l.fx
+		pos := geom.Pt(s.from.X+(s.to.X-s.from.X)*e, s.from.Y+(s.to.Y-s.from.Y)*e-(30+70*fx)*sinf(float64(s.age)*math.Pi))
+		pen{pal: pal}.glow(p, pos.X, pos.Y, (12+24*fx)*(1-s.age), alpha(s.col, 0.7*(1-s.age)))
+		// The note itself flies, tumbling and shrinking.
+		size := 13 * (1 - 0.4*e)
+		run := mono(s.label, size, true)
+		spin := e * float32(math.Pi) * (0.3 + 1.5*fx)
+		end := p.Push(paint.Rotate(spin, pos))
+		run.Paint(p, geom.Pt(pos.X-run.Advance/2, pos.Y-run.Height()/2), alpha(lighten(s.col, 0.4), 1-s.age*s.age))
+		end()
 		kept = append(kept, s)
 	}
 	tv.sparks = kept
@@ -747,7 +761,7 @@ func (tv *trackView) paintScroller(p *paint.Painter, r geom.Rect, m *tracker.Mod
 	const size = 22
 	adv := float32(size * 0.62)
 	total := adv * float32(len(rs))
-	off := float32(math.Mod(tv.t*110, float64(total)))
+	off := float32(math.Mod(tv.t*110*float64(0.5+tv.l.fx), float64(total)))
 	mid := r.Min.Y + r.Size().H/2 - 10
 	for i := 0; ; i++ {
 		x := r.Min.X - off + float32(i)*adv
@@ -761,7 +775,7 @@ func (tv *trackView) paintScroller(p *paint.Painter, r geom.Rect, m *tracker.Mod
 		if ch == ' ' {
 			continue
 		}
-		y := mid + 9*sinf(float64(x)*0.025+tv.t*3.2)
+		y := mid + (1+10*tv.l.fx+8*tv.l.bananas())*sinf(float64(x)*0.025+tv.t*3.2)
 		c := pal.ch[(i/2)%maxCh]
 		mono(string(ch), size, true).Paint(p, geom.Pt(x, y), lighten(c, 0.2))
 	}

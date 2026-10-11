@@ -34,7 +34,10 @@ type transport struct {
 	// is let go, as Skiva's buttons do; the play button and the repeat
 	// turn from one icon to the next, the old turning out as the new
 	// turns in.
-	down      [16]*anim.Float
+	down [16]*anim.Float
+	// fxLocal is the FX level as last dragged, at fxAt0.
+	fxLocal   float32
+	fxAt0     time.Time
 	play, rep morph
 	ready     bool
 	// scrub is where a drag along the timeline is, in seconds, while it
@@ -66,6 +69,7 @@ const (
 	cVolume
 	cOpen
 	cList
+	cFX
 )
 
 // morph is an icon that turns into another: from turning out as ic
@@ -132,7 +136,37 @@ func (t *transport) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children)
 	add(cSlower, rx, 28, 28)
 	add(cSpeed, rx+28, 72, 28)
 	add(cFaster, rx+100, 28, 28)
+	// The FX slider, in the gap between the time and the speed: a cup of
+	// coffee at its left, a banana at its right.
+	left, right := float32(340), rx-36
+	if right-left >= 150 {
+		fw := min(right-left, 300)
+		add(cFX, left+(right-left-fw)/2, fw, 30)
+	}
 	return c.Max
+}
+
+// fxTrack returns the FX slider's track, between its two icons.
+func fxTrack(r geom.Rect) geom.Rect { return xyxy(r.Min.X+30, r.Min.Y, r.Max.X-30, r.Max.Y) }
+
+// fxAt returns the FX level at x along the slider.
+func (t *transport) fxAt(x float32) float32 {
+	for _, c := range t.ctls {
+		if c.id == cFX {
+			tr := fxTrack(c.r)
+			return min(max((x-tr.Min.X)/tr.Size().W, 0), 1)
+		}
+	}
+	return 0.5
+}
+
+// fx returns the FX level the slider shows: the one dragged, for a
+// moment after a drag, else the application's.
+func (t *transport) fx() float32 {
+	if time.Since(t.fxAt0) < 400*time.Millisecond || t.down0 == cFX+100 {
+		return t.fxLocal
+	}
+	return t.l.s.FX
 }
 
 // ctlAt returns the index of the control at pos, -1 for none.
@@ -173,6 +207,12 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 			u.Send(t, VolumeSet{Volume: t.volumeAt(e.Pos.X)})
 			return true
 		}
+		if t.down0 == cFX+100 {
+			t.fxLocal, t.fxAt0 = t.fxAt(e.Pos.X), time.Now()
+			u.Send(t, FXSet{FX: t.fxLocal})
+			u.Invalidate()
+			return true
+		}
 		t.hoverAt = -1
 		if t.timeline.Inset(geom.Uniform(-4)).Contains(e.Pos) && t.l.score != nil {
 			t.hoverAt = t.timeAt(e.Pos.X)
@@ -206,6 +246,11 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 			t.down0 = cVolume + 100
 			u.Send(t, VolumeSet{Volume: t.volumeAt(e.Pos.X)})
 		}
+		if t.ctls[i].id == cFX {
+			t.down0 = cFX + 100
+			t.fxLocal, t.fxAt0 = t.fxAt(e.Pos.X), time.Now()
+			u.Send(t, FXSet{FX: t.fxLocal})
+		}
 		return true
 	case input.PointerUp:
 		if t.scrubbing {
@@ -213,7 +258,8 @@ func (t *transport) Handle(e input.Event, u *gunim.UI) bool {
 			u.Send(t, Sought{Time: t.timeAt(e.Pos.X)})
 			return true
 		}
-		if t.down0 == cVolume+100 {
+		if t.down0 == cVolume+100 || t.down0 == cFX+100 {
+			t.fxAt0 = time.Now()
 			t.down0 = -1
 			return true
 		}
@@ -462,6 +508,8 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 			v = "—"
 		}
 		readout(v, "TRANSPOSE", s.Transpose != 0)
+	case cFX:
+		t.paintFX(p, c, pal, hot)
 	case cVolume:
 		track := xyxy(c.r.Min.X, mid.Y-3, c.r.Max.X, mid.Y+3)
 		p.RRect(track, 3*pal.round, paint.Solid(alpha(pal.edge, 0.6)))
@@ -482,4 +530,54 @@ func (t *transport) paintCtl(p *paint.Painter, i int, c ctl, pal palette) {
 		run := shaped(now+" / "+total, 15, true)
 		run.Paint(p, geom.Pt(c.r.Max.X+14, mid.Y-run.Height()/2), pal.ink)
 	}
+}
+
+// paintFX draws the FX slider: a cup of coffee, steaming, at its left,
+// a track that warms from calm to banana yellow, and a banana at its
+// right, which wiggles more the further the slider goes.
+func (t *transport) paintFX(p *paint.Painter, c ctl, pal palette, hot float32) {
+	fx := t.fx()
+	mid := geom.Pt(c.r.Min.X+c.r.Size().W/2, c.r.Min.Y+c.r.Size().H/2)
+	tr := fxTrack(c.r)
+	track := xyxy(tr.Min.X, mid.Y-3, tr.Max.X, mid.Y+3)
+	calm, banana := mix(pal.dim, rgb(0x7fb0d0), 0.5), rgb(0xffd23f)
+	p.RRect(track, 3*pal.round, paint.Fill{Gradient: &paint.Gradient{From: track.Min, To: geom.Pt(track.Max.X, track.Min.Y),
+		Start: alpha(calm, 0.55), End: alpha(banana, 0.55)}})
+	x := track.Min.X + track.Size().W*fx
+	p.RRect(xyxy(track.Min.X, track.Min.Y, x, track.Max.Y), 3*pal.round, paint.Solid(mix(calm, banana, fx)))
+	k := 8 + 2*hot + 2*fx
+	if fx > 0.7 {
+		func() {
+			defer p.Blend(paint.BlendAdd)()
+			p.ShadowRRect(xyxy(x-k, mid.Y-k, x+k, mid.Y+k), k, paint.Solid(color.NRGBA{}), paint.Shadow{Blur: 12 * fx, Color: alpha(banana, 0.6*(fx-0.7)/0.3)})
+		}()
+	}
+	p.ShadowRRect(xyxy(x-k, mid.Y-k, x+k, mid.Y+k), k*min(1, pal.round*3), paint.Solid(pal.ink), paint.Shadow{Blur: 6, Color: alpha(color.NRGBA{A: 255}, 0.4)})
+	now := float64(t.l.now.UnixMilli()%100000) / 1000
+	// The cup, its steam rising gently while the slider is low.
+	cup := geom.Pt(c.r.Min.X+12, mid.Y)
+	p.Mask(icon.Stroke{Icon: icon.Coffee, Width: 2, Progress: 1}, xyxy(cup.X-10, cup.Y-10, cup.X+10, cup.Y+10), pal.tone(mix(pal.ink, calm, 0.3)))
+	if fx < 0.5 {
+		for k := range 2 {
+			ph := float32(math.Mod(now*0.6+float64(k)*0.5, 1))
+			pen{pal: pal}.circle(p, cup.X-3+float32(k)*5+2*sinf(now*2+float64(k)), cup.Y-12-ph*8, 1.4, alpha(pal.ink, (1-ph)*(0.5-fx)))
+		}
+	}
+	// The banana, wiggling.
+	bn := geom.Pt(c.r.Max.X-12, mid.Y)
+	wig := fx * fx * 0.5 * sinf(now*(4+10*float64(fx)))
+	func() {
+		defer p.Push(paint.Rotate(wig, bn))()
+		sz := 10 + 3*fx
+		p.Mask(icon.Stroke{Icon: icon.Banana, Width: 2, Progress: 1}, xyxy(bn.X-sz, bn.Y-sz, bn.X+sz, bn.Y+sz), pal.tone(mix(pal.dim, banana, 0.4+0.6*fx)))
+	}()
+	label := "FX"
+	switch {
+	case fx < 0.15:
+		label = "COZY"
+	case fx > 0.85:
+		label = "BANANAS"
+	}
+	cap := shaped(label, 9, fx > 0.85)
+	cap.Paint(p, geom.Pt(mid.X-cap.Advance/2, c.r.Max.Y+2), alpha(mix(pal.dim, banana, max(fx-0.85, 0)/0.15), 0.9))
 }

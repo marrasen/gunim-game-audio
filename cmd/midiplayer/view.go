@@ -49,7 +49,16 @@ type look struct {
 	station [maxCh]geom.Rect
 	// playing says the song moves, so everything animates.
 	playing bool
+	// fx is how much the window animates, easing to the state's: 0 cozy,
+	// 1 bananas. notePx is how many pixels a second of a note is in the
+	// roll, for a note flying off to keep its length.
+	fx     float32
+	notePx float32
 }
+
+// bananas returns how far past 0.85 the FX level is, from 0 to 1: the
+// stretch where the window goes bananas.
+func (l *look) bananas() float32 { return min(max((l.fx-0.85)/0.15, 0), 1) }
 
 // chanLive is what a channel plays at the time heard.
 type chanLive struct {
@@ -85,6 +94,7 @@ func (l *look) update(now time.Time, dt float32) {
 	}
 	l.playing = l.s.Playing
 	l.fresh = min(1, l.fresh+dt)
+	l.fx += (l.s.FX - l.fx) * min(1, dt*8)
 	sc := l.score
 	for i := range l.ch {
 		l.ch[i].notes = l.ch[i].notes[:0]
@@ -187,13 +197,13 @@ func buildView(s Player) *root {
 	r.deck = &deck{l: l, over: -1, down: -1}
 	r.band = &band{l: l, hover: -1, press: -1}
 	r.roll = &roll{l: l}
-	r.list = &playlist{l: l, over: -1, down: -1}
+	r.list = &playlist{l: l, over: -1, down: -1, litFor: -1}
 	r.trans = &transport{l: l, list: r.list, over: -1, down0: -1, hoverAt: -1}
 	r.mixer = &mixer{l: l, hover: -1, drag: -1, lastClicked: -1}
 	r.tabs = &tabs{r: r, over: -1}
 	r.track = &trackView{l: l, lastRow: -1, lastPat: -1, latest: -1}
 	if len(s.Playlist) > 1 {
-		r.listOpen = 1
+		r.listOpen, r.list.open = 1, true
 	}
 	return r
 }
@@ -347,9 +357,21 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 	// light swelling on the beat.
 	p.RRect(full, 0, paint.Fill{Gradient: &paint.Gradient{From: geom.Pt(0, 0), To: geom.Pt(0, box.H),
 		Start: pal.bgTop, End: pal.bgBottom}})
-	glow := alpha(pal.glow, 0.35+0.35*r.l.pulse)
+	fx, ban := r.l.fx, r.l.bananas()
+	gc := pal.glow
+	if ban > 0 {
+		// Gone bananas, the light turns through the channels' colours.
+		gc = mix(gc, pal.ch[(r.l.beat/2)%16], 0.6*ban)
+	}
+	glow := alpha(gc, 0.35+0.35*r.l.pulse*min(1, fx*2)+0.25*ban*r.l.pulse)
 	p.RRect(full, 0, paint.Fill{Gradient: &paint.Gradient{From: geom.Pt(box.W*0.5, box.H*0.42), To: geom.Pt(box.W*0.95, box.H),
-		Radial: true, Start: glow, End: alpha(pal.glow, 0)}})
+		Radial: true, Start: glow, End: alpha(gc, 0)}})
+	// Gone bananas, the whole window jolts on each bar.
+	if ban > 0 && r.l.pulse > 0.5 {
+		k := float64(r.l.beat) * 1.7
+		amp := 6 * ban * (r.l.pulse - 0.5) * 2
+		defer p.Push(paint.Translate(geom.Pt(amp*sinf(k*7.1), amp*cosf(k*3.3))))()
+	}
 	r.paintStars(p, box)
 	r.paintTitle(p, f, box)
 	// The parts: the stage and the mixer each fade as they slide.
@@ -376,6 +398,7 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 	if r.pg < 0.5 && (r.l.score == nil || r.l.score.Tracker == nil) {
 		r.paintSparks(p)
 	}
+	r.paintBananas(p, box)
 	r.paintBoot(p, box)
 	r.paintToast(p, box)
 	r.paintScan(p, box)
@@ -387,8 +410,9 @@ func (r *root) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 func (r *root) paintStars(p *paint.Painter, box geom.Size) {
 	pal := r.l.pal
 	defer p.Blend(paint.BlendAdd)()
-	t := float64(r.spin)
-	for i := range 48 {
+	t := float64(r.spin) * float64(0.4+1.6*r.l.fx)
+	n := int(48*min(1, r.l.fx*1.6)) + int(48*r.l.bananas())
+	for i := range n {
 		seed := float64(i) * 12.9898
 		x := float32(math.Mod(math.Sin(seed)*43758.5453, 1))
 		if x < 0 {
@@ -444,21 +468,26 @@ func (r *root) paintTitle(p *paint.Painter, f gunim.Frame, box geom.Size) {
 	fit(info, 13, false, maxW).Paint(p, geom.Pt(x+1, top+64), alpha(pal.dim, 1-rise))
 }
 
-// paintSparks sends a spark up from each key as its note starts, to the
-// station of its channel, so the piano and the band are seen to play
-// the same notes.
+// paintSparks sends each note up off its key, as it starts, to the
+// station of its channel: the note itself, as long as it falls in the
+// roll, tumbling and shrinking as it flies, so the piano and the band
+// are seen to play the same notes. The FX slider sets how many fly and
+// how wild: none at cozy, and trailing ghosts gone bananas.
 func (r *root) paintSparks(p *paint.Painter) {
 	l := r.l
-	if l.score == nil || l.keyY == 0 {
+	if l.score == nil || l.keyY == 0 || l.fx < 0.05 {
 		return
 	}
 	pal := l.pal
-	defer p.Blend(paint.BlendAdd)()
-	const life = 0.7
+	pn := pen{pal: pal}
+	life := 0.55 + 0.5*float64(l.fx)
+	limit := int(140 * l.fx)
+	ban := l.bananas()
+	ghosts := int(3 * ban)
 	count := 0
 	l.score.span(l.t-life, l.t, func(n *Note) {
 		age := l.t - n.Start
-		if age < 0 || age > life || count > 90 || l.score.Channels[n.Ch].Drums {
+		if age < 0 || age > life || count >= limit || l.score.Channels[n.Ch].Drums {
 			return
 		}
 		st := l.station[n.Ch]
@@ -466,29 +495,75 @@ func (r *root) paintSparks(p *paint.Painter) {
 			return
 		}
 		count++
-		x := float32(age / life)
-		e := ease(x)
+		kw := l.keyX[n.Key][1] - l.keyX[n.Key][0]
 		kx := (l.keyX[n.Key][0] + l.keyX[n.Key][1]) / 2
 		from := geom.Pt(kx, l.keyY)
 		to := geom.Pt(st.Min.X+st.Size().W/2, st.Max.Y-st.Size().H*0.35)
-		pos := geom.Pt(from.X+(to.X-from.X)*e, from.Y+(to.Y-from.Y)*e)
-		// An arc out to one side on the way.
 		side := float32(1)
 		if n.Key%2 == 0 {
 			side = -1
 		}
-		pos.X += side * 40 * sinf(float64(x)*math.Pi)
-		c := alpha(pal.ch[n.Ch], (1-x)*0.9*float32(n.Vel)/127+0.1)
-		s := (3 + 4*float32(n.Vel)/127) * (1 - 0.5*x)
-		if pal.pixel > 1.5 {
-			s = pal.pixel * 1.5
-			pos = geom.Pt(snap(pos.X, pal.pixel), snap(pos.Y, pal.pixel))
-			p.RRect(xyxy(pos.X-s/2, pos.Y-s/2, pos.X+s/2, pos.Y+s/2), 0, paint.Solid(c))
-			return
+		h0 := min(max(float32(n.End-n.Start)*max(l.notePx, 40), 8), 46)
+		col := pal.ch[n.Ch]
+		draw := func(x float32, a float32) {
+			e := ease(x)
+			pos := geom.Pt(from.X+(to.X-from.X)*e, from.Y+(to.Y-from.Y)*e-h0/2*(1-e))
+			// An arc out to one side on the way, wider the wilder.
+			pos.X += side * (30 + 60*l.fx) * sinf(float64(x)*math.Pi)
+			w := max(kw-2, 4) * (1 - 0.35*e)
+			h := h0 * (1 - 0.65*e)
+			spin := side * e * float32(math.Pi) * (0.3 + 1.7*l.fx)
+			end := p.Push(paint.Rotate(spin, pos))
+			c := alpha(col, a)
+			pn.rect(p, xyxy(pos.X-w/2, pos.Y-h/2, pos.X+w/2, pos.Y+h/2), min(4, w/2), c)
+			if pal.pixel < 1.5 {
+				p.RRect(xyxy(pos.X-w/2+1, pos.Y-h/2+1, pos.X+w/2-1, pos.Y-h/2+min(4, h/2)), 2, paint.Solid(alpha(pal.white, a*0.35)))
+			}
+			end()
+			pn.glow(p, pos.X, pos.Y, (10+20*l.fx)*(1-x), alpha(col, a*0.6))
 		}
-		p.ShadowRRect(xyxy(pos.X-s/2, pos.Y-s/2, pos.X+s/2, pos.Y+s/2), s/2, paint.Solid(c),
-			paint.Shadow{Blur: 10, Color: alpha(c, 0.7)})
+		x := float32(age / life)
+		a := float32(n.Vel)/127*0.5 + 0.5
+		a *= min(1, (1-x)*3)
+		for g := ghosts; g >= 1; g-- {
+			gx := x - float32(g)*0.06
+			if gx > 0 {
+				draw(gx, a*0.25/float32(g))
+			}
+		}
+		draw(x, a)
 	})
+}
+
+// paintBananas sends bananas spinning up the window on each bar, gone
+// bananas.
+func (r *root) paintBananas(p *paint.Painter, box geom.Size) {
+	l := r.l
+	ban := l.bananas()
+	sc := l.score
+	if ban <= 0 || sc == nil || len(sc.Beats) == 0 || sc.BarBeats <= 0 {
+		return
+	}
+	for b := l.beat; b >= max(l.beat-8, 0); b-- {
+		if b%sc.BarBeats != 0 || b >= len(sc.Beats) {
+			continue
+		}
+		age := float32(l.t - sc.Beats[b])
+		if age < 0 || age > 2.2 {
+			continue
+		}
+		for k := range 3 {
+			seed := float64(b*7 + k*13)
+			x0 := box.W * float32(0.15+0.7*math.Mod(seed*0.618, 1))
+			x := x0 + 80*sinf(seed+float64(age)*2)
+			y := box.H + 30 - age*(box.H*0.55+80*float32(k))
+			sz := 18 + 10*float32(k%2)
+			c := alpha(rgb(0xffd23f), ban*min(1, (2.2-age)*2))
+			end := p.Push(paint.Rotate(age*float32(2+k)*float32(math.Copysign(1, math.Sin(seed))), geom.Pt(x, y)))
+			p.Mask(icon.Stroke{Icon: icon.Banana, Width: 2.2, Progress: 1}, xyxy(x-sz, y-sz, x+sz, y+sz), l.pal.tone(c))
+			end()
+		}
+	}
 }
 
 // bootLines are what each style's machine says as it starts.

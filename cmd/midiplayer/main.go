@@ -50,6 +50,9 @@ import (
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
+// startFX is the FX level -fx asks for, below 0 for the one kept.
+var startFX float64
+
 func main() {
 	style := flag.String("style", "gm", "the style to start in: gm, sid, nes, gb or adlib")
 	demo := flag.Bool("demo", false, "play the demo song")
@@ -58,10 +61,12 @@ func main() {
 	silent := flag.Bool("silent", false, "play without the speakers, as for -shot")
 	mixerPage := flag.Bool("mixer", false, "open on the mixer")
 	font := flag.String("soundfont", "", "play on this SoundFont bank, an .sf2 or .sf3")
+	fx := flag.Float64("fx", -1, "how much the window animates, from 0, cozy, to 1, bananas")
 	flag.Parse()
 	if *mixerPage {
 		startPage = 1
 	}
+	startFX = *fx
 	if !slices.Contains(synth.GMStyles, *style) {
 		log.Fatalf("no style %q", *style)
 	}
@@ -95,10 +100,14 @@ func run(style string, demo, silent bool, shot string, after time.Duration, font
 		ap.style = style
 		if dir, err := os.UserConfigDir(); err == nil && shot == "" {
 			ap.loadMix(filepath.Join(dir, "gunim-midiplayer", "mix.json"))
+			ap.loadPrefs(filepath.Join(dir, "gunim-midiplayer", "prefs.json"))
 			ap.rememberFont(filepath.Join(dir, "gunim-midiplayer", "soundfont.txt"))
 		}
 		if font != "" {
 			ap.loadFont(font)
+		}
+		if startFX >= 0 {
+			ap.fx = float32(min(startFX, 1))
 		}
 		if demo {
 			ap.addDemo()

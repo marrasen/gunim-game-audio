@@ -65,6 +65,9 @@ type (
 		// 0 to 1, or -1 for none.
 		Font     string
 		Fetching float64
+		// FX is how much the window animates, from 0, a cozy player whose
+		// notes stay put, to 1, everything flying.
+		FX float32
 	}
 	// Item is a file of the playlist.
 	Item struct {
@@ -123,6 +126,8 @@ type (
 	MixSet struct{ Mix synth.GMMix }
 	// FetchAsked travels when the user asks to fetch a sound font.
 	FetchAsked struct{}
+	// FXSet travels as the FX slider moves.
+	FXSet struct{ FX float32 }
 )
 
 // The ways to repeat.
@@ -150,6 +155,7 @@ func init() {
 	gunim.RegisterType[Removed]("midiplayer.remove")
 	gunim.RegisterType[MixSet]("midiplayer.mix")
 	gunim.RegisterType[FetchAsked]("midiplayer.fetch")
+	gunim.RegisterType[FXSet]("midiplayer.fx")
 }
 
 // heard returns the time heard at now, from c.

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -536,5 +537,43 @@ func TestThePlayButtonTurnsIntoPause(t *testing.T) {
 	h.frames(90)
 	if v := tr.play.turn.Value(); v != 1 {
 		t.Errorf("the turn settles at %v, want 1", v)
+	}
+}
+
+func TestThePlaylistGlidesToTheSongPlaying(t *testing.T) {
+	s := demoState(t)
+	for i := range 30 {
+		s.Playlist = append(s.Playlist, Item{Name: fmt.Sprintf("song %d", i), Length: 60})
+	}
+	h := newWindow(t, s)
+	pl := h.v.list
+	if !pl.open {
+		t.Fatal("the playlist is shut")
+	}
+	s.Current = 25
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(3)
+	if pl.lit <= 0 || pl.lit >= 25 || pl.scroll <= 0 || pl.scroll >= pl.want {
+		t.Errorf("3 frames on, the light is at row %v and the scroll at %v of %v: want both under way", pl.lit, pl.scroll, pl.want)
+	}
+	h.frames(90)
+	if pl.lit != 25 || pl.scroll != pl.want || pl.want <= 0 {
+		t.Errorf("settled, the light is at row %v, the scroll at %v of %v", pl.lit, pl.scroll, pl.want)
+	}
+	if top := float32(25) * rowH; top < pl.scroll || top+rowH > pl.scroll+pl.size.H-50 {
+		t.Errorf("song 26 is out of view, the scroll at %v", pl.scroll)
+	}
+}
+
+func TestTheFXLevelIsKept(t *testing.T) {
+	a, _ := newTestApp(t)
+	prefs := filepath.Join(t.TempDir(), "prefs.json")
+	a.loadPrefs(prefs)
+	a.handle(context.Background(), FXSet{FX: 0.95})
+	a.saveMix()
+	b, _ := newTestApp(t)
+	b.loadPrefs(prefs)
+	if b.fx != 0.95 || b.state().FX != 0.95 {
+		t.Errorf("the FX level comes back as %v", b.fx)
 	}
 }

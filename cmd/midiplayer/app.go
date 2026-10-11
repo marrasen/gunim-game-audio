@@ -73,6 +73,9 @@ type app struct {
 	fontSaved string
 	fetching  float64
 	progress  chan float64
+	// fx is how much the window animates, kept in prefs.
+	fx    float32
+	prefs string
 }
 
 // fontLoaded is a SoundFont bank read from path, or why it could not be.
@@ -85,7 +88,7 @@ type fontLoaded struct {
 func newApp(c gunim.Client, mix *audio.Mixer) *app {
 	return &app{c: c, mixer: mix, cur: -1, solo: -1, speed: 1, volume: 0.9, style: "gm", repeat: RepeatAll,
 		chosen: make(chan []string, 1), mix: synth.DefaultGMMix(), an: audio.NewAnalyzer(mix, 32),
-		fonts: make(chan fontLoaded, 1), progress: make(chan float64, 8), fetching: -1,
+		fonts: make(chan fontLoaded, 1), progress: make(chan float64, 8), fetching: -1, fx: 0.5,
 		spec: make([]float32, len(specFreqs))}
 }
 
@@ -331,7 +334,7 @@ func (a *app) state() Player {
 	}
 	a.an.Spectrum(specFreqs, a.spec, nil)
 	s.Spectrum = slices.Clone(a.spec)
-	s.Font, s.Fetching = a.fontName, a.fetching
+	s.Font, s.Fetching, s.FX = a.fontName, a.fetching, a.fx
 	s.Clock = Clock{Time: a.heard(), At: time.Now()}
 	if s.Playing {
 		s.Clock.Rate = a.speed
@@ -422,6 +425,9 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 		a.remove(v.Index)
 	case FetchAsked:
 		a.fetch()
+	case FXSet:
+		a.fx = min(max(v.FX, 0), 1)
+		a.mixDirty = time.Now()
 	case MixSet:
 		a.mix = v.Mix
 		if a.p != nil {
@@ -535,8 +541,27 @@ func (a *app) loadMix(file string) {
 	a.mix = m
 }
 
-// saveMix saves the mix to its file.
+// prefsFile is what prefs hold.
+type prefsFile struct{ FX float32 }
+
+// loadPrefs reads the window's preferences from file, and saves them
+// there from now on.
+func (a *app) loadPrefs(file string) {
+	a.prefs = file
+	var p prefsFile
+	if b, err := os.ReadFile(file); err == nil && json.Unmarshal(b, &p) == nil {
+		a.fx = min(max(p.FX, 0), 1)
+	}
+}
+
+// saveMix saves the mix to its file, and the preferences to theirs.
 func (a *app) saveMix() {
+	if a.prefs != "" {
+		if b, err := json.Marshal(prefsFile{FX: a.fx}); err == nil {
+			_ = os.MkdirAll(filepath.Dir(a.prefs), 0o755)
+			_ = os.WriteFile(a.prefs, b, 0o644)
+		}
+	}
 	if a.mixFile == "" {
 		return
 	}

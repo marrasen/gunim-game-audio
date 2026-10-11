@@ -169,7 +169,7 @@ func (b *band) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 		}
 		ch := b.chs[i]
 		mid := geom.Pt(rc.Min.X+rc.Size().W/2, rc.Min.Y+rc.Size().H/2)
-		sc := 0.85 + 0.15*in + 0.025*l.ch[ch].hit + 0.015*b.hot[ch]
+		sc := 0.85 + 0.15*in + (0.01+0.05*l.fx)*l.ch[ch].hit + 0.015*b.hot[ch]
 		end := p.Push(paint.Scale(sc, mid))
 		b.paintStation(p, rc, ch, in)
 		end()
