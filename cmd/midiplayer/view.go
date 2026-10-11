@@ -327,7 +327,14 @@ func (r *root) Layout(c gunim.Constraints, f gunim.Frame, kids gunim.Children) g
 	// The playlist slides in from the right, beside the band, and out
 	// past the window's edge.
 	x := w - margin - panel + (margin+30)*(1-ease(r.listOpen))
-	place(2, xyxy(x, midTop, x+listW, midBot-rollH-12))
+	// It stands as tall as the band, over the roll, where the roll
+	// shows; beside the tracker's view and the mixer, which leave the
+	// roll's room to it, it reaches down to the transport.
+	rollShown := 1 - pg
+	if trackerSong {
+		rollShown = 0
+	}
+	place(2, xyxy(x, midTop, x+listW, midBot-(rollH+12)*rollShown))
 	return size
 }
 
