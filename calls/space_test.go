@@ -59,7 +59,11 @@ func TestAPlayerStartsALoopAndStopsIt(t *testing.T) {
 	for range 10 {
 		mix.Mix(buf)
 	}
-	if !done(v) {
+	// The mixer lets the voice go on a goroutine of its own, a moment
+	// after the mix that ended it.
+	select {
+	case <-v.Done():
+	case <-time.After(time.Second):
 		t.Error("the loop plays on after Stop")
 	}
 	if _, err := p.Start("rymden", "bliip", audio.Options{}); err == nil {

@@ -1,6 +1,9 @@
 package synth
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestAVowelTurnedOffStopsSinging(t *testing.T) {
 	sings := &Patch{Osc: []Osc{{Wave: "saw"}}, Vowel: "a", Amp: Env{Attack: 0.01, Sustain: 1, Release: 0.1}}
@@ -33,5 +36,28 @@ func TestAVowelTurnedOffStopsSinging(t *testing.T) {
 	v.render(l, r, ctx)
 	if v.vowel != 'e' || v.form.f[0].ic1 == was {
 		t.Errorf("the voice sings %q after its patch's vowel became e", v.vowel)
+	}
+}
+
+func TestAVoiceTakenMidStepPlaysItsNewNoteAtOnce(t *testing.T) {
+	// A mono voice, taken by a new note 10 frames into a control step,
+	// plays the new note's pitch and level from its first frame.
+	in, err := NewInstrument(&Patch{Osc: []Osc{{Wave: "sine"}}, Poly: 1, Amp: Env{Attack: 0.001, Sustain: 1, Release: 0.05}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, r := make([]float32, 10), make([]float32, 10)
+	in.NoteOn(1, 57, 1, 0)
+	for range 100 {
+		in.Render(l, r)
+	}
+	in.NoteOn(2, 81, 0.05, 0)
+	in.Render(l[:1], r[:1])
+	v := in.vs.vs[0]
+	if want := float32(noteHz(81)); math.Abs(float64(v.stepHz-want)) > 0.01 {
+		t.Errorf("the new note's first frame plays at %.1f Hz, not %.1f", v.stepHz, want)
+	}
+	if abs32(l[0]) > 0.05 {
+		t.Errorf("the new note's first frame is %.3f, louder than its velocity of 0.05 allows", l[0])
 	}
 }

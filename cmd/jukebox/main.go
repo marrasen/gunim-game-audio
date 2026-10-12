@@ -451,9 +451,9 @@ func serve(ctx context.Context, c gunim.Client) error {
 				}
 			case PlayToggled:
 				if pl.voice.Paused() {
-					pl.voice.Resume()
+					pl.voice.Resume(0)
 				} else {
-					pl.voice.Pause()
+					pl.voice.Pause(0)
 				}
 			case Restarted:
 				pl.start(pl.song)

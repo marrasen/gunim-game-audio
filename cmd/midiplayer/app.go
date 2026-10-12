@@ -373,9 +373,9 @@ func (a *app) handle(ctx context.Context, in gunim.Intent) {
 				a.start(max(a.cur, 0))
 			}
 		case a.voice.Paused():
-			a.voice.Resume()
+			a.voice.Resume(0)
 		default:
-			a.voice.Pause()
+			a.voice.Pause(0)
 		}
 	case Skipped:
 		a.skip(v.By)

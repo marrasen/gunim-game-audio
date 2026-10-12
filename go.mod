@@ -2,7 +2,7 @@ module github.com/marrasen/gunim-game-audio
 
 go 1.27.1
 
-require github.com/marrasen/gunim v0.0.0-20261009110350-4eb721fa3861
+require github.com/marrasen/gunim v0.0.0-20261012115815-5f07e36112a2
 
 require (
 	github.com/ebitengine/purego v0.11.0 // indirect
