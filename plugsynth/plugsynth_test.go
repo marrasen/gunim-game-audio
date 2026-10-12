@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/marrasen/gunim"
+	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim/audio/plug"
 	"github.com/marrasen/gunim/audio/plug/plugtest"
 	"github.com/marrasen/gunim/audio/plug/plugui"
@@ -453,4 +455,56 @@ func TestTheSoundIsTheSameInAnyBlockSize(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestLatencyAndTailReadWhileBlocksRun(t *testing.T) {
+	p, _ := newSynth(t)
+	pr := p.Processor()
+	pr.Prepare(plug.Setup{Rate: 44100, MaxBlock: 256, Channels: 2})
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				if pr.Tail() < 0 || pr.Latency() != 2 {
+					t.Error("Tail or Latency read wrong while blocks run")
+					return
+				}
+			}
+		}
+	}()
+	l, r := make([]float32, 256), make([]float32, 256)
+	b := &plug.Block{Out: [][]float32{l, r}, Frames: 256, Changes: make([]plug.Change, 2)}
+	for i := range 291 {
+		b.Changes[0] = plug.Change{ID: SoundID, Value: float64(i % len(Sounds))}
+		b.Changes[1] = plug.Change{Frame: 100, ID: ReleaseID, Value: 0.125 * float64(1+i%64)}
+		pr.Process(b)
+	}
+	close(stop)
+	<-done
+	// The last block picked sound 290%6, the bass, its release ×4.375.
+	want := int(math.Ceil(preset(t, "Moog bass").Amp.Release*4.375*44100)) + 2
+	if got := pr.Tail(); got != want {
+		t.Errorf("the tail is %d frames, want %d", got, want)
+	}
+}
+
+// preset returns the patch library's preset named name.
+func preset(t *testing.T, name string) *synth.Patch {
+	t.Helper()
+	ps, err := music.Presets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range ps {
+		if p.Name == name {
+			return p.Patch
+		}
+	}
+	t.Fatalf("the library has no preset %s", name)
+	return nil
 }

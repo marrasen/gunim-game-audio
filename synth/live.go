@@ -358,6 +358,8 @@ func (in *Instrument) Sounding() bool {
 // Tail returns how long, in seconds, the instrument rings once its
 // notes are let go: its envelope's release, as the knobs stretch it, or
 // a drums patch's longest drum.
+// It counts the patch as it stands now, with the knobs as last set: a
+// note started before a knob changed may ring longer.
 func (in *Instrument) Tail() float64 {
 	if in.p.kind != kindDrums {
 		return in.src.Amp.Release

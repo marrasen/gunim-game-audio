@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync/atomic"
 
 	music "github.com/marrasen/gunim-game-audio"
 	"github.com/marrasen/gunim-game-audio/synth"
@@ -200,6 +201,9 @@ type processor struct {
 	have           int
 	// at counts the host's frames since the last Reset.
 	at int64
+	// latency and tail are what Latency and Tail report, which they read
+	// on the host's goroutine as blocks run on the audio thread.
+	latency, tail atomic.Int64
 }
 
 func newProcessor(ss []sound) *processor {
@@ -227,6 +231,7 @@ func (p *processor) Prepare(s plug.Setup) {
 	// floor((j-delay)*step)+2, which must come before (j+1)*step, the
 	// engine's time at the host's next frame.
 	p.delay = max(int(math.Ceil(3/p.step-1)), 0)
+	p.latency.Store(int64(p.delay))
 	n := int(math.Ceil(float64(max(s.MaxBlock, 1))*p.step)) + before + 8
 	p.bl, p.br = make([]float32, n), make([]float32, n)
 	p.tl, p.tr = make([]float32, n), make([]float32, n)
@@ -243,16 +248,24 @@ func (p *processor) Reset() {
 	clear(p.bl[:before])
 	clear(p.br[:before])
 	p.base, p.have, p.at = -before, before, 0
+	p.keepTail()
 }
 
 // Latency implements [plug.Processor]: an event at the host's frame f
 // sounds from frame f+Latency, give or take a frame of the engine's
 // where the rates differ.
-func (p *processor) Latency() int { return p.delay }
+func (p *processor) Latency() int { return int(p.latency.Load()) }
 
-// Tail implements [plug.Processor]: as long as the sound playing rings
-// once its notes are let go.
-func (p *processor) Tail() int { return int(math.Ceil(p.cur.Tail()*p.rate)) + p.delay }
+// Tail implements [plug.Processor]: as long as the sound playing now
+// rings once its notes are let go, plus the delay. It counts the current
+// sound alone; a sound picked before it, still ringing out, may ring
+// longer. It reads what the processor last kept.
+func (p *processor) Tail() int { return int(p.tail.Load()) }
+
+// keepTail keeps the tail as it stands now, for Tail.
+func (p *processor) keepTail() {
+	p.tail.Store(int64(math.Ceil(p.cur.Tail()*p.rate)) + int64(p.delay))
+}
 
 // Process implements [plug.Processor]: each change and each note takes
 // effect from its frame on.
@@ -284,6 +297,9 @@ func (p *processor) Process(b *plug.Block) {
 		p.play(b.Events[ei])
 	}
 	p.at += int64(b.Frames)
+	if len(b.Changes) > 0 {
+		p.keepTail()
+	}
 }
 
 // take takes a change to a parameter.
