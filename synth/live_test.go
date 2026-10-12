@@ -91,9 +91,13 @@ func TestAPedalHoldsOnlyItsGroup(t *testing.T) {
 	if rms(x) < 0.1 {
 		t.Fatalf("the pedal let group 1's note go: its level is %.3f", rms(x))
 	}
+	// Note 1's ID, given up at its NoteOff, starts a new note in group 2,
+	// which leaves the note the pedal holds be.
+	in.NoteOn(1, 81, 0.8, 2)
+	in.NoteOff(1)
 	in.Pedal(2, 0)
-	if rms(listen(in, 0.2)) < 0.1 {
-		t.Error("group 2's pedal let go of group 1's note")
+	if x := listen(in, 0.5)[synth.Rate/4:]; rms(x) < 0.1 || math.Abs(hz(x)-220) > 5 {
+		t.Errorf("a new note taking a pedalled note's ID let it go: %.3f at %.0f Hz", rms(x), hz(x))
 	}
 	in.Pedal(1, 0)
 	listen(in, 0.5)

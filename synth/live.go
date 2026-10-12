@@ -28,11 +28,11 @@ type Instrument struct {
 	orig *Patch
 	src  Patch
 	p    *patch
-	// gain is the patch's own level, before the knobs turn it.
-	gain float32
-	vs   *voices
-	hs   *hits
-	ctx  renderCtx
+	// level is the Gain knob's, as a factor.
+	level float32
+	vs    *voices
+	hs    *hits
+	ctx   renderCtx
 	// kit is a drums patch's drums, by note.
 	kit [128]*drum
 	// held are the notes sounding by their IDs, the oldest first, n of
@@ -94,12 +94,12 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 		}
 		src = *gm
 	}
-	in := &Instrument{orig: &src, src: src}
+	in := &Instrument{orig: &src, src: src, level: 1}
 	c, err := in.src.compile("instrument")
 	if err != nil {
 		return nil, err
 	}
-	in.p, in.gain = c, c.gain
+	in.p = c
 	in.ctx = renderCtx{beatHz: 2, l: make([]float32, control), r: make([]float32, control)}
 	if c.kind == kindDrums {
 		in.hs = newHits(c.poly)
@@ -140,7 +140,7 @@ var gmDrumNames = [128]string{
 
 // NoteOn starts note id at pitch, a MIDI note number, fractional where
 // it falls between two, at velocity vel, from 0 to 1, in group. An id
-// still sounding is let go first.
+// still held is let go first.
 func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 	vel = min(max(vel, 0), 1)
 	if in.p.kind == kindDrums {
@@ -177,12 +177,20 @@ func (in *Instrument) NoteOff(id int32) {
 }
 
 // Bend bends note id by semis semitones from its pitch, up, or down
-// below 0, from now on.
+// below 0, from now on: the note held, or else the last of that ID the
+// pedal holds after its NoteOff.
 func (in *Instrument) Bend(id int32, semis float64) {
-	if i := in.find(id); i >= 0 {
-		if h := &in.held[i]; h.v.on && h.v.age == h.age {
-			h.v.bend = float32(semis)
+	i := in.find(id)
+	for j := in.n - 1; i < 0 && j >= 0; j-- {
+		if in.held[j].id == id {
+			i = j
 		}
+	}
+	if i < 0 {
+		return
+	}
+	if h := &in.held[i]; h.v.on && h.v.age == h.age {
+		h.v.bend = float32(semis)
 	}
 }
 
@@ -230,10 +238,11 @@ func (in *Instrument) lift(group int32) {
 	}
 }
 
-// find returns where note id is held, or -1.
+// find returns where note id is held, or -1. A note the pedal holds
+// after its NoteOff has given its ID up, for a new note to take.
 func (in *Instrument) find(id int32) int {
 	for i := range in.n {
-		if in.held[i].id == id {
+		if in.held[i].id == id && !in.held[i].sustained {
 			return i
 		}
 	}
@@ -262,7 +271,7 @@ func (in *Instrument) SetKnobs(k Knobs) {
 	in.src.Filter.Res = min(max(o.Filter.Res+k.Res, 0), 0.98)
 	in.src.Amp.Attack = o.Amp.Attack * math.Exp2(k.Attack)
 	in.src.Amp.Release = o.Amp.Release * math.Exp2(k.Release)
-	in.p.gain = in.gain * float32(math.Pow(10, k.Gain/20))
+	in.level = float32(math.Pow(10, k.Gain/20))
 	if in.vs != nil {
 		for _, v := range in.vs.vs {
 			if v.on {
@@ -282,6 +291,12 @@ func (in *Instrument) Render(l, r []float32) {
 	}
 	if in.hs != nil {
 		in.hs.render(l, r)
+	}
+	if in.level != 1 {
+		for i := range l {
+			l[i] *= in.level
+			r[i] *= in.level
+		}
 	}
 }
 
