@@ -150,6 +150,56 @@ func TestTheDrumsPlayByGeneralMIDINotes(t *testing.T) {
 	}
 }
 
+// TestAKitPlaysItsOwnDrumsOnTheirNotes strikes General MIDI's notes on
+// kits that name their drums otherwise, and holds each hit to the drum a
+// song's pattern plays by name: the first hit of a fresh instrument
+// sounds as a song's first hit of that drum does, frame by frame.
+func TestAKitPlaysItsOwnDrumsOnTheirNotes(t *testing.T) {
+	kit := func(names ...string) *synth.Patch {
+		p := &synth.Patch{Kind: "drums", Kit: map[string]synth.Drum{}}
+		for _, n := range names {
+			p.Kit[n] = synth.Drum{}
+		}
+		return p
+	}
+	simmons := kit("bd", "sn", "syn1", "syn2", "syn3")
+	for _, c := range []struct {
+		p    *synth.Patch
+		note float64
+		drum string
+	}{
+		{kit("sbd", "ssn", "shh", "soh"), 36, "sbd"},
+		{kit("sbd", "ssn", "shh", "soh"), 42, "shh"},
+		{kit("sbd", "ssn", "shh", "soh"), 46, "soh"},
+		{kit("sbd"), 38, "sn"},
+		{kit("nbd", "nsn"), 38, "nsn"},
+		{kit("bd9", "sn"), 36, "bd9"},
+		{kit("bd", "bd9"), 36, "bd"},
+		{simmons, 48, "syn1"},
+		{simmons, 45, "syn2"},
+		{simmons, 41, "syn3"},
+		{kit("mtl", "cr"), 53, "mtl"},
+		{kit("rd", "mtl"), 53, "rd"},
+		{synth.GMKit(25), 36, "36"},
+		{synth.GMKit(24), 38, "38"},
+	} {
+		want, err := synth.PreviewDrum(c.p, c.drum, 0.5)
+		if err != nil {
+			t.Fatal(err)
+		}
+		in := instrument(t, c.p)
+		in.NoteOn(1, c.note, 1, 0)
+		got := listen(in, 0.5)
+		for i := range want {
+			if math.Abs(float64(got[i]-want[i])) > 1e-6 {
+				t.Errorf("note %v of a kit of %d drums plays another drum than %s: frame %d is %v, %s's %v",
+					c.note, len(c.p.Kit), c.drum, i, got[i], c.drum, want[i])
+				break
+			}
+		}
+	}
+}
+
 func TestTheKnobsTurnTheSound(t *testing.T) {
 	in := instrument(t, sine)
 	in.NoteOn(1, 69, 1, 0)
