@@ -1,4 +1,12 @@
 {
 	"Kind": "drums",
-	"Kit": {}
+	"Kit": {
+		"sbd": {},
+		"ssn": {},
+		"scp": {},
+		"shh": {},
+		"soh": {},
+		"stom": {},
+		"szap": {}
+	}
 }

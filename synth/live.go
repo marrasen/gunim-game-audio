@@ -16,9 +16,12 @@ const Rate = rate
 //
 // It plays synth, pluck and drums patches on the same voices a song's
 // tracks play, so a patch sounds alike in both. A drums patch plays its
-// kit by General MIDI's drum notes, as 36 for bd and 38 for sn; its
-// notes ring out by themselves, so a NoteOff, a Bend and the pedal leave
-// them be.
+// kit by General MIDI's drum notes: a note plays the kit's drum named by
+// its number, as GMKit's are, or else the first drum of its role the
+// kit lists, as bd, bd9, sbd or nbd on 36, or else the built-in drum of
+// that role, as bd. So the TR-909's bd9 and the Commodore 64's sbd play
+// on 36, as a song's pattern plays them by name. Its notes ring out by
+// themselves, so a NoteOff, a Bend and the pedal leave them be.
 //
 // Its methods run on one goroutine at a time, as a plugin's processor
 // runs on the audio thread; none of them allocates, locks or waits.
@@ -107,13 +110,16 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 	in.ctx = renderCtx{beatHz: 2, carry: true, l: make([]float32, control), r: make([]float32, control)}
 	if c.kind == kindDrums {
 		in.hs = newHits(c.poly)
+		// Each hit's noise is seeded now, so a note takes nothing new as
+		// it starts, as a song's track seeds its first hit's, by the
+		// hit's count from 1: a drum's first hit sounds as its first in
+		// a song does.
 		for i := range in.hs.hs {
-			in.hs.hs[i].noise = newRand(uint64(i)*31 + 7)
+			in.hs.hs[i].noise = newRand(uint64(i+1)*31 + 7)
 		}
 		for key := range in.kit {
-			if d, ok := c.kit[strconv.Itoa(key)]; ok {
-				in.kit[key] = &d
-			} else if d, ok := c.kit[gmDrumNames[key]]; ok && gmDrumNames[key] != "" {
+			if name := kitDrum(in.src.Kit, key); name != "" {
+				d := c.kit[name]
 				in.kit[key] = &d
 			}
 		}
@@ -133,13 +139,58 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 }
 
 // gmDrumNames are the drums General MIDI's notes play, by the names a
-// kit has them by.
-var gmDrumNames = [128]string{
-	35: "bd", 36: "bd", 37: "rim", 38: "sn", 39: "cp", 40: "sn",
-	41: "lt", 42: "hh", 43: "lt", 44: "hh", 45: "mt", 46: "oh",
-	47: "mt", 48: "ht", 49: "cr", 50: "ht", 51: "rd", 52: "cr",
-	53: "rd", 54: "tamb", 55: "cr", 56: "cb", 57: "cr", 59: "rd",
-	69: "sh", 70: "sh", 75: "rim", 82: "sh",
+// kit has them by: each note's role, as the kick on 36, in the names of
+// every drum that plays it, the built-in drum's first. A kit of SID
+// drums names its kick sbd, a TR-909's kit bd9, a Simmons kit its toms
+// syn1, the highest, to syn3.
+var gmDrumNames = [128][]string{
+	35: kicks, 36: kicks, 37: {"rim"}, 38: snares, 39: claps, 40: snares,
+	41: lowToms, 42: hats, 43: lowToms, 44: hats, 45: midToms, 46: openHats,
+	47: midToms, 48: highToms, 49: crashes, 50: highToms, 51: rides, 52: crashes,
+	53: {"rd", "ride", "mtl", "metal", "nclk"}, 54: {"tamb", "tambourine"}, 55: crashes,
+	56: {"cb", "cowbell"}, 57: crashes, 59: rides,
+	69: shakers, 70: shakers, 75: {"rim"}, 82: shakers,
+}
+
+// The names of the drums of each role, for gmDrumNames.
+var (
+	kicks    = []string{"bd", "kick", "bd9", "kick909", "sbd", "nbd"}
+	snares   = []string{"sn", "snare", "ssn", "nsn"}
+	claps    = []string{"cp", "clap", "scp", "ncp"}
+	hats     = []string{"hh", "hat", "shh", "nhh"}
+	openHats = []string{"oh", "ohat", "soh", "noh"}
+	lowToms  = []string{"lt", "syn3", "stom", "ntom"}
+	midToms  = []string{"mt", "tom", "syn2", "stom", "ntom"}
+	highToms = []string{"ht", "syn1", "stom", "ntom"}
+	crashes  = []string{"cr", "crash"}
+	rides    = []string{"rd", "ride"}
+	shakers  = []string{"sh", "shaker"}
+)
+
+// kitDrum returns the name of the drum General MIDI's note key plays in
+// a kit that lists kit: the drum named by the note's number, or the first
+// of the note's names the kit lists, or the first of them, built in; or
+// "" for a note that plays none.
+func kitDrum(kit map[string]Drum, key int) string {
+	if n := strconv.Itoa(key); hasDrum(kit, n) {
+		return n
+	}
+	names := gmDrumNames[key]
+	for _, n := range names {
+		if hasDrum(kit, n) {
+			return n
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	return names[0]
+}
+
+// hasDrum reports whether kit lists a drum named name.
+func hasDrum(kit map[string]Drum, name string) bool {
+	_, ok := kit[name]
+	return ok
 }
 
 // NoteOn starts note id at pitch, a MIDI note number, fractional where

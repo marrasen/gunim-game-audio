@@ -1,4 +1,12 @@
 {
 	"Kind": "drums",
-	"Kit": {}
+	"Kit": {
+		"nbd": {},
+		"nsn": {},
+		"ncp": {},
+		"nhh": {},
+		"noh": {},
+		"ntom": {},
+		"nclk": {}
+	}
 }
