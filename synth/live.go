@@ -147,14 +147,6 @@ var gmDrumNames = [128]string{
 // still held is let go first.
 func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 	vel = min(max(vel, 0), 1)
-	if in.p.kind == kindDrums {
-		key := int(math.Round(pitch))
-		if key < 0 || key > 127 || in.kit[key] == nil {
-			return
-		}
-		in.hs.play(*in.kit[key], float32(vel), 0, float32(pitch), rate/2, 0)
-		return
-	}
 	if i := in.find(id); i >= 0 {
 		in.let(i)
 	}
@@ -162,8 +154,19 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 		in.let(0)
 	}
 	n := note{pitch: float32(pitch), vel: float32(vel), res: -1}
-	v := in.vs.play(in.p, n)
-	in.held[in.n] = liveNote{id: id, group: group, v: v, age: v.age, n: n}
+	var v *voice
+	age := uint64(0)
+	if in.p.kind == kindDrums {
+		// A drum rings out by itself; the note is kept, voiceless, for
+		// Pass to hand on.
+		if key := int(math.Round(pitch)); key >= 0 && key <= 127 && in.kit[key] != nil {
+			in.hs.play(*in.kit[key], float32(vel), 0, float32(pitch), rate/2, 0)
+		}
+	} else {
+		v = in.vs.play(in.p, n)
+		age = v.age
+	}
+	in.held[in.n] = liveNote{id: id, group: group, v: v, age: age, n: n}
 	in.n++
 }
 
@@ -189,7 +192,7 @@ func (in *Instrument) NoteOff(id int32) {
 // does, and forgets the note at i. It reports whether there was one.
 func (in *Instrument) back(i int) bool {
 	h := &in.held[i]
-	if !h.v.on || h.v.age != h.age {
+	if h.v == nil || !h.v.on || h.v.age != h.age {
 		return false
 	}
 	j := -1
@@ -225,7 +228,7 @@ func (in *Instrument) Bend(id int32, semis float64) {
 	}
 	h := &in.held[i]
 	h.bend = float32(semis)
-	if h.v.on && h.v.age == h.age {
+	if h.v != nil && h.v.on && h.v.age == h.age {
 		h.v.bend = h.bend
 	}
 }
@@ -288,7 +291,7 @@ func (in *Instrument) find(id int32) int {
 // let lets go of the note held at i, unless its voice has been taken for
 // another, and forgets it.
 func (in *Instrument) let(i int) {
-	if h := &in.held[i]; h.v.on && h.v.age == h.age {
+	if h := &in.held[i]; h.v != nil && h.v.on && h.v.age == h.age {
 		h.v.release()
 	}
 	copy(in.held[i:in.n], in.held[i+1:in.n])
@@ -336,6 +339,10 @@ func (in *Instrument) Render(l, r []float32) {
 	}
 }
 
+// Held returns how many notes the instrument holds: struck and not let
+// go, or let go while the pedal holds them.
+func (in *Instrument) Held() int { return in.n }
+
 // Sounding reports whether a note still sounds.
 func (in *Instrument) Sounding() bool {
 	if in.vs != nil {
@@ -370,6 +377,42 @@ func (in *Instrument) Tail() float64 {
 		tail = max(tail, 6.6*max(d.Decay, 1))
 	}
 	return tail
+}
+
+// Pass hands what the player holds to instrument to, as a sound
+// changes under the player's hands: each pedal down goes down on to,
+// and each note held starts again on to, at its pitch, velocity, bend
+// and group, the notes the pedal holds held there by it too. On in,
+// every note lets go and rings out through its release. A drums patch
+// keeps the notes passed to it without striking them, as a drum struck
+// rings out by itself, and passes them on to the sound after it.
+func (in *Instrument) Pass(to *Instrument) {
+	for i := range in.pedals {
+		if pd := &in.pedals[i]; pd.used && pd.down {
+			to.Pedal(pd.group, 1)
+		}
+	}
+	// held runs oldest first, so a note the pedal holds starts before a
+	// newer one of its ID, which takes the ID.
+	for i := range in.n {
+		h := in.held[i]
+		if to.p.kind == kindDrums {
+			if to.n < maxLive {
+				h.v, h.age = nil, 0
+				to.held[to.n] = h
+				to.n++
+			}
+			continue
+		}
+		to.NoteOn(h.id, float64(h.n.pitch), float64(h.n.vel), h.group)
+		if h.bend != 0 {
+			to.Bend(h.id, float64(h.bend))
+		}
+		if h.sustained {
+			to.NoteOff(h.id)
+		}
+	}
+	in.Release()
 }
 
 // Release lets go of every note, and lifts every pedal.
