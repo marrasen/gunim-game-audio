@@ -331,6 +331,85 @@ func TestResetEndsTheNotes(t *testing.T) {
 	}
 }
 
+func TestResetSilencesEverySoundASwapLeft(t *testing.T) {
+	p := synthOf(t, "Juno pad")
+	pr := p.Processor()
+	pr.Prepare(plug.Setup{Rate: 48000, MaxBlock: 128, Channels: 2})
+	l, r := make([]float32, 128), make([]float32, 128)
+	block := func(events ...plug.Event) float64 {
+		pr.Process(&plug.Block{Out: [][]float32{l, r}, Frames: 128, Events: events})
+		return rms(l) + rms(r)
+	}
+	states := swapStates(t)
+	block(plug.Event{Kind: plug.Pedal, Value: 1},
+		plug.Event{Kind: plug.NoteOn, Note: 1, Pitch: 45, Velocity: 0.9},
+		plug.Event{Kind: plug.NoteOn, Note: 2, Pitch: 57, Velocity: 0.9},
+		plug.Event{Frame: 9, Kind: plug.NoteOff, Note: 2})
+	// Sounds picked one after another, some taken by a block, some
+	// offered and passed over: every sound before rings out, and the
+	// last waits for a block.
+	for i, st := range states {
+		if err := p.SetState(st); err != nil {
+			t.Fatal(err)
+		}
+		if i%2 == 0 {
+			for range 40 {
+				block()
+			}
+		}
+	}
+	pr.Reset()
+	if got := block(); got != 0 {
+		t.Fatalf("the block after Reset sounds at %.5f", got)
+	}
+	if p.proc.prev != nil || p.proc.cur.Held() != 0 || p.proc.cur.Sounding() {
+		t.Fatalf("after Reset, a sound before rings, or the sound holds %d notes", p.proc.cur.Held())
+	}
+	// A mono bass picked after it plays, and stops, again.
+	moog, _ := Named("Moog bass")
+	if err := p.SetState(moog.State()); err != nil {
+		t.Fatal(err)
+	}
+	block(plug.Event{Kind: plug.NoteOn, Note: 3, Pitch: 40, Velocity: 0.9})
+	sum := 0.0
+	for range 40 {
+		sum += block()
+	}
+	if sum/40 < 0.003 {
+		t.Errorf("the mono bass after Reset sounds at %.4f", sum/40)
+	}
+	block(plug.Event{Kind: plug.NoteOff, Note: 3})
+	for range 4 * 48000 / 128 {
+		block()
+	}
+	if got := block(); got > 1e-5 {
+		t.Errorf("the mono bass, let go, rings on at %.6f", got)
+	}
+}
+
+func TestAStateIsCheckedOnce(t *testing.T) {
+	// A sound of the module's own is known to play.
+	s, _ := Named("Juno pad")
+	if !checked.has(s.State()) {
+		t.Error("a sound's own state is checked again")
+	}
+	// A patch from outside is checked as it first comes, and then known;
+	// one that fails is turned away each time.
+	good := []byte(`{"Name":"mine","Patch":{"Osc":[{"Wave":"saw","Detune":0.25}]}}`)
+	if checked.has(good) {
+		t.Fatal("a patch from outside is known before it comes")
+	}
+	if _, err := DecodeState(good); err != nil || !checked.has(good) {
+		t.Errorf("a good patch from outside reads with %v, known %v", err, checked.has(good))
+	}
+	bad := []byte(`{"Name":"bad","Patch":{"Kind":"organ"}}`)
+	for range 2 {
+		if _, err := DecodeState(bad); err == nil || checked.has(bad) {
+			t.Errorf("a bad patch reads with %v, known %v", err, checked.has(bad))
+		}
+	}
+}
+
 // swapSounds are sounds a swap test steps through: a pad, a pluck, a
 // mono bass, a drum kit, a General MIDI piano, and a song's patch.
 var swapSounds = []string{"Juno pad", "Harp pluck", "Moog bass", "TR-808", "Acoustic Grand Piano", "Supersaw pad"}

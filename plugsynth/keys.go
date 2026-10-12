@@ -17,10 +17,13 @@ import (
 	"github.com/marrasen/gunim/widget"
 )
 
-// keys is a keyboard of two octaves that plays a note of the sound on
-// each key pressed, through the host's [plug.Auditioner]: from C3 for a
-// sound that plays notes, and from B1, General MIDI's drums from the
-// kick up, for a kit. A key lights as it is pressed and fades after.
+// keys is a keyboard of two octaves that plays the sound: from C3 for
+// a sound that plays notes, and from B1, General MIDI's drums from the
+// kick up, for a kit. Through a host that is a [plug.Holder], a key
+// sounds while the pointer holds it, and a drag across the keys plays
+// each key it passes, letting the one before go, as a glissando; through
+// any other [plug.Auditioner], a press plays a short note. A key lights
+// as it sounds and fades after.
 type keys struct {
 	anim.Group
 	a   plug.Auditioner
@@ -30,13 +33,19 @@ type keys struct {
 	lit   []*anim.Float
 	hover int
 	size  geom.Size
+	// pressing says the primary button holds the keyboard; held is the
+	// key it holds, -1 for none, and note the note it plays, which names
+	// it to the host.
+	pressing bool
+	held     int
+	note     int
 }
 
 // keyCount is how many keys the keyboard has: two octaves and one.
 const keyCount = 25
 
 func newKeys(a plug.Auditioner) *keys {
-	k := &keys{a: a, low: 48, hover: -1}
+	k := &keys{a: a, low: 48, hover: -1, held: -1}
 	for range keyCount {
 		f := anim.NewFloat(0)
 		k.lit = append(k.lit, f)
@@ -110,18 +119,30 @@ func (k *keys) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom
 	return c.Max
 }
 
-// Handle implements [gunim.Handler]: a press plays its key's note.
+// Handle implements [gunim.Handler]: a press plays its key's note,
+// held while the button is, and a drag moves it to each key it passes.
+// Another button, pressed meanwhile, ends the press.
 func (k *keys) Handle(e input.Event, u *gunim.UI) bool {
 	switch e := e.(type) {
 	case input.PointerMove:
 		k.hover = k.at(e.Pos)
+		if k.pressing && k.hover != k.held {
+			k.hold(k.hover, u)
+		}
 		u.Invalidate()
 		return false
 	case input.PointerLeave:
 		k.hover = -1
+		if k.pressing {
+			k.hold(-1, u)
+		}
 		u.Invalidate()
 		return false
 	case input.PointerDown:
+		if k.pressing {
+			k.end(u)
+			return true
+		}
 		if e.Button != input.ButtonPrimary {
 			return false
 		}
@@ -129,17 +150,46 @@ func (k *keys) Handle(e input.Event, u *gunim.UI) bool {
 		if i < 0 {
 			return false
 		}
-		k.play(i, u)
+		k.pressing = true
+		k.hold(i, u)
+		return true
+	case input.PointerUp:
+		if !k.pressing {
+			return false
+		}
+		k.end(u)
 		return true
 	}
 	return false
 }
 
-// play plays key i, and lights it.
-func (k *keys) play(i int, u *gunim.UI) {
-	k.a.Audition(float64(k.low+i), 0.8, 500*time.Millisecond, u)
-	k.lit[i].Jump(1)
-	k.lit[i].Animate(0, anim.Spring{Response: 0.6, Damping: 1})
+// end ends the press, letting its key go.
+func (k *keys) end(u *gunim.UI) {
+	k.hold(-1, u)
+	k.pressing = false
+}
+
+// hold lets the key held go, and holds key i, -1 for none: it sounds
+// while held, through a host that holds notes, and for half a second
+// through one that plays them by length.
+func (k *keys) hold(i int, u *gunim.UI) {
+	h, holds := k.a.(plug.Holder)
+	if k.held >= 0 {
+		if holds {
+			h.Release(k.note, u)
+		}
+		k.lit[k.held].Animate(0, anim.Spring{Response: 0.6, Damping: 1})
+	}
+	k.held = i
+	if i >= 0 {
+		k.note = k.low + i
+		if holds {
+			h.Hold(k.note, float64(k.note), 0.8, u)
+		} else {
+			k.a.Audition(float64(k.note), 0.8, 500*time.Millisecond, u)
+		}
+		k.lit[i].Jump(1)
+	}
 	u.Invalidate()
 }
 

@@ -44,7 +44,10 @@ func (s Sound) Patch() *synth.Patch { return clonePatch(s.patch) }
 // State returns the plugin's state that plays s, for [plug.Plugin]'s
 // SetState: the sound's name, where it comes from, and its whole patch.
 func (s Sound) State() []byte {
-	return State{Bank: s.Bank, Group: s.Group, Name: s.Name, Patch: s.patch}.Encode()
+	b := State{Bank: s.Bank, Group: s.Group, Name: s.Name, Patch: s.patch}.Encode()
+	// The module's own sounds play: their states need no check.
+	checked.add(b)
+	return b
 }
 
 // gmFamilies are General MIDI's families of instruments, eight programs
