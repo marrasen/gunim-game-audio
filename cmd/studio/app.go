@@ -251,9 +251,9 @@ func (s *studio) handle(ctx context.Context, v gunim.Intent) {
 		}
 	case PlayToggled:
 		if s.voice.Paused() {
-			s.voice.Resume()
+			s.voice.Resume(0)
 		} else {
-			s.voice.Pause()
+			s.voice.Pause(0)
 		}
 	case Restarted:
 		s.start()
