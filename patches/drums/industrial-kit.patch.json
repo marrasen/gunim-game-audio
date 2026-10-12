@@ -1,0 +1,32 @@
+{
+	"Kind": "drums",
+	"Kit": {
+		"bd": {
+			"Tune": -2,
+			"Decay": 0.7,
+			"Tone": 0.55
+		},
+		"sn": {
+			"Tune": -1,
+			"Tone": 0.7,
+			"Decay": 0.6
+		},
+		"hh": {
+			"Tone": 0.5,
+			"Gain": 0.8
+		},
+		"oh": {
+			"Tone": 0.5,
+			"Decay": 0.35,
+			"Gain": 0.6
+		},
+		"mtl": {
+			"Decay": 0.8,
+			"Tone": 0.6
+		},
+		"cr": {
+			"Tone": 0.4,
+			"Decay": 0.8
+		}
+	}
+}

@@ -1,0 +1,34 @@
+{
+	"Osc": [
+		{
+			"Wave": "saw",
+			"Unison": 5,
+			"Spread": 24
+		},
+		{
+			"Wave": "sine",
+			"Octave": 1,
+			"Level": 0.3
+		}
+	],
+	"Filter": {
+		"Type": "lp",
+		"Cutoff": 1600,
+		"Res": 0.1
+	},
+	"Amp": {
+		"Attack": 0.3,
+		"Decay": 1,
+		"Sustain": 0.85,
+		"Release": 0.8
+	},
+	"LFO": [
+		{
+			"To": "cutoff",
+			"Wave": "tri",
+			"Beats": 8,
+			"Depth": 0.4
+		}
+	],
+	"Poly": 12
+}

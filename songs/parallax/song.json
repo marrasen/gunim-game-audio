@@ -1,0 +1,208 @@
+{
+	"Kind": "synth",
+	"Title": "Parallax",
+	"Category": "Grooves",
+	"Artist": "Marcus Johansson",
+	"BPM": 132,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "F",
+	"Scale": "minor",
+	"Chords": [
+		"Fm _ Eb _ Fm _ Eb _",
+		"Fm _ Eb _ Fm _ Eb _",
+		"Fm _ Eb _ Fm _ Eb _",
+		"Fm _ Eb _ Fm _ Eb _",
+		"Eb _ Db _ Ab _ Db _",
+		"Eb _ Db _ Ab _ Db _",
+		"Eb _ Db _ Ab _ Db _",
+		"Db _ Ab _ Eb _ Fm _",
+		"Db _ Ab _ Eb _ Fm _",
+		"Fm _ Eb _ Fm _ Eb _",
+		"Eb _ Db _ Ab _ Db _",
+		"Eb _ Db _ Ab _ Db _"
+	],
+	"Mode": "wander",
+	"Clap": {"Track": "claps", "Drum": "cp"},
+	"Patches": {
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd9": {"Tune": -1, "Decay": 1.1, "Tone": 0.55},
+				"sn": {"Tune": 3, "Tone": 0.6, "Decay": 0.7},
+				"cp": {"Tone": 0.35},
+				"hh": {"Tone": 0.6, "Gain": 0.8},
+				"oh": {"Tone": 0.6, "Decay": 0.45, "Gain": 0.6},
+				"cr": {"Tone": 0.5, "Decay": 1.1},
+				"riser": {"Tone": 0.5}
+			}
+		},
+		"bass": {
+			"Osc": [
+				{"Wave": "saw"},
+				{"Wave": "pulse", "Width": 0.5, "Octave": -1, "Level": 0.5}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 420, "Res": 0.3, "Env": 2.4, "Key": 0.4, "Vel": 0.8},
+			"Amp": {"Attack": 0.001, "Decay": 0.13, "Sustain": 0.1, "Release": 0.04},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.09, "Sustain": 0, "Release": 0.04},
+			"Poly": 1,
+			"Drift": 2,
+			"Drive": 0.25,
+			"Gain": 0.8
+		},
+		"hook": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 3, "Spread": 18},
+				{"Wave": "pulse", "Width": 0.3, "Octave": 1, "Level": 0.3}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 1600, "Res": 0.35, "Env": 1.8, "Key": 0.4, "Vel": 0.7},
+			"Amp": {"Attack": 0.001, "Decay": 0.16, "Sustain": 0, "Release": 0.07},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.09, "Sustain": 0, "Release": 0.05},
+			"Poly": 6,
+			"Drift": 3,
+			"Gain": 0.7
+		},
+		"pad": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 7, "Spread": 26},
+				{"Wave": "saw", "Octave": 1, "Unison": 3, "Spread": 16, "Level": 0.35}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 4200, "Res": 0.1},
+			"Amp": {"Attack": 0.02, "Decay": 1, "Sustain": 0.95, "Release": 0.4},
+			"Poly": 10,
+			"Drift": 4,
+			"Gain": 0.45
+		},
+		"voice": {
+			"Osc": [
+				{"Wave": "glottal"}
+			],
+			"Noise": 0.03,
+			"Vowel": "a",
+			"Singer": "tenor",
+			"Amp": {"Attack": 0.03, "Decay": 0.3, "Sustain": 0.9, "Release": 0.2},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 5.6, "Depth": 0.15, "Delay": 0.3}],
+			"Poly": 1,
+			"Glide": 0.03,
+			"Drift": 5,
+			"Gain": 1
+		},
+		"lead": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 5, "Spread": 30},
+				{"Wave": "saw", "Octave": -1, "Unison": 2, "Spread": 14, "Level": 0.5}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 2800, "Res": 0.15, "Env": 1.2, "Key": 0.4, "Vel": 0.5},
+			"Amp": {"Attack": 0.004, "Decay": 0.3, "Sustain": 0.8, "Release": 0.25},
+			"FilterEnv": {"Attack": 0.002, "Decay": 0.12, "Sustain": 0.2, "Release": 0.2},
+			"Poly": 3,
+			"Drift": 4,
+			"Gain": 0.6
+		},
+		"robot": {
+			"Osc": [
+				{"Wave": "glottal"}
+			],
+			"Vowel": "a",
+			"Singer": "alto",
+			"Amp": {"Attack": 0.005, "Decay": 0.1, "Sustain": 0.9, "Release": 0.05},
+			"Poly": 1,
+			"Gain": 1
+		},
+		"sidarp": {
+			"Osc": [
+				{"Wave": "pulse", "Width": 0.35}
+			],
+			"Filter": {"Type": "sidlp", "Cutoff": 2400, "Res": 0.3},
+			"Amp": {"Attack": 0.002, "Decay": 0.3, "Sustain": 0.6, "Release": 0.1},
+			"LFO": [{"To": "width", "Wave": "tri", "Hz": 0.5, "Depth": 0.2}],
+			"Arpeggio": {"Chord": true, "Hz": 50},
+			"Poly": 1,
+			"Gain": 0.6
+		},
+		"sidlead": {
+			"Osc": [
+				{"Wave": "pulse", "Width": 0.25}
+			],
+			"Filter": {"Type": "sidlp", "Cutoff": 3000, "Res": 0.2},
+			"Amp": {"Attack": 0.004, "Decay": 0.2, "Sustain": 0.7, "Release": 0.1},
+			"LFO": [{"To": "pitch", "Wave": "tri", "Hz": 6, "Depth": 0.15, "Delay": 0.15}, {"To": "width", "Wave": "tri", "Hz": 1, "Depth": 0.15}],
+			"Poly": 1,
+			"Glide": 0.02,
+			"Gain": 0.6
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "kick", "Core": true, "Patch": "kit", "Color": "#ff5c5c",
+			"Pattern": "<~ [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] ~ [~ ~ ~ ~ [bd9*4] [bd9*4] [bd9*8] [bd9*16]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]] [[bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4] [bd9*4]]>",
+			"Bars": 8, "Gain": -2.5
+		},
+		{
+			"Name": "claps", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "<~ [~ ~ ~ ~ [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]]] [[~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]]] [[~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [[cp,sn] sn [sn sn] [sn sn sn sn]]] [[~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]]] [[~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [[cp,sn] sn [sn sn] [sn sn sn sn]]] [[~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]]] ~ ~ [~ ~ ~ ~ [~ sn ~ sn] [sn*8] [sn*8] [sn*16]] [[~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]]] [[~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]] [~ [cp,sn] ~ [cp,sn]]]>",
+			"Bars": 8, "Gain": -8, "Reverb": 0.2
+		},
+		{
+			"Name": "hats", "Core": true, "Patch": "kit", "Color": "#ffcf5c",
+			"Pattern": "<~ [[~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh]] [[hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4] [[hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4] [[hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4] [[hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4] [[hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4] [[~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh] [~ oh ~ oh]] ~ [~ ~ ~ ~ [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4] [[hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4] [[hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4 [hh hh oh hh]*4]>",
+			"Bars": 8, "Params": {"vel": "[0.6 0.4 0.9 0.45]*32"}, "Gain": -3.1, "Pan": 0.2, "Duck": 0.15
+		},
+		{
+			"Name": "crash", "Core": true, "Patch": "kit", "Color": "#9aa3b5",
+			"Pattern": "<~ [cr ~ ~ ~ ~ ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~] ~ [cr ~ ~ ~ ~ ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~] ~ [~ ~ ~ ~ ~ ~ ~ riser] [cr ~ ~ ~ ~ ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~]>",
+			"Bars": 8, "Gain": -15.9, "Reverb": 0.3
+		},
+		{
+			"Name": "bass", "Core": true, "Patch": "bass", "Color": "#3fd0c9",
+			"Pattern": "<~ [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] ~ ~ [~ ~ ~ ~ [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4] [[b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4 [b b b' b]*4]>",
+			"Bars": 8, "Octave": 2, "Legato": 0.5, "Params": {"vel": "[0.6 1 0.7 1]*32"}, "Gain": 4, "Duck": 0.25
+		},
+		{
+			"Name": "hook", "Core": true, "Patch": "hook", "Color": "#5ce1a8",
+			"Pattern": "<[[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] ~ [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] ~ ~ [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']] [[c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1'] [c0 c2 c0' c2 c1' c2 c0' c2 c0 c2 c0' c2 c1' c2 c2' c1']]>",
+			"Bars": 8, "Octave": 4, "Legato": 0.5, "Params": {"vel": "[1 0.6 0.8 0.6]*32", "cutoff": "<saw:300:1600 sine:1200:2600:0.5 ~ sine:900:2200:0.5 ~ ~ ~ ~ ~ saw:500:3000 ~ ~>"}, "Gain": 3.5, "Delay": 0.3, "Reverb": 0.15, "Duck": 0.25, "Pan": -0.1
+		},
+		{
+			"Name": "pad", "Core": true, "Patch": "pad", "Color": "#a3b4ff",
+			"Pattern": "<ch*8 ch*8 ~ ~ ch*8 ch*8 ch*8 ~ ch*8 ch*8 ch*8 ch*8>",
+			"Bars": 8, "Octave": 4, "Legato": 1, "Gain": -8, "HPF": 200, "Reverb": 0.35, "Gate": "x.xx x.x. x.xx x.x.", "GateDepth": 0.9, "ChorusType": "juno2", "Chorus": 0.6
+		},
+		{
+			"Name": "voice", "Core": true, "Patch": "voice", "Color": "#ff9fd0",
+			"Pattern": "<~ ~ [[~ ~ C4 C4 Ab3 _ C4 _] [Eb4 _ C4 _ ~ ~ ~ ~] [~ ~ Bb3 Bb3 G3 _ Bb3 _] [Eb4 _ Bb3 _ ~ ~ ~ ~] [~ ~ C4 C4 Ab3 _ C4 Db4] [Eb4 _ F4 _ Eb4 _ C4 _] [~ ~ Bb3 C4 Bb3 _ G3 _] [Bb3 _ _ _ ~ ~ ~ ~]] [[~ ~ C4 C4 Ab3 _ C4 _] [Eb4 _ C4 _ ~ ~ ~ ~] [~ ~ Bb3 Bb3 G3 _ Bb3 _] [Eb4 _ Bb3 _ ~ ~ ~ ~] [~ ~ C4 C4 Ab3 _ C4 Db4] [Eb4 _ F4 _ Eb4 _ C4 _] [~ ~ Bb3 C4 Bb3 _ G3 _] [Bb3 _ _ _ ~ ~ ~ ~]] [[Bb4 _ _ _ G4 _ Eb4 _] [F4 _ G4 _ Bb4 _ _ ~] [Ab4 _ _ _ F4 _ Db4 _] [Eb4 _ F4 _ Ab4 _ _ ~] [C5 _ _ _ Ab4 _ Eb4 _] [Bb4 _ C5 _ Eb5 _ C5 _] [Db5 _ _ _ C5 _ Ab4 _] [F4 _ _ _ ~ ~ ~ ~]] [[Bb4 _ _ _ G4 _ Eb4 _] [F4 _ G4 _ Bb4 _ _ ~] [Ab4 _ _ _ F4 _ Db4 _] [Eb4 _ F4 _ Ab4 _ _ ~] [C5 _ _ _ Ab4 _ Eb4 _] [Bb4 _ C5 _ Eb5 _ C5 _] [Db5 _ _ _ C5 _ Ab4 _] [F4 _ _ _ ~ ~ ~ ~]] ~ ~ ~ ~ [[Bb4 _ _ _ G4 _ Eb4 _] [F4 _ G4 _ Bb4 _ _ ~] [Ab4 _ _ _ F4 _ Db4 _] [Eb4 _ F4 _ Ab4 _ _ ~] [C5 _ _ _ Ab4 _ Eb4 _] [Bb4 _ C5 _ Eb5 _ C5 _] [Db5 _ _ _ C5 _ Ab4 _] [F4 _ _ _ ~ ~ ~ ~]] [[Bb4 _ _ _ G4 _ Eb4 _] [F4 _ G4 _ Bb4 _ _ ~] [Ab4 _ _ _ F4 _ Db4 _] [Eb4 _ F4 _ Ab4 _ _ ~] [C5 _ _ _ Ab4 _ Eb4 _] [Bb4 _ C5 _ Eb5 _ C5 _] [Db5 _ _ _ C5 _ Ab4 _] [F4 _ _ _ ~ ~ ~ ~]]>",
+			"Bars": 8, "Legato": 0.95, "Params": {"vowel": "<~ ~ [a o e a i a o u]*8 [a o e a i a o u]*8 [o _ a _ e _ a _]*8 [o _ a _ e _ a _]*8 ~ ~ ~ ~ [o _ a _ e _ a _]*8 [o _ a _ e _ a _]*8>"}, "Gain": -9.4, "Reverb": 0.35, "Delay": 0.2, "ChorusType": "juno1", "Chorus": 0.6
+		},
+		{
+			"Name": "lead", "Core": true, "Patch": "lead", "Color": "#ff6b9d",
+			"Pattern": "<~ ~ ~ ~ ~ [[Bb5 _ G5 _ Eb5 _ G5 _] [F5 _ Eb5 _ Db5 _ Eb5 _] [Ab5 _ F5 _ Db5 _ F5 _] [Eb5 _ Db5 _ C5 _ Db5 _] [C6 _ Ab5 _ Eb5 _ Ab5 _] [Bb5 _ C6 _ Eb6 _ C6 _] [Db6 _ C6 _ Ab5 _ F5 _] [F5 _ _ _ ~ ~ ~ ~]] [[Bb5 _ G5 _ Eb5 _ G5 _] [F5 _ Eb5 _ Db5 _ Eb5 _] [Ab5 _ F5 _ Db5 _ F5 _] [Eb5 _ Db5 _ C5 _ Db5 _] [C6 _ Ab5 _ Eb5 _ Ab5 _] [Bb5 _ C6 _ Eb6 _ C6 _] [Db6 _ C6 _ Ab5 _ F5 _] [F5 _ _ _ ~ ~ ~ ~]] ~ ~ ~ ~ [[Bb5 _ G5 _ Eb5 _ G5 _] [F5 _ Eb5 _ Db5 _ Eb5 _] [Ab5 _ F5 _ Db5 _ F5 _] [Eb5 _ Db5 _ C5 _ Db5 _] [C6 _ Ab5 _ Eb5 _ Ab5 _] [Bb5 _ C6 _ Eb6 _ C6 _] [Db6 _ C6 _ Ab5 _ F5 _] [F5 _ _ _ ~ ~ ~ ~]]>",
+			"Bars": 8, "Legato": 0.9, "Gain": -4, "Reverb": 0.3, "Delay": 0.25, "ChorusType": "juno2", "Chorus": 0.5
+		},
+		{
+			"Name": "robot", "Core": true, "Patch": "robot", "Color": "#c58cff",
+			"Pattern": "<~ ~ ~ ~ ~ ~ ~ ~ [[~ ~ Ab4 Ab4 Ab4 Ab4 F4 _] [Ab4 _ _ _ ~ ~ ~ ~] [~ ~ C5 C5 C5 C5 Ab4 _] [C5 _ _ _ ~ ~ ~ ~] [~ ~ Bb4 Bb4 Bb4 Bb4 G4 _] [Bb4 _ _ _ ~ ~ ~ ~] [~ ~ C5 C5 Ab4 Ab4 F4 _] [F4 _ _ _ ~ ~ ~ ~]] ~ ~ ~>",
+			"Bars": 8, "Legato": 0.85, "Params": {"vowel": "[a a i e o a e i]*8"}, "Gain": -9.6, "Crush": 8, "Coarse": 2, "Reverb": 0.3, "Delay": 0.2
+		},
+		{
+			"Name": "sid arp", "Core": true, "Patch": "sidarp", "Color": "#7cd1ff",
+			"Pattern": "<~ ~ ~ ~ ~ ~ ~ ch*8 ~ ~ ~ ~>",
+			"Bars": 8, "Octave": 4, "Legato": 1, "Gain": -7.4, "Delay": 0.15
+		},
+		{
+			"Name": "sid lead", "Core": true, "Patch": "sidlead", "Color": "#7cffd1",
+			"Pattern": "<~ ~ ~ ~ ~ ~ ~ [[Bb4' _ _ _ G4' _ Eb4' _] [F4' _ G4' _ Bb4' _ _ ~] [Ab4' _ _ _ F4' _ Db4' _] [Eb4' _ F4' _ Ab4' _ _ ~] [C5' _ _ _ Ab4' _ Eb4' _] [Bb4' _ C5' _ Eb5' _ C5' _] [Db5' _ _ _ C5' _ Ab4' _] [F4' _ _ _ ~ ~ ~ ~]] ~ ~ ~ ~>",
+			"Bars": 8, "Legato": 0.9, "Gain": -4.6, "Delay": 0.2
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 1.0, "Decay": 2.6, "Tone": 0.6, "PreDelay": 0.03},
+		"Delay": {"Beats": 0.75, "Feedback": 0.35, "Tone": 0.45},
+		"Duck": "kick",
+		"MonoBass": 120,
+		"Air": 2,
+		"Tape": 0.3,
+		"Threshold": -10,
+		"Ratio": 2.5,
+		"Gain": 0
+	}
+}

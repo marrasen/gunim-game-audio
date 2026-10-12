@@ -1,6 +1,7 @@
 package synth
 
 import (
+	"cmp"
 	"errors"
 	"math"
 	"slices"
@@ -70,13 +71,29 @@ type Player struct {
 	duckEnv    float32
 	duckOn     bool
 	rev        *reverb
-	dly        *delay
-	comp       *compressor
-	lim        *limiter
-	gain       float32
-	// low cuts the rumble under the music, as mastering does.
-	low [2]svf
-	ctx renderCtx
+	// gated is the gated reverb, nil where the song has none; gl and gr
+	// what is sent to it; gateLeft how many frames its gate stays open,
+	// gateHold how many a hit opens it for, and gateEnv how open it is.
+	gated    *reverb
+	gl, gr   []float32
+	gateLeft int64
+	gateHold int64
+	gateEnv  float32
+	dly      *delay
+	comp     *compressor
+	lim      *limiter
+	gain     float32
+	// low cuts the rumble under the music, as mastering does; mono
+	// cuts the sides' bass, below monoHz; air lifts the
+	// top by airGain; and tape drives the mix by tape.
+	low     [2]svf
+	mono    [2]svf
+	monoHz  float32
+	air     [2]svf
+	airGain float32
+	tape    float32
+	tw      tweaker
+	ctx     renderCtx
 
 	// What a tool reads, guarded by wmu.
 	wmu    sync.Mutex
@@ -117,6 +134,7 @@ type track struct {
 	name   string
 	vs     *voices
 	hs     *hits
+	sf     *sfVoices
 	ins    inserts
 	active bool
 	// since is how many phrases the track has played since it came in.
@@ -136,6 +154,8 @@ type track struct {
 	ms       [2]float32
 	rng      *rng
 	sounding bool
+	// gateEnv is how open the track's trance gate is.
+	gateEnv float32
 }
 
 // A sched is a note or a drum to start on its frame.
@@ -250,7 +270,7 @@ const (
 func NewPlayer(s *Song, seed uint64) *Player {
 	p := &Player{seed: seed, rng: newRand(seed), ctl: map[string]band.PartControl{}, bar: -1,
 		rev: newReverb(), dly: newDelay(), comp: newCompressor(-10, 2), lim: newLimiter(-0.8), gain: 1}
-	for _, b := range []*[]float32{&p.ml, &p.mr, &p.rl, &p.rr, &p.dl, &p.dr, &p.tl, &p.tr, &p.duckBuf} {
+	for _, b := range []*[]float32{&p.ml, &p.mr, &p.rl, &p.rr, &p.dl, &p.dr, &p.tl, &p.tr, &p.duckBuf, &p.gl, &p.gr} {
 		*b = make([]float32, maxBlock)
 	}
 	p.ctx.l, p.ctx.r = make([]float32, control), make([]float32, control)
@@ -424,7 +444,12 @@ func (p *Player) takeRequests() {
 		beat := int64(p.c.fpb / float64(p.c.beats))
 		for _, d := range keys {
 			pitch := ck.notes[d]
-			p.kp.vs.play(p.kp.c.patch, note{pitch: float32(pitch), vel: 0.9, gate: beat / 2, res: -1})
+			kn := note{pitch: float32(pitch), vel: 0.9, gate: beat / 2, res: -1}
+			if p.kp.sf != nil && p.kp.c.patch.kind == kindFont {
+				p.kp.playFont(p.kp.c.patch, kn)
+			} else if p.kp.vs != nil {
+				p.kp.vs.play(p.kp.c.patch, kn)
+			}
 			p.publish([]Note{{Frame: p.at, Len: beat / 2, Track: "keypad", Pitch: pitch, Vel: 0.9}})
 		}
 	}
@@ -536,8 +561,50 @@ func (p *Player) adopt(c *compiled) {
 	if ratio == 0 {
 		ratio = 2
 	}
+	attack := 0.008
+	if punch := min(max(m.Tweak.Punch, 0), 1); punch > 0 {
+		// Squeezed harder, and sooner, so its peaks are caught too.
+		th -= 18 * punch
+		ratio += (8 - ratio) * punch
+		attack -= 0.007 * punch
+	}
 	p.comp.threshold, p.comp.ratio = float32(th), float32(ratio)
+	p.comp.att = 1 - float32(math.Exp(-float64(control)/(attack*rate)))
+	p.tw.set(m.Tweak)
 	p.gain = float32(dbGain(m.Gain))
+	if g := m.Gated; g != nil {
+		if p.gated == nil {
+			p.gated = newReverb()
+		}
+		size, tone, hold := g.Size, g.Tone, g.Hold
+		if size == 0 {
+			size = 1.2
+		}
+		if tone == 0 {
+			tone = 0.6
+		}
+		if hold <= 0 {
+			hold = 0.3
+		}
+		// A long, dense room, which the gate cuts off long before it
+		// dies, so it sounds as loud to its end.
+		p.gated.set(size, 3, tone, 0.002)
+		p.gateHold = int64(hold * rate)
+	} else {
+		p.gated = nil
+	}
+	p.monoHz = float32(m.MonoBass)
+	if p.monoHz > 0 {
+		// Two Butterworth highpasses, 24 dB an octave.
+		p.mono[0].set(p.monoHz, 0.3)
+		p.mono[1].set(p.monoHz, 0.3)
+	}
+	p.airGain = float32(dbGain(m.Air)) - 1
+	if m.Air != 0 {
+		p.air[0].set(10000, 0)
+		p.air[1].set(10000, 0)
+	}
+	p.tape = float32(min(max(m.Tape, 0), 1))
 	p.ctx.beatHz = c.bpm / 60
 	p.tiersSeen.Store(int32(max(c.tiers, 1)))
 	if t := int(p.tierReq.Load()); t > max(c.tiers, 1) {
@@ -590,13 +657,26 @@ func newTrack(ct *ctrack, seed uint64) *track {
 func (t *track) retune(ct *ctrack) {
 	t.c = ct
 	p := ct.patch
-	if p.kind == kindDrums {
+	if p.kind == kindFont {
+		t.vs, t.hs = nil, nil
+		if t.sf == nil || len(t.sf.vs) < p.poly {
+			t.sf = newSFVoices(p.poly)
+		}
+	} else if p.kind == kindDrums {
 		t.vs = nil
 		if t.hs == nil {
 			t.hs = newHits(p.poly)
 		}
+		switch {
+		case p.font == nil:
+			t.sf = nil
+		case t.sf == nil || len(t.sf.vs) < p.poly:
+			// A kit on a bank plays its drums there, and the engine's
+			// drums the bank has none for, as a riser.
+			t.sf = newSFVoices(p.poly)
+		}
 	} else {
-		t.hs = nil
+		t.hs, t.sf = nil, nil
 		if t.vs == nil || len(t.vs.vs) < p.poly {
 			t.vs = newVoices(p.poly, t.rng.next())
 		}
@@ -628,6 +708,76 @@ func (t *track) release() {
 	if t.vs != nil {
 		t.vs.releaseAll()
 	}
+	if t.sf != nil {
+		t.sf.releaseAll()
+	}
+}
+
+// playFont plays note n of patch pt on its bank.
+func (t *track) playFont(pt *patch, n note) {
+	key := int(math.Round(float64(n.pitch)))
+	if key < 0 || key > 127 {
+		return
+	}
+	vel := min(max(int(n.vel*127+0.5), 1), 127)
+	src := pt.src
+	regions := pt.font.Regions(src.Bank, src.Program, key, vel)
+	for i := range regions {
+		v := t.sf.play(&regions[i], key, vel, max(n.gate, 1))
+		v.fine = float64(n.pitch) - float64(key)
+		v.gainBy = float64(pt.gain)
+		l, r := panGains(min(max(float32(regions[i].Pan)+n.pan, -1), 1))
+		v.panL, v.panR = l, r
+	}
+}
+
+// playDrum plays drum d of patch pt at velocity vel, panned by pan,
+// pitched to pitch where it is pitched, and lasting dur frames, as the
+// engine's drums take them: on pt's bank where it has the drum, or else
+// on the engine's.
+func (t *track) playDrum(pt *patch, d drum, vel, pan, pitch float32, dur int64, tune float32) {
+	if t.sf != nil && pt.font != nil && t.playFontDrum(pt, d, vel, pan, pitch, tune) {
+		return
+	}
+	if t.hs != nil {
+		t.hs.play(d, vel, pan, pitch, dur, tune)
+	}
+}
+
+// fontDrumGate is how long a bank's drum is held: a drum's sample plays
+// to its end, but one that loops, as a roll does, is let go.
+const fontDrumGate = 3 * rate
+
+// playFontDrum plays drum d on pt's bank, and reports whether the bank
+// has it.
+func (t *track) playFontDrum(pt *patch, d drum, vel, pan, pitch, tune float32) bool {
+	src := pt.src
+	bank, prog, key := 128, src.Program, d.key
+	if src.Bank != 0 {
+		bank = src.Bank
+	}
+	if d.prog >= 0 {
+		bank, prog, key = 0, d.prog, int(math.Round(float64(pitch)))
+	}
+	if key <= 0 || key > 127 {
+		return false
+	}
+	v127 := min(max(int(vel*127+0.5), 1), 127)
+	regions := pt.font.Regions(bank, prog, key, v127)
+	if len(regions) == 0 {
+		return false
+	}
+	for i := range regions {
+		v := t.sf.play(&regions[i], key, v127, fontDrumGate)
+		v.fine = d.fine + float64(tune)
+		if d.prog >= 0 {
+			v.fine += float64(pitch) - float64(key)
+		}
+		v.gainBy = float64(pt.gain * d.gain)
+		l, r := panGains(min(max(float32(regions[i].Pan+d.Pan)+pan, -1), 1))
+		v.panL, v.panR = l, r
+	}
+	return true
 }
 
 // startBar starts the next bar: it starts or ends a sting, chooses the
@@ -766,7 +916,12 @@ func (p *Player) lift(sb int) {
 	}
 	if mod(sb, c.phraseBars) == c.phraseBars-c.trans.lift && int(p.tierReq.Load()) > p.tier {
 		p.risen = true
-		p.hit(c.trans.riser, p.barStart, int64(float64(c.trans.lift)*c.fpb), 0.85)
+		end := p.barStart + int64(float64(c.trans.lift)*c.fpb)
+		if c.trans.rolls {
+			p.roll(p.barStart, end)
+			return
+		}
+		p.hit(c.trans.riser, p.barStart, end-p.barStart, 0.85)
 	}
 }
 
@@ -784,8 +939,78 @@ func (p *Player) liftLate() {
 	end := p.barStart + int64(float64(c.phraseBars-mod(sb, c.phraseBars))*c.fpb)
 	if left := end - p.at; float64(left) > c.fpb/4 {
 		p.risen = true
+		if c.trans.rolls {
+			// The bar is published already: its share of the roll is
+			// published now, and the rest with the next bar's.
+			var notes []Note
+			for _, s := range p.roll(p.at, end) {
+				if s.frame < p.barEnd {
+					notes = append(notes, p.noteOf(s))
+				}
+			}
+			p.publish(notes)
+			// The roll's hits go among those queued, in time.
+			slices.SortStableFunc(p.queue[p.qi:], func(a, b sched) int { return cmp.Compare(a.frame, b.frame) })
+			return
+		}
 		p.trans.hs.play(c.trans.riser, 0.85, 0, 0, left, 0)
 	}
+}
+
+// roll queues the transitions' roll from frame from to end: quarters,
+// on the song's grid, and 8ths in its last bar. It swells from soft to
+// loud, as a player's would: each bar's downbeat leans in, an 8th off
+// the beat falls back, the last hit drives into the new tier, and no
+// two hits are quite as loud or quite on time. A timpani's rolls on the
+// chord's root. It returns the hits queued.
+func (p *Player) roll(from, end int64) []sched {
+	c := p.c
+	tr := c.trans
+	first := len(p.queue)
+	beat := c.fpb / float64(c.beats)
+	lastBar := float64(end) - c.fpb
+	var pitch float32
+	if tr.roll.kind == drTimpani {
+		ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
+		pitch = float32(ch.Root + 36)
+	}
+	// From the bar's grid, the first step at or after from: a beat, or
+	// in the last bar an 8th.
+	grid := beat
+	if float64(from) >= lastBar {
+		grid = beat / 2
+	}
+	at := float64(p.barStart) + math.Ceil((float64(from)-float64(p.barStart))/grid-1e-9)*grid
+	span := float64(end) - at
+	for at < float64(end)-1 {
+		step := beat
+		if at >= lastBar-1 {
+			step = beat / 2
+		}
+		x := 1 - (float64(end)-at)/max(span, 1)
+		vel := 0.2 + 0.8*math.Pow(x, 1.7)
+		inBeats := (at - float64(p.barStart)) / beat
+		k := int(math.Round(inBeats * 2))
+		switch {
+		case at+step >= float64(end)-1:
+			// The last, driving into the new tier.
+			vel *= 1.3
+		case k%2 != 0:
+			// An 8th off the beat.
+			vel *= 0.68
+		case mod(k/2, c.beats) == 0:
+			vel *= 1.25
+		case c.beats == 4 && mod(k/2, 4) == 2:
+			vel *= 1.1
+		}
+		vel *= 1 + 0.12*float64(p.rng.bipolar())
+		// A few milliseconds early or late, never before from.
+		frame := max(int64(at+0.006*rate*float64(p.rng.bipolar())), from)
+		p.queue = append(p.queue, sched{frame: frame, t: p.trans, drum: true, d: tr.roll, pitch: pitch,
+			dur: int64(step), n: note{vel: float32(min(max(vel, 0.08), 1))}})
+		at += step
+	}
+	return p.queue[first:]
 }
 
 // hit queues a transition's drum at frame.
@@ -970,8 +1195,16 @@ func (p *Player) scheduleTrack(t *track, bar int, k key) {
 				p.queueNote(t, frame, n, v[0])
 				break
 			}
-			for _, pitch := range v {
-				p.queueNote(t, frame, n, pitch)
+			strum := int64(ct.t.Strum * rate)
+			up := math.Mod(inBar*8+1e-9, 2) >= 1
+			for i, pitch := range v {
+				// A strum, as a guitarist's hand: down, low to high, and
+				// up, on an offbeat eighth, high to low.
+				k := int64(i)
+				if up {
+					k = int64(len(v) - 1 - i)
+				}
+				p.queueNote(t, frame+k*strum, n, pitch)
 			}
 		case actArp:
 			p.queueNote(t, frame, n, p.arp(t, chord, ci, oct))
@@ -1073,14 +1306,21 @@ func (p *Player) paramAt(t *track, i, cycle int, at float64) (float64, bool) {
 func (p *Player) fire(s *sched) {
 	t := s.t
 	if s.drum {
-		if t.hs != nil {
-			t.hs.play(s.d, s.n.vel, s.n.pan, s.pitch, s.dur, s.tune)
-		}
+		t.playDrum(t.c.patch, s.d, s.n.vel, s.n.pan, s.pitch, s.dur, s.tune)
+	} else if t.sf != nil && t.c.patch.kind == kindFont {
+		t.playFont(t.c.patch, s.n)
 	} else if t.vs != nil {
 		t.vs.play(t.c.patch, s.n)
 	}
 	if t == p.duckT {
 		p.duckOn = true
+	}
+	if p.gated != nil && t.c.t.Gated > 0 {
+		if p.gateLeft == 0 && p.gateEnv == 0 {
+			// The gate was shut: the room starts afresh with the hit.
+			p.gated.clear()
+		}
+		p.gateLeft = p.gateHold
 	}
 }
 
@@ -1095,6 +1335,13 @@ func (p *Player) render(dst []float32, n int) {
 	clear(rr)
 	clear(dl)
 	clear(dr)
+	// The gated reverb runs only while its gate is open, or shutting.
+	gated := p.gated != nil && (p.gateLeft > 0 || p.gateEnv > 0)
+	gl, gr := p.gl[:n], p.gr[:n]
+	if gated {
+		clear(gl)
+		clear(gr)
+	}
 	duck := p.duckBuf[:n]
 	beat := 60 / p.c.bpm
 	att := 1 - float32(math.Exp(-1/(0.004*rate)))
@@ -1116,10 +1363,13 @@ func (p *Player) render(dst []float32, n int) {
 		clear(tl)
 		clear(tr)
 		var sounding bool
-		if t.vs != nil {
+		if t.sf != nil {
+			sounding = t.sf.render(tl, tr, 0)
+		} else if t.vs != nil {
 			sounding = t.vs.render(tl, tr, &p.ctx)
-		} else if t.hs != nil {
-			sounding = t.hs.render(tl, tr)
+		}
+		if t.hs != nil {
+			sounding = t.hs.render(tl, tr) || sounding
 		}
 		t.sounding = sounding
 		ct := t.c
@@ -1131,14 +1381,17 @@ func (p *Player) render(dst []float32, n int) {
 			continue
 		}
 		t.ins.process(tl, tr)
-		gl, gr := min(1, 1-ct.pan), min(1, 1+ct.pan)
-		gl *= ct.gain
-		gr *= ct.gain
+		if len(ct.gate) > 0 {
+			p.gate(t, tl, tr)
+		}
+		pl, pr := min(1, 1-ct.pan), min(1, 1+ct.pan)
+		pl *= ct.gain
+		pr *= ct.gain
 		rv, dv := float32(ct.t.Reverb), float32(ct.t.Delay)
 		dk := float32(ct.t.Duck)
 		for i := range tl {
 			g := 1 - dk*duck[i]
-			l, r := tl[i]*gl*g, tr[i]*gr*g
+			l, r := tl[i]*pl*g, tr[i]*pr*g
 			tl[i], tr[i] = l, r
 			ml[i] += l
 			mr[i] += r
@@ -1146,6 +1399,12 @@ func (p *Player) render(dst []float32, n int) {
 			rr[i] += r * rv
 			dl[i] += l * dv
 			dr[i] += r * dv
+		}
+		if gv := float32(ct.t.Gated); gated && gv > 0 {
+			for i := range tl {
+				gl[i] += tl[i] * gv
+				gr[i] += tr[i] * gv
+			}
 		}
 		t.meter(tl, tr)
 		if t == p.watched {
@@ -1166,16 +1425,66 @@ func (p *Player) render(dst []float32, n int) {
 		rr[i] += dr[i] * 0.3
 	}
 	p.rev.process(rl, rr)
+	// Tweak's space turns the rooms and echoes up or down.
+	space := p.tw.space
 	for i := range ml {
-		ml[i] = (ml[i] + rl[i] + dl[i]) * p.gain
-		mr[i] = (mr[i] + rr[i] + dr[i]) * p.gain
+		ml[i] = (ml[i] + (rl[i]+dl[i])*space) * p.gain
+		mr[i] = (mr[i] + (rr[i]+dr[i])*space) * p.gain
+	}
+	if gated {
+		p.gated.process(gl, gr)
+		// The gate opens in a millisecond, holds, and shuts in about
+		// fifteen.
+		att := 1 - float32(math.Exp(-1/(0.001*rate)))
+		rel := float32(math.Exp(-1 / (0.015 * rate)))
+		for i := range gl {
+			if p.gateLeft > 0 {
+				p.gateLeft--
+				p.gateEnv += (1 - p.gateEnv) * att
+			} else if p.gateEnv *= rel; p.gateEnv < 1e-4 {
+				p.gateEnv = 0
+			}
+			ml[i] += gl[i] * p.gateEnv * p.gain * space
+			mr[i] += gr[i] * p.gateEnv * p.gain * space
+		}
 	}
 	for i := range ml {
 		_, _, ml[i] = p.low[0].step(ml[i])
 		_, _, mr[i] = p.low[1].step(mr[i])
 	}
+	if p.monoHz > 0 {
+		// The sides highpassed, as a cutting engineer's elliptical
+		// equaliser does, leaves the bass in the middle.
+		for i := range ml {
+			m, s := (ml[i]+mr[i])*0.5, (ml[i]-mr[i])*0.5
+			_, _, s = p.mono[0].step(s)
+			_, _, s = p.mono[1].step(s)
+			ml[i], mr[i] = m+s, m-s
+		}
+	}
+	if p.tw.on {
+		p.tw.pre(ml, mr)
+	}
+	if p.airGain != 0 {
+		for i := range ml {
+			_, _, hl := p.air[0].step(ml[i])
+			_, _, hr := p.air[1].step(mr[i])
+			ml[i] += hl * p.airGain
+			mr[i] += hr * p.airGain
+		}
+	}
 	p.comp.process(ml, mr)
 	p.reduction.Store(math.Float32bits(p.comp.reduction))
+	if p.tw.on {
+		p.tw.post(ml, mr, p.comp.reduction)
+	}
+	if p.tape > 0 {
+		// Tape takes the quiet as it is, and rounds the peaks off.
+		for i := range ml {
+			ml[i] += (softClip(ml[i]) - ml[i]) * p.tape
+			mr[i] += (softClip(mr[i]) - mr[i]) * p.tape
+		}
+	}
 	p.lim.process(ml, mr)
 	for i := range ml {
 		dst[2*i] = ml[i]
@@ -1200,11 +1509,11 @@ func (p *Player) publishBar(sb int) {
 	}
 	notes := make([]Note, 0, len(p.queue))
 	for _, s := range p.queue {
-		nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
-		if s.drum {
-			nt.Len, nt.Pitch, nt.Drum, nt.Kind = max(s.dur, rate/20), int(s.pitch), s.d.name, drumKind(s.d.kind)
+		// A transition's hits queued for bars to come are published
+		// with those bars.
+		if s.frame < p.barEnd {
+			notes = append(notes, p.noteOf(s))
 		}
-		notes = append(notes, nt)
 	}
 	ahead, claps := p.foresee(sb)
 	clapTrack := ""
@@ -1219,6 +1528,15 @@ func (p *Player) publishBar(sb int) {
 	p.ahead, p.aheadFrom = ahead, p.barEnd
 	p.wmu.Unlock()
 	p.publish(notes)
+}
+
+// noteOf returns the note s plays, as Notes tells it.
+func (p *Player) noteOf(s sched) Note {
+	nt := Note{Frame: s.frame, Len: s.n.gate, Track: s.t.name, Pitch: int(s.n.pitch), Vel: s.n.vel}
+	if s.drum {
+		nt.Len, nt.Pitch, nt.Drum, nt.Kind = max(s.dur, rate/20), int(s.pitch), s.d.name, drumKind(s.d.kind)
+	}
+	return nt
 }
 
 // publishLook records the song's look as it changes between bars.
@@ -1375,7 +1693,11 @@ func (t *track) meter(l, r []float32) {
 	for ch, x := range [2][]float32{l, r} {
 		var pk, ms float32
 		for _, s := range x {
-			pk = max(pk, abs32(s))
+			// A comparison, not max, which minds NaNs and signed zeros
+			// and costs a meter on every track dearly.
+			if a := abs32(s); a > pk {
+				pk = a
+			}
 			ms += s * s
 		}
 		if len(x) > 0 {
@@ -1494,9 +1816,44 @@ func (p *Player) playAuditions(as []audition) {
 				ch, _ := p.chordAt(p.songPos(p.bar - p.origin))
 				pitch = float32(ch.Root + 36)
 			}
-			p.audit.hs.play(d, a.vel, 0, pitch, int64(p.c.fpb), 0)
+			p.audit.playDrum(pt, d, a.vel, 0, pitch, int64(p.c.fpb), 0)
 			continue
 		}
-		p.audit.vs.play(pt, note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1})
+		n := note{pitch: float32(a.pitch), vel: a.vel, gate: int64(a.secs * rate), res: -1}
+		if pt.kind == kindFont {
+			p.audit.playFont(pt, n)
+			continue
+		}
+		p.audit.vs.play(pt, n)
+	}
+}
+
+// gateOpen and gateShut are how far a trance gate moves a frame toward
+// open, in about 2 ms, and toward shut, near silent in about 40.
+var (
+	gateOpen = 1 - float32(math.Exp(-1/(0.002*rate)))
+	gateShut = 1 - float32(math.Exp(-1/(0.012*rate)))
+)
+
+// gate chops t's sound in l and r, the block playing from p.at, by its
+// trance gate's steps over the bar.
+func (p *Player) gate(t *track, l, r []float32) {
+	ct := t.c
+	steps := float64(len(ct.gate))
+	bar := float64(max(p.barEnd-p.barStart, 1))
+	for i := range l {
+		k := int(float64(p.at+int64(i)-p.barStart) / bar * steps)
+		k = min(max(k, 0), len(ct.gate)-1)
+		to := ct.gateFloor
+		if ct.gate[k] {
+			to = 1
+		}
+		if to > t.gateEnv {
+			t.gateEnv += (to - t.gateEnv) * gateOpen
+		} else {
+			t.gateEnv += (to - t.gateEnv) * gateShut
+		}
+		l[i] *= t.gateEnv
+		r[i] *= t.gateEnv
 	}
 }

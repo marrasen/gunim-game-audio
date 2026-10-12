@@ -1,0 +1,613 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/marrasen/gunim"
+	"github.com/marrasen/gunim/audio"
+	"github.com/marrasen/gunim/driver"
+	"github.com/marrasen/gunim/geom"
+	"github.com/marrasen/gunim/gunimtest"
+	"github.com/marrasen/gunim/icon"
+	"github.com/marrasen/gunim/input"
+	"github.com/marrasen/gunim/widget"
+
+	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/synth"
+)
+
+func demoFile(t *testing.T) *midi.File {
+	t.Helper()
+	f, err := midi.Read(bytes.NewReader(demoSong()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+func TestTheDemoMakesAScore(t *testing.T) {
+	sc := newScore(demoFile(t), "demo")
+	if got := len(sc.used()); got != 13 {
+		t.Errorf("the demo plays %d channels, want 13", got)
+	}
+	if sc.BPM < 111 || sc.BPM > 113 || sc.BarBeats != 4 {
+		t.Errorf("the demo is at %v BPM in %d, want 112 in 4", sc.BPM, sc.BarBeats)
+	}
+	if len(sc.Beats) < 24*4 {
+		t.Errorf("the demo has %d beats, want 96 or more", len(sc.Beats))
+	}
+	for i := 1; i < len(sc.Notes); i++ {
+		if sc.Notes[i].Start < sc.Notes[i-1].Start {
+			t.Fatalf("note %d starts before the one before it", i)
+		}
+	}
+	// The piano strikes its first chord at bar 5: three notes sound then.
+	bar := 60.0 / 112 * 4
+	n := 0
+	sc.span(4*bar+0.1, 4*bar+0.1, func(nt *Note) {
+		if nt.Ch == 0 {
+			n++
+		}
+	})
+	if n != 3 {
+		t.Errorf("the piano sounds %d notes in bar 5, want 3", n)
+	}
+	if b, ph := sc.beatAt(bar + 60.0/112/2); b != 4 || ph < 0.45 || ph > 0.55 {
+		t.Errorf("half a beat into bar 2 is beat %d, %.2f through, want beat 4, 0.5", b, ph)
+	}
+	if got := sc.programAt(3, 10); got != 81 {
+		t.Errorf("channel 4 plays program %d, want 81", got)
+	}
+}
+
+// newTestApp returns an app with a mixer no speaker plays, and mix,
+// which plays d of it.
+func newTestApp(t *testing.T) (*app, func(d time.Duration)) {
+	t.Helper()
+	w := gunimtest.New(t, geom.Sz(1200, 800), widget.NewSurface())
+	mix := audio.NewMixer()
+	a := newApp(w.Client(), mix)
+	buf := make([]float32, 2*480)
+	return a, func(d time.Duration) {
+		for n := audio.Frames(d); n > 0; n -= 480 {
+			mix.Mix(buf)
+		}
+	}
+}
+
+func TestTheAppPlaysAndControlsTheSong(t *testing.T) {
+	a, play := newTestApp(t)
+	ctx := context.Background()
+	a.handle(ctx, DemoAsked{})
+	if a.cur != 0 || a.score == nil || !a.playing() {
+		t.Fatalf("the demo does not play: cur %d", a.cur)
+	}
+	play(2 * time.Second)
+	if h := a.heard(); h < 1.9 || h > 2.1 {
+		t.Errorf("after 2 s, %.2f s is heard", h)
+	}
+	a.handle(ctx, StyleChosen{Style: "nes"})
+	a.handle(ctx, StyleChosen{Style: "amiga"})
+	if a.style != "nes" || a.midi().GM().Style() != "nes" {
+		t.Errorf("the style is %q, the synth's %q, want nes", a.style, a.midi().GM().Style())
+	}
+	a.handle(ctx, ChannelClicked{Channel: 2})
+	if !a.midi().GM().Muted(2) || a.midi().GM().Muted(3) {
+		t.Error("a click on channel 3 did not mute it alone")
+	}
+	a.handle(ctx, ChannelClicked{Channel: 5, Solo: true})
+	for ch := range 16 {
+		if want := ch != 5; a.midi().GM().Muted(ch) != want {
+			t.Errorf("with channel 6 alone, channel %d muted %v", ch+1, !want)
+		}
+	}
+	a.handle(ctx, ChannelClicked{Channel: 5, Solo: true})
+	a.handle(ctx, SpeedSet{Speed: 2})
+	a.handle(ctx, Sought{Time: 30})
+	play(time.Second)
+	if h := a.heard(); h < 31.8 || h > 32.2 {
+		t.Errorf("at twice the speed from 30 s, a second later %.2f s is heard", h)
+	}
+	a.handle(ctx, PlayToggled{})
+	if a.playing() || a.state().Clock.Rate != 0 {
+		t.Error("pause does not pause")
+	}
+	a.handle(ctx, PlayToggled{})
+	if !a.playing() {
+		t.Error("play does not play again")
+	}
+}
+
+func TestTheNextSongFollowsTheLast(t *testing.T) {
+	a, play := newTestApp(t)
+	ctx := context.Background()
+	a.handle(ctx, DemoAsked{})
+	a.handle(ctx, DemoAsked{})
+	if len(a.list) != 2 || a.cur != 1 {
+		t.Fatalf("two demos: %d on the list, playing %d", len(a.list), a.cur)
+	}
+	a.handle(ctx, Picked{Index: 0})
+	a.handle(ctx, SpeedSet{Speed: 3})
+	a.handle(ctx, Sought{Time: 53})
+	for range 60 {
+		play(100 * time.Millisecond)
+		a.follow()
+		if a.cur == 1 {
+			break
+		}
+	}
+	if a.cur != 1 {
+		t.Fatalf("after the first song ends, song %d plays, want 2", a.cur+1)
+	}
+	a.handle(ctx, Removed{Index: 1})
+	if len(a.list) != 1 || a.cur != 0 {
+		t.Errorf("the song playing taken off: %d left, playing %d", len(a.list), a.cur)
+	}
+}
+
+func TestADroppedFileThatIsNoMIDIFileSaysSo(t *testing.T) {
+	a, _ := newTestApp(t)
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "notes.mid")
+	if err := os.WriteFile(bad, []byte("not midi at all"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	good := filepath.Join(dir, "demo.mid")
+	if err := os.WriteFile(good, demoSong(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.add([]string{bad})
+	if len(a.list) != 0 || a.msg == "" {
+		t.Fatalf("a bad file: %d on the list, message %q", len(a.list), a.msg)
+	}
+	a.add([]string{dir})
+	if len(a.list) != 1 || a.cur != 0 || a.list[0].Name != "demo" {
+		t.Fatalf("a folder: %v, playing %d", a.list, a.cur)
+	}
+	// A file dropped while a song plays plays at once, after the list.
+	a.add([]string{"file://" + good})
+	if len(a.list) != 2 || a.cur != 1 || !a.playing() {
+		t.Fatalf("a file dropped while one plays: %d on the list, playing %d", len(a.list), a.cur)
+	}
+}
+
+// window runs the player's window offscreen, showing s.
+type window struct {
+	t *testing.T
+	w *gunim.Window
+	v *root
+}
+
+func newWindow(t *testing.T, s Player) *window {
+	t.Helper()
+	h := &window{t: t, w: gunimtest.New(t, geom.Sz(1360, 880), widget.NewSurface())}
+	h.w.RegisterTheme(widget.Dark())
+	gunim.RegisterView(h.w, "midiplayer", func(s Player) *root {
+		h.v = buildView(s)
+		return h.v
+	}, (*root).update)
+	if err := h.w.Client().Mount(gunim.Root, "midiplayer", "midiplayer", s); err != nil {
+		t.Fatal(err)
+	}
+	h.frames(60)
+	return h
+}
+
+func (h *window) frames(n int) {
+	for range n {
+		h.w.Frame(time.Second / 60)
+	}
+}
+
+// post sends the window ev, and runs a few frames.
+func (h *window) post(evs ...any) {
+	for _, ev := range evs {
+		h.w.Input(ev)
+		h.frames(2)
+	}
+}
+
+func (h *window) click(at geom.Point, mods input.Mods) {
+	h.post(input.PointerMove{Pos: at}, input.PointerDown{Pos: at, Button: input.ButtonPrimary, Mods: mods, Clicks: 1},
+		input.PointerUp{Pos: at, Button: input.ButtonPrimary, Mods: mods})
+}
+
+// intent returns the next intent the window sends.
+func (h *window) intent() gunim.Intent {
+	h.t.Helper()
+	select {
+	case ev := <-h.w.Client().Intents():
+		return ev.Intent
+	case <-time.After(time.Second):
+		h.t.Fatal("the window sent no intent")
+		return nil
+	}
+}
+
+func demoState(t *testing.T) Player {
+	sc := newScore(demoFile(t), "Neon Overture")
+	return Player{Playlist: []Item{{Name: "Neon Overture", Length: sc.Length}}, Current: 0, Score: sc, ScoreGen: 1,
+		Clock: Clock{Time: 20, At: time.Now(), Rate: 1}, Playing: true, Style: "gm", Solo: -1, Speed: 1, Volume: 1, Fetching: -1}
+}
+
+func TestTheWindowTakesClicksDropsAndKeys(t *testing.T) {
+	h := newWindow(t, demoState(t))
+	// A click on the first station, the piano's, mutes it; with Shift, it
+	// plays alone.
+	st := h.v.l.station[0]
+	if st.Empty() {
+		t.Fatal("the piano has no station")
+	}
+	mid := geom.Pt(st.Min.X+st.Size().W/2, st.Min.Y+st.Size().H/2)
+	h.click(mid, 0)
+	if in, ok := h.intent().(ChannelClicked); !ok || in.Channel != 0 || in.Solo {
+		t.Errorf("a click on the piano's station sent %#v", in)
+	}
+	h.click(mid, input.ModShift)
+	if in, ok := h.intent().(ChannelClicked); !ok || !in.Solo {
+		t.Errorf("a click with Shift sent %#v", in)
+	}
+	// The NES's cartridge, the third on the deck, picks its style.
+	db, _ := boundsOf(h, h.v.deck)
+	cart := h.v.deck.cart(2)
+	h.click(geom.Pt(db.Min.X+cart.Min.X+cart.Size().W/2, db.Min.Y+cart.Min.Y+20), 0)
+	if in, ok := h.intent().(StyleChosen); !ok || in.Style != "nes" {
+		t.Errorf("a click on the NES cartridge sent %#v", in)
+	}
+	// Files dropped anywhere on the window.
+	paths := []string{"/music/a.mid", "/music/b.midi"}
+	h.post(driver.FilesOver{Pos: geom.Pt(600, 300)})
+	if h.v.drag == 0 || !h.v.dragOK {
+		t.Error("a drag of files not yet named does not light the window")
+	}
+	h.post(driver.FilesOver{Pos: geom.Pt(600, 300), Paths: paths})
+	if h.v.drag == 0 || !h.v.dragOK || h.v.dragN != 2 {
+		t.Errorf("a drag of two MIDI files over the window: lit %v, ok %v, %d", h.v.drag, h.v.dragOK, h.v.dragN)
+	}
+	h.post(input.Drop{Pos: geom.Pt(600, 300), Data: input.Files{Paths: paths}, Paths: paths})
+	if in, ok := h.intent().(FilesDropped); !ok || len(in.Paths) != 2 {
+		t.Errorf("a drop sent %#v", in)
+	}
+	h.post(driver.FilesOver{Pos: geom.Pt(600, 300), Paths: []string{"/music/cover.jpg"}})
+	if h.v.dragOK {
+		t.Error("a drag of a picture is taken as MIDI files")
+	}
+	h.post(driver.FilesLeft{})
+	if h.v.drag != 0 {
+		t.Error("the drag left, and the window is still lit")
+	}
+	// Space plays and pauses; 4 picks the Game Boy.
+	h.post(input.KeyPress{Key: input.KeySpace})
+	if _, ok := h.intent().(PlayToggled); !ok {
+		t.Error("Space did not play or pause")
+	}
+	h.post(input.KeyPress{Char: '4'})
+	if in, ok := h.intent().(StyleChosen); !ok || in.Style != "gb" {
+		t.Errorf("4 sent %#v", in)
+	}
+}
+
+// boundsOf returns where the deck lies in the window.
+func boundsOf(h *window, d *deck) (geom.Rect, bool) { return h.v.deckAt, d.size.W > 0 }
+
+func TestEveryStyleAndNoSongDrawsWithoutFault(t *testing.T) {
+	s := demoState(t)
+	h := newWindow(t, s)
+	for _, style := range styleOrder {
+		s.Style = style
+		_ = h.w.Client().Update("midiplayer", s)
+		h.frames(90)
+	}
+	s.Score, s.ScoreGen, s.Playlist, s.Current = nil, 2, nil, -1
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(30)
+	if h.v.l.score != nil {
+		t.Error("the window still shows a song")
+	}
+}
+
+func TestTheMixerSetsTheMix(t *testing.T) {
+	s := demoState(t)
+	s.Mix = synth.DefaultGMMix()
+	h := newWindow(t, s)
+	h.post(input.KeyPress{Char: 'm'})
+	h.frames(60)
+	mx := h.v.mixer
+	if h.v.page != 1 || mx.size.W == 0 {
+		t.Fatal("M does not show the mixer")
+	}
+	origin := h.v.mixer.originIn(h)
+	find := func(pred func(c mctl) bool) mctl {
+		for _, c := range mx.ctls {
+			if pred(c) {
+				return c
+			}
+		}
+		t.Fatal("no such control")
+		return mctl{}
+	}
+	at := func(r geom.Rect) geom.Point {
+		return geom.Pt(origin.X+r.Min.X+r.Size().W/2, origin.Y+r.Min.Y+r.Size().H/2)
+	}
+	lastMix := func() synth.GMMix {
+		var got synth.GMMix
+		for {
+			select {
+			case ev := <-h.w.Client().Intents():
+				if in, ok := ev.Intent.(MixSet); ok {
+					got = in.Mix
+				}
+			default:
+				return got
+			}
+		}
+	}
+	// Channel 1's fader dragged up.
+	fader := find(func(c mctl) bool { return c.kind == kFader && c.ch == 0 })
+	cap := geom.Pt(at(fader.r).X, origin.Y+fader.r.Max.Y-fader.r.Size().H*faderPos(0, -60, 12))
+	h.post(input.PointerMove{Pos: cap}, input.PointerDown{Pos: cap, Button: input.ButtonPrimary, Clicks: 1},
+		input.PointerMove{Pos: cap.Add(geom.Pt(0, -30))}, input.PointerUp{Pos: cap.Add(geom.Pt(0, -30)), Button: input.ButtonPrimary})
+	if got := lastMix().Channels[0].Gain; got <= 0.5 {
+		t.Errorf("channel 1's fader dragged up sets its gain to %v", got)
+	}
+	// Channel 2's high knob dragged down cuts its highs.
+	hi := find(func(c mctl) bool { return c.kind == kKnob && c.ch == 1 && c.label == "HI" })
+	p := at(hi.r)
+	h.post(input.PointerMove{Pos: p}, input.PointerDown{Pos: p, Button: input.ButtonPrimary, Clicks: 1},
+		input.PointerMove{Pos: p.Add(geom.Pt(0, 40))}, input.PointerUp{Pos: p.Add(geom.Pt(0, 40)), Button: input.ButtonPrimary})
+	if got := lastMix().Channels[1].High; got >= -1 {
+		t.Errorf("channel 2's high knob dragged down sets it to %v dB", got)
+	}
+	// The compressor's switch, and the equaliser's middle band dragged up.
+	comp := find(func(c mctl) bool { return c.kind == kToggle })
+	h.click(at(comp.r), 0)
+	if !lastMix().Comp.On {
+		t.Error("the compressor's switch does not switch it on")
+	}
+	band := mx.eqAt(mx.local.EQ[2])
+	band = band.Add(origin)
+	h.post(input.PointerMove{Pos: band}, input.PointerDown{Pos: band, Button: input.ButtonPrimary, Clicks: 1},
+		input.PointerMove{Pos: band.Add(geom.Pt(0, -30))}, input.PointerUp{Pos: band.Add(geom.Pt(0, -30)), Button: input.ButtonPrimary})
+	if got := lastMix().EQ[2].Gain; got < 2 {
+		t.Errorf("the equaliser's middle band dragged up lifts %v dB", got)
+	}
+	// Mute on channel 3's strip.
+	mute := find(func(c mctl) bool { return c.kind == kButton && c.ch == 2 && c.label == "M" })
+	h.click(at(mute.r), 0)
+	for {
+		in := h.intent()
+		if cc, ok := in.(ChannelClicked); ok {
+			if cc.Channel != 2 || cc.Solo {
+				t.Errorf("channel 3's mute sent %#v", cc)
+			}
+			break
+		}
+	}
+}
+
+// originIn returns where the mixer lies in the window.
+func (m *mixer) originIn(h *window) geom.Point {
+	return geom.Pt(margin, 6+headerH+8)
+}
+
+// testMOD is a MOD of 4 channels: a looped square wave, named, playing
+// a note on each channel in turn, a row apart, through one pattern.
+func testMOD() []byte {
+	var b bytes.Buffer
+	b.Write(append([]byte("tracker test"), make([]byte, 8)...))
+	for i := range 31 {
+		h := make([]byte, 30)
+		if i == 0 {
+			copy(h, "greetings to all")
+			h[22], h[23] = 0, 16 // 32 bytes
+			h[25] = 64
+			h[28], h[29] = 0, 16
+		}
+		b.Write(h)
+	}
+	b.Write([]byte{1, 127})
+	b.Write(make([]byte, 128))
+	b.WriteString("M.K.")
+	periods := []int{428, 381, 339, 320}
+	for row := range 64 {
+		for ch := range 4 {
+			cell := []byte{0, 0, 0, 0}
+			if row%4 == ch {
+				p := periods[ch]
+				cell = []byte{byte(p >> 8), byte(p), 0x10, 0}
+			}
+			b.Write(cell)
+		}
+	}
+	for i := range 32 {
+		if i < 16 {
+			b.WriteByte(90)
+		} else {
+			b.WriteByte(256 - 90)
+		}
+	}
+	return b.Bytes()
+}
+
+func TestAModulePlaysAsATracker(t *testing.T) {
+	a, play := newTestApp(t)
+	dir := t.TempDir()
+	// Named as neither, it is known by what it holds.
+	path := filepath.Join(dir, "song.bin")
+	if err := os.WriteFile(path, testMOD(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.add([]string{path})
+	if len(a.list) != 1 || !a.list[0].Tracker || a.list[0].Name != "tracker test" {
+		t.Fatalf("the module on the list: %+v", a.list)
+	}
+	s := a.state()
+	if s.Score == nil || s.Score.Tracker == nil || len(s.Score.Tracker.Rows) != 64 || len(s.Score.used()) != 4 {
+		t.Fatalf("the module's score: %+v", s.Score)
+	}
+	play(time.Second)
+	if h := a.heard(); h < 0.9 || h > 1.1 {
+		t.Errorf("after a second, %.2f s of the module is heard", h)
+	}
+	ctx := context.Background()
+	a.handle(ctx, ChannelClicked{Channel: 1, Solo: true})
+	a.handle(ctx, Sought{Time: 5})
+	play(200 * time.Millisecond)
+	m := a.p.TakeMeters()
+	play(200 * time.Millisecond)
+	m = a.p.TakeMeters()
+	if m.Channels[1] <= 0 || m.Channels[0] != 0 || m.Channels[2] != 0 {
+		t.Errorf("channel 2 alone meters %v", m.Channels[:4])
+	}
+	// The window shows it as a tracker, in every style.
+	h := newWindow(t, a.state())
+	if h.v.track.size.W == 0 || h.v.track.lastRow < 0 {
+		t.Errorf("the tracker's view is %v, at row %d", h.v.track.size, h.v.track.lastRow)
+	}
+	st := a.state()
+	for _, style := range styleOrder {
+		st.Style = style
+		_ = h.w.Client().Update("midiplayer", st)
+		h.frames(30)
+	}
+	if got := paletteKey(Player{Score: st.Score, Style: "gm"}); got != "pt" {
+		t.Errorf("a MOD in General MIDI's style shows in %q, want pt", got)
+	}
+}
+
+func TestTheInstrumentListScrollsOnlyToKeepTheLatestInView(t *testing.T) {
+	tv := &trackView{latest: -1, insLit: make([]float32, 31)}
+	for i := range 31 {
+		tv.shown, tv.rowOf = append(tv.shown, i), append(tv.rowOf, i)
+	}
+	list := xyxy(0, 0, 200, 236) // 200 of room: 13 rows of 15 show
+	settle := func() {
+		for range 120 {
+			tv.followIns(list, 1.0/60)
+		}
+	}
+	for _, i := range []int{0, 5, 11, 3} {
+		tv.latest = i
+		settle()
+		if tv.insOff != 0 {
+			t.Fatalf("instrument %d, in view, scrolled the list to %v", i+1, tv.insOff)
+		}
+	}
+	tv.latest = 25
+	settle()
+	if off := tv.insOff; off <= 0 || float32(25)*15 < off || float32(26)*15 > off+200 {
+		t.Fatalf("instrument 26 left the list at %v", off)
+	}
+	held := tv.insOff
+	tv.latest = 20 // in view now
+	settle()
+	if tv.insOff != held {
+		t.Errorf("instrument 21, in view, moved the list from %v to %v", held, tv.insOff)
+	}
+}
+
+func TestThePlayButtonTurnsIntoPause(t *testing.T) {
+	s := demoState(t)
+	s.Playing = false
+	h := newWindow(t, s)
+	tr := h.v.trans
+	if tr.play.ic != icon.Play || tr.play.turn.Value() != 1 {
+		t.Fatalf("paused, the button shows %v, turned %v", tr.play.ic, tr.play.turn.Value())
+	}
+	s.Playing = true
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(3)
+	if tr.play.ic != icon.Pause || tr.play.from != icon.Play {
+		t.Fatalf("playing, the button turns from %v to %v", tr.play.from, tr.play.ic)
+	}
+	if v := tr.play.turn.Value(); v <= 0 || v >= 1 {
+		t.Errorf("3 frames in, the turn is at %v, want under way", v)
+	}
+	h.frames(90)
+	if v := tr.play.turn.Value(); v != 1 {
+		t.Errorf("the turn settles at %v, want 1", v)
+	}
+}
+
+func TestThePlaylistGlidesToTheSongPlaying(t *testing.T) {
+	s := demoState(t)
+	for i := range 30 {
+		s.Playlist = append(s.Playlist, Item{Name: fmt.Sprintf("song %d", i), Length: 60})
+	}
+	h := newWindow(t, s)
+	pl := h.v.list
+	if !pl.open {
+		t.Fatal("the playlist is shut")
+	}
+	s.Current = 25
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(3)
+	if pl.lit <= 0 || pl.lit >= 25 || pl.scroll <= 0 || pl.scroll >= pl.want {
+		t.Errorf("3 frames on, the light is at row %v and the scroll at %v of %v: want both under way", pl.lit, pl.scroll, pl.want)
+	}
+	h.frames(90)
+	if pl.lit != 25 || pl.scroll != pl.want || pl.want <= 0 {
+		t.Errorf("settled, the light is at row %v, the scroll at %v of %v", pl.lit, pl.scroll, pl.want)
+	}
+	if top := float32(25) * rowH; top < pl.scroll || top+rowH > pl.scroll+pl.size.H-50 {
+		t.Errorf("song 26 is out of view, the scroll at %v", pl.scroll)
+	}
+}
+
+func TestTheFXLevelIsKept(t *testing.T) {
+	a, _ := newTestApp(t)
+	prefs := filepath.Join(t.TempDir(), "prefs.json")
+	a.loadPrefs(prefs)
+	a.handle(context.Background(), FXSet{FX: 0.95})
+	a.saveMix()
+	b, _ := newTestApp(t)
+	b.loadPrefs(prefs)
+	if b.fx != 0.95 || b.state().FX != 0.95 {
+		t.Errorf("the FX level comes back as %v", b.fx)
+	}
+}
+
+func TestTheSoundFontCardOffersADownloadAndAFile(t *testing.T) {
+	s := demoState(t)
+	h := newWindow(t, s)
+	if h.v.font.in != 0 {
+		t.Fatal("the card shows with no SoundFont style")
+	}
+	s.Style = "soundfont"
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(60)
+	fc := h.v.font
+	if fc.in != 1 {
+		t.Fatalf("with the style and no bank, the card has risen %v", fc.in)
+	}
+	// Where the card lies: in the middle of the stage's room.
+	w, hh := float32(1360), float32(880)
+	top := float32(6) + headerH + 8
+	bot := hh - margin - transH - 10
+	cw, ch := min(float32(620), w-2*margin), float32(210)
+	origin := geom.Pt((w-cw)/2, top+(bot-top-ch)/2)
+	at := func(r geom.Rect) geom.Point {
+		return geom.Pt(origin.X+r.Min.X+r.Size().W/2, origin.Y+r.Min.Y+r.Size().H/2)
+	}
+	h.click(at(fc.fetchBtn), 0)
+	if _, ok := h.intent().(FetchAsked); !ok {
+		t.Error("the download button does not fetch")
+	}
+	h.click(at(fc.chooseBtn), 0)
+	if _, ok := h.intent().(FontOpenAsked); !ok {
+		t.Error("the choose button does not open")
+	}
+	// A bank playing, the card falls away.
+	s.Font = "MuseScore General"
+	_ = h.w.Client().Update("midiplayer", s)
+	h.frames(60)
+	if fc.in != 0 {
+		t.Errorf("with a bank, the card stays at %v", fc.in)
+	}
+}

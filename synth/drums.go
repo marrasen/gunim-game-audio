@@ -126,6 +126,37 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 		h.decay(1, 1.1*decay)
 		h.decay(2, 0.09)
 		h.end = secs(6 * decay)
+	case drSynTom:
+		h.f1.set(1800+2400*tone, 0)
+		h.decay(0, 0.16*decay)
+		h.decay(1, 0.4*decay)
+		h.decay(2, 0.05)
+		h.decay(3, 0.0012)
+		h.end = secs(2.4 * decay)
+	case drCowbell:
+		h.f1.set(2000+1200*tone, 0.4)
+		h.decay(0, 0.009)
+		h.decay(1, 0.075*decay)
+		h.end = secs(0.6 * decay)
+	case drKick909:
+		h.decay(0, 0.011)
+		h.decay(1, 0.12*decay)
+		h.decay(2, 0.0015)
+		h.f1.set(3500, 0.2)
+		h.end = secs(1.4 * decay)
+	case drMetal:
+		for k, tau := range metalDecays {
+			h.decay(k, tau*decay)
+		}
+		h.decay(6, 0.006)
+		h.f1.set(3200+3000*tone, 0.4)
+		h.end = secs(1.6 * decay)
+	case drTambourine:
+		h.f1.set(7500+2500*tone, 0.35)
+		h.hp.set(5000)
+		h.decay(0, 0.003)
+		h.decay(1, 0.07*decay)
+		h.end = secs(0.6 * decay)
 	case drRiser, drDown:
 		h.end = dur + secs(0.03)
 	default:
@@ -226,6 +257,51 @@ func (h *hit) render(l, r []float32) {
 			lp, _, _ := h.f1.step(h.noise.bipolar())
 			s = sin1(h.ph[0])*e[1] + lp*e[2]*0.9
 			s = softClip(s * 1.4)
+		case drSynTom:
+			// A Simmons SDS-V's tom: a triangle bending down from twice
+			// its pitch, noise through a lowpass, and the stick's click.
+			f := 110 * tune * (1 + e[0])
+			h.ph[0] += f / rate
+			h.ph[0] -= float32(int(h.ph[0]))
+			lp, _, _ := h.f1.step(h.noise.bipolar())
+			s = (1-4*abs32(h.ph[0]-0.5))*e[1] + lp*e[2]*(0.4+0.6*tone) + h.noise.bipolar()*e[3]*0.5
+			s = softClip(s * 1.4)
+		case drCowbell:
+			// A TR-808's cowbell: squares at 540 and 800 Hz, through a
+			// bandpass, with a sharp strike and a short ring.
+			var m float32
+			for k, f := range [2]float32{540, 800} {
+				h.ph[k] += f * tune / rate
+				h.ph[k] -= float32(int(h.ph[k]))
+				if h.ph[k] < 0.5 {
+					m++
+				} else {
+					m--
+				}
+			}
+			_, bp, _ := h.f1.step(m * 0.5)
+			s = (bp*1.6 + m*0.12) * (0.6*e[0] + 0.4*e[1])
+		case drKick909:
+			// A TR-909's kick: a sine falling fast from four times its
+			// pitch, a little squared by its shaper, and the click of
+			// its attack.
+			f := 52 * tune * (1 + 3*e[0])
+			h.ph[0] += f / rate
+			h.ph[0] -= float32(int(h.ph[0]))
+			_, _, hp := h.f1.step(h.noise.bipolar())
+			s = softClip(sin1(h.ph[0])*e[1]*1.8) + hp*e[2]*(0.4+0.5*tone)
+		case drMetal:
+			s = h.metalHit(tune, tone)
+		case drTambourine:
+			// A tambourine: its jingles clash three times a few
+			// milliseconds apart as it is struck, then ring a moment,
+			// bright metal and noise above 5 kHz.
+			if h.t < 3*tambGap && h.t%tambGap == 0 {
+				e[0] = 1
+			}
+			m := h.metal(4.2*tune)/6 + 0.6*h.noise.bipolar()
+			_, bp, _ := h.f1.step(m)
+			s = h.hp.hp(bp) * (e[0] + 0.55*e[1]) * 3.2
 		case drRiser, drDown:
 			s = h.sweep(tone)
 		default:
@@ -278,6 +354,7 @@ func (h *hit) silent() bool {
 }
 
 const (
+	tambGap    = rate * 6 / 1000
 	clapGap    = rate * 105 / 10000
 	shakerRise = rate * 12 / 1000
 )
@@ -296,6 +373,35 @@ func (h *hit) metal(mul float32) float32 {
 		}
 	}
 	return m
+}
+
+// metalRatios are a struck bar's partials, as multiples of its lowest,
+// metalLevels how loud each is, and metalDecays how long each rings, in
+// seconds; the last two are a second piece, detuned against the first,
+// which makes it clang.
+var (
+	metalRatios = [6]float32{1, 2.76, 5.40, 8.93, 1.47, 3.91}
+	metalLevels = [6]float32{1, 0.7, 0.5, 0.35, 0.6, 0.4}
+	metalDecays = [6]float32{0.5, 0.28, 0.16, 0.09, 0.35, 0.18}
+)
+
+// metalHit is a struck piece of metal, as industrial music bangs: a
+// bar's partials, each dying at its own pace, against another's, and
+// the strike's burst of noise.
+func (h *hit) metalHit(tune, tone float32) float32 {
+	f := 330 * tune
+	var s float32
+	for k, r := range metalRatios {
+		h.ph[k] += f * r / rate
+		h.ph[k] -= float32(int(h.ph[k]))
+		lv := metalLevels[k]
+		if k == 2 || k == 3 || k == 5 {
+			lv *= 0.5 + tone
+		}
+		s += sin1(h.ph[k]) * lv * h.env[k]
+	}
+	_, bp, _ := h.f1.step(h.noise.bipolar())
+	return softClip((s*0.45 + bp*h.env[6]*1.5) * 1.2)
 }
 
 // timpani is a kettledrum, tuned to its note: a membrane's partials,

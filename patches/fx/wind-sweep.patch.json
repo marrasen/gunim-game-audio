@@ -1,0 +1,29 @@
+{
+	"Osc": [
+		{
+			"Wave": "sine",
+			"Level": 0.05
+		}
+	],
+	"Noise": 0.8,
+	"Filter": {
+		"Type": "bp",
+		"Cutoff": 900,
+		"Res": 0.6
+	},
+	"Amp": {
+		"Attack": 0.6,
+		"Decay": 1,
+		"Sustain": 0.9,
+		"Release": 1.5
+	},
+	"LFO": [
+		{
+			"To": "cutoff",
+			"Wave": "tri",
+			"Beats": 4,
+			"Depth": 2
+		}
+	],
+	"Poly": 2
+}

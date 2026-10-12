@@ -1,0 +1,38 @@
+{
+	"Osc": [
+		{
+			"Wave": "pulse",
+			"Width": 0.3
+		}
+	],
+	"Filter": {
+		"Type": "lp24",
+		"Cutoff": 900,
+		"Res": 0.4,
+		"Env": 1.5,
+		"Key": 0.4,
+		"Vel": 0.7
+	},
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 0.14,
+		"Sustain": 0,
+		"Release": 0.05
+	},
+	"FilterEnv": {
+		"Attack": 0.001,
+		"Decay": 0.1,
+		"Sustain": 0,
+		"Release": 0.05
+	},
+	"LFO": [
+		{
+			"To": "width",
+			"Wave": "sine",
+			"Hz": 0.3,
+			"Depth": 0.25
+		}
+	],
+	"Poly": 2,
+	"Drift": 3
+}

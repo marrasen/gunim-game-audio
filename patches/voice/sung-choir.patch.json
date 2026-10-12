@@ -1,0 +1,31 @@
+{
+	"Osc": [
+		{
+			"Wave": "saw",
+			"Unison": 3,
+			"Spread": 18
+		},
+		{
+			"Wave": "glottal",
+			"Level": 0.6
+		}
+	],
+	"Amp": {
+		"Attack": 0.6,
+		"Decay": 1,
+		"Sustain": 0.9,
+		"Release": 1.2
+	},
+	"Vowel": "a",
+	"Singer": "alto",
+	"LFO": [
+		{
+			"To": "pitch",
+			"Wave": "sine",
+			"Hz": 4.5,
+			"Depth": 0.06
+		}
+	],
+	"Poly": 10,
+	"Drift": 6
+}

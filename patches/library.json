@@ -1,0 +1,394 @@
+{
+	"Categories": [
+		{
+			"Name": "Bass",
+			"Presets": [
+				{
+					"Name": "Juno octave bass",
+					"File": "bass/juno-octave-bass.patch.json",
+					"About": "A Juno-60's saw and square an octave down, its filter snapping shut: the Italo octave bass."
+				},
+				{
+					"Name": "Bright Juno bass",
+					"File": "bass/bright-juno-bass.patch.json",
+					"About": "The octave bass opened up: more resonance and a longer sweep, so every note bites and rings."
+				},
+				{
+					"Name": "Hi-NRG roller",
+					"File": "bass/hi-nrg-roller.patch.json",
+					"About": "A short, punchy saw for rolling 16th octaves, as Bobby Orlando's records drive."
+				},
+				{
+					"Name": "Bright roller",
+					"File": "bass/bright-roller.patch.json",
+					"About": "The Hi-NRG roller brighter and buzzier: a pulse in place of the square, the filter wide open on each note."
+				},
+				{
+					"Name": "Moog bass",
+					"File": "bass/moog-bass.patch.json",
+					"About": "Three saws through a ladder filter, round and heavy, as a Minimoog's."
+				},
+				{
+					"Name": "Acid line",
+					"File": "bass/acid-303.patch.json",
+					"About": "A TB-303: a saw through a screaming filter, sliding only into tied notes, its accents stacking. Accent notes of velocity 1, the rest under."
+				},
+				{
+					"Name": "Industrial buzz bass",
+					"File": "bass/industrial-buzz-bass.patch.json",
+					"About": "Two saws and a square an octave down, buzzing: set its track's Distort to fold and cut under 140 Hz, with a sub under it."
+				},
+				{
+					"Name": "EBM bass",
+					"File": "bass/ebm-bass.patch.json",
+					"About": "A saw and a square an octave down, plucked short for 16ths whose offbeats you accent: the throb under futurepop."
+				},
+				{
+					"Name": "FM slap bass",
+					"File": "bass/fm-slap-bass.patch.json",
+					"About": "A DX7's bass: an FM tone with a bright slap on its attack."
+				},
+				{
+					"Name": "Sub bass",
+					"File": "bass/sub-bass.patch.json",
+					"About": "A pure, deep sine and a touch of its octave, felt more than heard."
+				},
+				{
+					"Name": "Plucked bass",
+					"File": "bass/plucked-bass.patch.json",
+					"About": "A string plucked, as Karplus and Strong pluck one: a dry, woody bass."
+				}
+			]
+		},
+		{
+			"Name": "Leads",
+			"Presets": [
+				{
+					"Name": "Jupiter brass lead",
+					"File": "lead/jupiter-brass-lead.patch.json",
+					"About": "Three detuned saws over two an octave down: a big polysynth hook, as a Jupiter-8's."
+				},
+				{
+					"Name": "Sync lead",
+					"File": "lead/sync-lead.patch.json",
+					"About": "A saw hard-synced to another, its tone tearing as it bends: a Prophet-5's scream."
+				},
+				{
+					"Name": "Square lead",
+					"File": "lead/square-lead.patch.json",
+					"About": "A hollow square with a little vibrato, as a Mono/Poly sings a tune."
+				},
+				{
+					"Name": "Supersaw lead",
+					"File": "lead/supersaw-lead.patch.json",
+					"About": "Seven saws spread wide: a lead the size of a wall."
+				},
+				{
+					"Name": "Siren stab",
+					"File": "lead/siren-stab.patch.json",
+					"About": "A short, bright stab that scoops up into its note, for a techno hook."
+				},
+				{
+					"Name": "Power chord guitar",
+					"File": "lead/power-chord-guitar.patch.json",
+					"About": "Saws to chug power chords with, c0, c2 and c0': set its track's Distort to amp, or fuzz, and pan two of them hard apart."
+				},
+				{
+					"Name": "Chip lead",
+					"File": "lead/chip-lead.patch.json",
+					"About": "A NES pulse, its level stepped: a game's tune."
+				}
+			]
+		},
+		{
+			"Name": "Arps & plucks",
+			"Presets": [
+				{
+					"Name": "Juno pulse arp",
+					"File": "arp/juno-pulse-arp.patch.json",
+					"About": "A thin pulse with a snapping filter, for 16th arpeggios under a Juno's chorus."
+				},
+				{
+					"Name": "Bright saw arp",
+					"File": "arp/bright-saw-arp.patch.json",
+					"About": "Two saws and a resonant snap: an arpeggio that cuts through a full mix."
+				},
+				{
+					"Name": "Resonant blip",
+					"File": "arp/resonant-blip.patch.json",
+					"About": "A square through a filter on the edge of whistling, short as a drop: Moroder's sequencer."
+				},
+				{
+					"Name": "Futurepop arp",
+					"File": "arp/futurepop-arp.patch.json",
+					"About": "Three detuned saws and an octave, plucked: a trance arpeggio for 16ths, through a dotted-eighth delay."
+				},
+				{
+					"Name": "Glass FM arp",
+					"File": "arp/glass-fm-arp.patch.json",
+					"About": "A bright FM tine, glassy and quick, as a DX7 sequenced."
+				},
+				{
+					"Name": "Octave pluck",
+					"File": "arp/octave-pluck.patch.json",
+					"About": "A saw and its octave, plucked short: an arpeggio with sparkle on top."
+				},
+				{
+					"Name": "Harp pluck",
+					"File": "arp/harp-pluck.patch.json",
+					"About": "A bright plucked string, as a harp's or a guitar's."
+				},
+				{
+					"Name": "Slither pulse",
+					"File": "arp/slither-pulse.patch.json",
+					"About": "A thin pulse whose width sways, plucked short: a techno line that slithers."
+				},
+				{
+					"Name": "Fuzz strum guitar",
+					"File": "arp/fuzz-strum-guitar.patch.json",
+					"About": "A bright plucked string to strum chords on: give its track a Strum, a hall Wash and Distort to bury its reverb in fuzz, as noise pop does."
+				},
+				{
+					"Name": "Surf twang",
+					"File": "arp/surf-twang.patch.json",
+					"About": "A plucked string with a tremolo's wobble: give its track a spring Wash for a surf or spaghetti-western lead."
+				},
+				{
+					"Name": "Chip arp",
+					"File": "arp/chip-arp.patch.json",
+					"About": "A Commodore 64's chord on one voice, its notes stepping 50 times a second."
+				}
+			]
+		},
+		{
+			"Name": "Brass & stabs",
+			"Presets": [
+				{
+					"Name": "OB brass",
+					"File": "brass/ob-brass.patch.json",
+					"About": "Detuned saws swelling open, as an Oberheim's brass section."
+				},
+				{
+					"Name": "Brass swell",
+					"File": "brass/brass-swell.patch.json",
+					"About": "Slow, rising brass for long chords that bloom."
+				},
+				{
+					"Name": "Orchestra hit",
+					"File": "brass/orchestra-hit.patch.json",
+					"About": "A chord of saws and noise, struck and gone: a Fairlight's ORCH5. Crush it to 8 bits on its track."
+				},
+				{
+					"Name": "Chord stab",
+					"File": "brass/house-stab.patch.json",
+					"About": "A short, bright chord stab, as a club record's."
+				}
+			]
+		},
+		{
+			"Name": "Keys & bells",
+			"Presets": [
+				{
+					"Name": "DX7 E-piano",
+					"File": "keys/dx7-epiano.patch.json",
+					"About": "The 1980s' electric piano: an FM body and a bright 14:1 tine."
+				},
+				{
+					"Name": "Tubular bells",
+					"File": "keys/tubular-bells.patch.json",
+					"About": "An inharmonic FM bell that rings for seconds."
+				},
+				{
+					"Name": "Glockenspiel",
+					"File": "keys/glockenspiel.patch.json",
+					"About": "A small, high FM bell, struck."
+				},
+				{
+					"Name": "Tape piano",
+					"File": "keys/tape-piano.patch.json",
+					"About": "A quiet, detuned piano wobbling as worn tape does, for a sparse motif in a long room."
+				},
+				{
+					"Name": "Drawbar organ",
+					"File": "keys/organ.patch.json",
+					"About": "Sines at the drawbars' footages, a rotary's wobble on them."
+				}
+			]
+		},
+		{
+			"Name": "Pads & strings",
+			"Presets": [
+				{
+					"Name": "String machine",
+					"File": "pad/solina-strings.patch.json",
+					"About": "Saws through a string machine's ensemble: set the track's chorus to ensemble."
+				},
+				{
+					"Name": "Juno pad",
+					"File": "pad/juno-pad.patch.json",
+					"About": "A warm saw and pulse pad, its filter breathing slowly, under a Juno's chorus."
+				},
+				{
+					"Name": "Gated supersaw",
+					"File": "pad/gated-supersaw.patch.json",
+					"About": "Seven saws and three an octave up, held: give its track a Gate, as x.xx x.x. x.xx x.x., and it chops as a trance pad."
+				},
+				{
+					"Name": "Glass pad",
+					"File": "pad/glass-pad.patch.json",
+					"About": "A bright, glassy pad of FM and saws, as a PPG Wave's."
+				},
+				{
+					"Name": "Supersaw pad",
+					"File": "pad/supersaw-pad.patch.json",
+					"About": "Five saws spread wide and a sine on top, slow and big."
+				},
+				{
+					"Name": "Aah choir",
+					"File": "pad/aah-choir.patch.json",
+					"About": "Saws singing an aah, a choir of machines."
+				}
+			]
+		},
+		{
+			"Name": "Vocoders & voices",
+			"Presets": [
+				{
+					"Name": "Baritone singer",
+					"File": "voice/baritone-singer.patch.json",
+					"About": "A voice's buzz through a baritone's five formants, its vibrato coming in late: a clean, low lead to sing vowels with."
+				},
+				{
+					"Name": "Tenor singer",
+					"File": "voice/tenor-singer.patch.json",
+					"About": "A tenor's voice, brighter and higher, its vibrato a little quicker."
+				},
+				{
+					"Name": "Sung choir",
+					"File": "voice/sung-choir.patch.json",
+					"About": "Voices and saws singing an alto's aah together, slow to swell: a choir for chords."
+				},
+				{
+					"Name": "Robot girl",
+					"File": "voice/robot-girl.patch.json",
+					"About": "An alto's voice with no vibrato and no glide, as a computer speaks: crush its track to 8 bits and coarse it 2."
+				},
+				{
+					"Name": "Vocoder voice",
+					"File": "voice/vp330-voice.patch.json",
+					"About": "A rich carrier through a VP-330's ten bands: give its track vowels and it speaks."
+				},
+				{
+					"Name": "Robot baritone",
+					"File": "voice/robot-baritone.patch.json",
+					"About": "A deep, half-spoken vocoder, for verses low in the voice, as Fancy sings."
+				},
+				{
+					"Name": "Whisper",
+					"File": "voice/whisper.patch.json",
+					"About": "The vocoder fed only noise: a voice that whispers its vowels, its notes only its rhythm."
+				},
+				{
+					"Name": "Scream",
+					"File": "voice/scream.patch.json",
+					"About": "A raw vocoder of saws and noise, drifting: set its track's Distort to amp and it screams."
+				},
+				{
+					"Name": "Deadpan voice",
+					"File": "voice/deadpan-voice.patch.json",
+					"About": "A low, flat vocoder for talking a slogan, doubled by a Juno's chorus."
+				},
+				{
+					"Name": "Vocoder choir",
+					"File": "voice/vocoder-choir.patch.json",
+					"About": "Chords through the vocoder: a choir of robots for chants and pads."
+				}
+			]
+		},
+		{
+			"Name": "Effects",
+			"Presets": [
+				{
+					"Name": "Laser zap",
+					"File": "fx/laser-zap.patch.json",
+					"About": "A pulse diving four octaves in a fifth of a second: pew."
+				},
+				{
+					"Name": "Phone bell",
+					"File": "fx/phone-bell.patch.json",
+					"About": "A telephone's bell, trilled 20 times a second: hold a note to ring it."
+				},
+				{
+					"Name": "Wind sweep",
+					"File": "fx/wind-sweep.patch.json",
+					"About": "Noise through a resonant filter swept by a slow LFO: a whoosh to hold under a build."
+				},
+				{
+					"Name": "Machine drone",
+					"File": "fx/machine-drone.patch.json",
+					"About": "Noise through a low, resonant bandpass, chopped seven times a second: a machine turning in another room."
+				},
+				{
+					"Name": "Fuzz buzz",
+					"File": "fx/fuzz-buzz.patch.json",
+					"About": "Saws and noise held as a drone: play it in tied 16ths and sweep its cutoff, its track's Distort turned up."
+				},
+				{
+					"Name": "Theremin",
+					"File": "fx/theremin.patch.json",
+					"About": "A nearly pure tone sliding from note to note under a wide vibrato, as a 1950s film's."
+				}
+			]
+		},
+		{
+			"Name": "Drum kits",
+			"Presets": [
+				{
+					"Name": "TR-808",
+					"File": "drums/tr-808.patch.json",
+					"About": "Roland's TR-808 as made in code: a long, booming kick, snappy snare, claps and metallic hats."
+				},
+				{
+					"Name": "Linn style",
+					"File": "drums/linn-style.patch.json",
+					"About": "A tight, punchy kit, as a LinnDrum's: a short kick, a bright snare and crisp hats."
+				},
+				{
+					"Name": "Hi-NRG kit",
+					"File": "drums/hi-nrg-kit.patch.json",
+					"About": "Punchy kick, claps on the snare, cowbell and Simmons toms, as 1984's dance floors had them."
+				},
+				{
+					"Name": "Simmons kit",
+					"File": "drums/simmons-kit.patch.json",
+					"About": "Electronic toms that dive, a snappy snare and a hard kick, as a Simmons SDS-V's."
+				},
+				{
+					"Name": "TR-909 techno",
+					"File": "drums/tr-909.patch.json",
+					"About": "A 909's kick falling fast with its click, an 808 snare and rim, crisp hats and a dark ride: play bd9."
+				},
+				{
+					"Name": "Industrial kit",
+					"File": "drums/industrial-kit.patch.json",
+					"About": "A heavy kick and snare, gritty hats and struck metal, mtl: crush, distort, ring and smash them on their tracks."
+				},
+				{
+					"Name": "Noise pop kit",
+					"File": "drums/noise-pop-kit.patch.json",
+					"About": "No hi-hats: a big kick, a roomy snare, a floor tom to pulse eighths on and a tambourine, tamb, as the Raveonettes' records keep time."
+				},
+				{
+					"Name": "Commodore 64 kit",
+					"File": "drums/c64-kit.patch.json",
+					"About": "A SID chip's drums, built a frame at a time: play sbd, ssn, shh and the like."
+				},
+				{
+					"Name": "NES kit",
+					"File": "drums/nes-kit.patch.json",
+					"About": "The NES's drums, 60 frames a second: play nbd, nsn, nhh and the like."
+				}
+			]
+		}
+	]
+}

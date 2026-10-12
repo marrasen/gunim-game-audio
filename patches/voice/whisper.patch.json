@@ -1,0 +1,13 @@
+{
+	"Noise": 1,
+	"Vocoder": true,
+	"Vowel": "a",
+	"Amp": {
+		"Attack": 0.02,
+		"Decay": 0.15,
+		"Sustain": 0.8,
+		"Release": 0.1
+	},
+	"Poly": 1,
+	"Gain": 1.4
+}

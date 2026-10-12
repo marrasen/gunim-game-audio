@@ -1,0 +1,22 @@
+{
+	"Kind": "drums",
+	"Kit": {
+		"bd": {
+			"Tune": -2,
+			"Decay": 0.6,
+			"Tone": 0.5
+		},
+		"sn": {
+			"Tune": 1,
+			"Tone": 0.6,
+			"Decay": 0.9
+		},
+		"lt": {
+			"Tune": -7,
+			"Decay": 0.45
+		},
+		"tamb": {
+			"Tone": 0.4
+		}
+	}
+}

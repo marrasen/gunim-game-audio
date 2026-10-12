@@ -1,0 +1,44 @@
+{
+	"Osc": [
+		{
+			"Wave": "fm",
+			"Ratio": 1,
+			"Index": 0.7,
+			"Decay": 0.8,
+			"Sustain": 0.15
+		},
+		{
+			"Wave": "fm",
+			"Ratio": 1,
+			"Index": 0.5,
+			"Decay": 0.6,
+			"Sustain": 0.1,
+			"Detune": 9,
+			"Level": 0.7
+		},
+		{
+			"Wave": "fm",
+			"Ratio": 4,
+			"Index": 0.8,
+			"Decay": 0.05,
+			"Sustain": 0,
+			"Level": 0.2
+		}
+	],
+	"Amp": {
+		"Attack": 0.002,
+		"Decay": 3,
+		"Sustain": 0,
+		"Release": 1.2
+	},
+	"LFO": [
+		{
+			"To": "pitch",
+			"Wave": "sine",
+			"Hz": 0.4,
+			"Depth": 0.08
+		}
+	],
+	"Poly": 6,
+	"Drift": 6
+}

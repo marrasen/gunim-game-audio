@@ -1,0 +1,23 @@
+{
+	"Osc": [
+		{
+			"Wave": "pulse",
+			"Width": 0.5
+		},
+		{
+			"Wave": "sine",
+			"Level": 0.6
+		}
+	],
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 0.22,
+		"Sustain": 0,
+		"Release": 0.08
+	},
+	"Bend": {
+		"Semis": 48,
+		"Time": 0.2
+	},
+	"Poly": 2
+}

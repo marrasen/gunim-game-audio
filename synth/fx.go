@@ -62,6 +62,19 @@ func newReverb() *reverb {
 	return r
 }
 
+// clear silences the reverb, its tail and all.
+func (r *reverb) clear() {
+	clear(r.pre)
+	for k := range r.ap {
+		clear(r.ap[k].buf)
+	}
+	for k := range r.line {
+		clear(r.line[k])
+	}
+	r.damp = [8]float32{}
+	r.in.z, r.out[0].z, r.out[1].z = 0, 0, 0
+}
+
 // set shapes the reverb: size from 0.3 to 1.5, decay in seconds to fall
 // 60 dB, tone from 0, dark, to 1, bright, and the pre-delay in seconds.
 func (r *reverb) set(size, decay, tone, pre float64) {
@@ -185,52 +198,149 @@ func (d *delay) process(l, r []float32) {
 	}
 }
 
-// chorus thickens a sound with two copies of it, each a few
-// milliseconds late, by a slowly moving amount, one each side.
+// chorus thickens a sound with copies of it, each a few milliseconds
+// late, by a slowly moving amount. Its kinds are:
+//
+//	chorusSoft      two copies, one each side, 9 ms late, moving at 0.45 Hz
+//	chorusJuno1     a Juno-60's chorus I: a bucket brigade's 1.7 to 5.4 ms,
+//	                swept by a triangle at 0.5 Hz, the right side swept
+//	                against the left
+//	chorusJuno2     its chorus II, the same sweep at 0.86 Hz
+//	chorusJuno12    both buttons down: a fast, shallow 9.75 Hz vibrato
+//	chorusEnsemble  a string machine's ensemble: three copies, each swept
+//	                by a slow and a fast sine a third of a cycle apart
+//
+// A bucket brigade's copies are darker than the sound, so the Juno's and
+// the ensemble's are.
 type chorus struct {
 	buf   [2][]float32
 	at    int
-	phase float32
+	phase [2]float32
 	mix   float32
+	kind  int
+	// delays are each copy's delay as the last block ended, in frames.
+	delays [3]float32
+	dark   [2]onePole
 }
 
-func newChorus() *chorus {
-	return &chorus{buf: [2][]float32{make([]float32, 2048), make([]float32, 2048)}}
+// The kinds of chorus.
+const (
+	chorusSoft = iota
+	chorusJuno1
+	chorusJuno2
+	chorusJuno12
+	chorusEnsemble
+)
+
+var chorusKinds = map[string]int{
+	"": chorusSoft, "soft": chorusSoft, "juno1": chorusJuno1, "juno2": chorusJuno2, "juno12": chorusJuno12,
+	"ensemble": chorusEnsemble,
+}
+
+const chorusSize = 2048
+
+func newChorus(kind int) *chorus {
+	c := &chorus{buf: [2][]float32{make([]float32, chorusSize), make([]float32, chorusSize)}, kind: kind}
+	for i := range c.dark {
+		c.dark[i].set(7500)
+	}
+	c.delays = c.targets()
+	return c
+}
+
+// targets returns where each copy's delay is bound now, in frames, and
+// moves the sweeps on a control block.
+func (c *chorus) targets() (d [3]float32) {
+	const ms = rate / 1000
+	step := func(i int, hz float32) {
+		c.phase[i] += hz * control / rate
+		if c.phase[i] >= 1 {
+			c.phase[i]--
+		}
+	}
+	tri := func(p float32) float32 { return 1 - 4*abs32(p-0.5) }
+	switch c.kind {
+	case chorusSoft:
+		step(0, 0.45)
+		d[0] = (9 + 3.5*sin1(c.phase[0])) * ms
+		d[1] = (9 + 3.5*sin1(wrap(c.phase[0]+0.25))) * ms
+	case chorusJuno1, chorusJuno2:
+		hz := float32(0.513)
+		if c.kind == chorusJuno2 {
+			hz = 0.863
+		}
+		step(0, hz)
+		x := tri(c.phase[0])
+		d[0] = (3.5 + 1.85*x) * ms
+		d[1] = (3.5 - 1.85*x) * ms
+	case chorusJuno12:
+		step(0, 9.75)
+		x := sin1(c.phase[0])
+		d[0] = (3.5 + 0.2*x) * ms
+		d[1] = (3.5 - 0.2*x) * ms
+	case chorusEnsemble:
+		step(0, 0.6)
+		step(1, 6)
+		for k := range 3 {
+			o := float32(k) / 3
+			d[k] = (6 + 1.6*sin1(wrap(c.phase[0]+o)) + 0.25*sin1(wrap(c.phase[1]+o))) * ms
+		}
+	}
+	return d
+}
+
+// read returns channel ch's sound d frames back from where it is written
+// next, between frames.
+func (c *chorus) read(ch int, d float32) float32 {
+	pos := float32(c.at) - d
+	if pos < 0 {
+		pos += chorusSize
+	}
+	j := int(pos)
+	f := pos - float32(j)
+	a := c.buf[ch][j&(chorusSize-1)]
+	b := c.buf[ch][(j+1)&(chorusSize-1)]
+	return a + (b-a)*f
 }
 
 func (c *chorus) process(l, r []float32) {
-	const size = 2048
-	var delays [2]float32
-	for i := range l {
-		c.buf[0][c.at] = l[i]
-		c.buf[1][c.at] = r[i]
-		if i%control == 0 {
-			// The delays move slowly, so once a control block will do.
-			c.phase += 0.45 * control / rate
-			if c.phase >= 1 {
-				c.phase--
-			}
-			delays[0] = (0.009 + 0.0035*sin1(c.phase)) * rate
-			delays[1] = (0.009 + 0.0035*sin1(wrap(c.phase+0.25))) * rate
+	dry := 1 - c.mix*0.5
+	for at := 0; at < len(l); at += control {
+		end := min(at+control, len(l))
+		// The delays glide from where they were to where they are bound,
+		// frame by frame, so the sweep makes no steps.
+		from, to := c.delays, c.targets()
+		var dd [3]float32
+		for k := range dd {
+			dd[k] = (to[k] - from[k]) / float32(end-at)
 		}
-		for ch := range 2 {
-			d := delays[ch]
-			pos := float32(c.at) - d
-			if pos < 0 {
-				pos += size
+		d := from
+		for i := at; i < end; i++ {
+			c.buf[0][c.at] = l[i]
+			c.buf[1][c.at] = r[i]
+			var wl, wr float32
+			switch c.kind {
+			case chorusSoft:
+				wl, wr = c.read(0, d[0]), c.read(1, d[1])
+			case chorusEnsemble:
+				// One sound, as a string machine's, into three lines.
+				m := (l[i] + r[i]) * 0.5
+				c.buf[0][c.at] = m
+				t0, t1, t2 := c.read(0, d[0]), c.read(0, d[1]), c.read(0, d[2])
+				wl = c.dark[0].lp(t0*0.7 + t1*0.45)
+				wr = c.dark[1].lp(t2*0.7 + t1*0.45)
+			default:
+				wl = c.dark[0].lp(c.read(0, d[0]))
+				wr = c.dark[1].lp(c.read(1, d[1]))
 			}
-			j := int(pos)
-			f := pos - float32(j)
-			a := c.buf[ch][j&(size-1)]
-			b := c.buf[ch][(j+1)&(size-1)]
-			wet := a + (b-a)*f
-			if ch == 0 {
-				l[i] = l[i]*(1-c.mix*0.5) + wet*c.mix
-			} else {
-				r[i] = r[i]*(1-c.mix*0.5) + wet*c.mix
+			l[i] = l[i]*dry + wl*c.mix
+			r[i] = r[i]*dry + wr*c.mix
+			c.at = (c.at + 1) & (chorusSize - 1)
+			for k := range d {
+				d[k] += dd[k]
 			}
 		}
-		c.at = (c.at + 1) & (size - 1)
+		c.delays = to
 	}
 }
 
@@ -241,6 +351,12 @@ type inserts struct {
 	hp, lp     [2]svf
 	hpOn, lpOn bool
 	shape      float32
+	wash       *wash
+	dist       distortion
+	ring       float32
+	ringDt     float32
+	ringPh     float32
+	smash      *smasher
 	crush      float32
 	coarse     int
 	hold       [2]float32
@@ -260,14 +376,38 @@ func (in *inserts) set(t *Track) {
 		in.lp[1].set(float32(t.LPF), 0.1)
 	}
 	in.shape = float32(min(max(t.Shape, 0), 0.99))
+	if t.Wash > 0 {
+		if in.wash == nil || in.wash.spring != (t.WashType == "spring") {
+			in.wash = newWash(t.WashType)
+		}
+		in.wash.mix = float32(min(t.Wash, 1))
+	} else {
+		in.wash = nil
+	}
+	in.dist.set(t.Distort, t.DistortType)
+	in.ring = float32(min(max(t.Ring, 0), 1))
+	hz := t.RingHz
+	if hz <= 0 {
+		hz = 440
+	}
+	in.ringDt = float32(hz / rate)
+	if t.Smash > 0 {
+		if in.smash == nil {
+			in.smash = &smasher{}
+		}
+		in.smash.mix = float32(min(t.Smash, 1))
+	} else {
+		in.smash = nil
+	}
 	in.crush = 0
 	if t.Crush > 0 {
 		in.crush = float32(math.Exp2(t.Crush - 1))
 	}
 	in.coarse = max(t.Coarse, 0)
 	if t.Chorus > 0 {
-		if in.chorus == nil {
-			in.chorus = newChorus()
+		kind := chorusKinds[t.ChorusType]
+		if in.chorus == nil || in.chorus.kind != kind {
+			in.chorus = newChorus(kind)
 		}
 		in.chorus.mix = float32(min(t.Chorus, 1))
 	} else {
@@ -295,6 +435,26 @@ func (in *inserts) process(l, r []float32) {
 			l[i] = (1 + k) * l[i] / (1 + k*abs32(l[i]))
 			r[i] = (1 + k) * r[i] / (1 + k*abs32(r[i]))
 		}
+	}
+	if in.wash != nil {
+		in.wash.process(l, r)
+	}
+	if in.dist.on {
+		in.dist.process(l, r)
+	}
+	if in.ring > 0 {
+		for i := range l {
+			m := 1 - in.ring + in.ring*sin1(in.ringPh)
+			l[i] *= m
+			r[i] *= m
+			in.ringPh += in.ringDt
+			if in.ringPh >= 1 {
+				in.ringPh--
+			}
+		}
+	}
+	if in.smash != nil {
+		in.smash.process(l, r)
 	}
 	if in.crush > 0 {
 		for i := range l {
@@ -415,5 +575,375 @@ func (lm *limiter) process(l, r []float32) {
 		}
 		l[i] = softClip(dl*lm.gain/lm.ceiling) * lm.ceiling
 		r[i] = softClip(dr*lm.gain/lm.ceiling) * lm.ceiling
+	}
+}
+
+// tweaker turns the whole mix by a song's Tweak: its width, tilt and
+// bass before the compressor, and its make-up, drive and lo-fi after.
+type tweaker struct {
+	// on says any knob is turned; space scales the rooms and echoes.
+	on    bool
+	space float32
+	// side scales the sides, where width is turned.
+	side  float32
+	width bool
+	// The tilt: split splits the sound at 800 Hz, the bottom taken by
+	// lowG and the top by highG.
+	tilt        bool
+	split       [2]onePole
+	lowG, highG float32
+	// The bass's shelf: shelf finds the bass, lifted by bassG.
+	bass  bool
+	shelf [2]onePole
+	bassG float32
+	// punch is how hard the compressor squeezes, and makeup the level it
+	// squeezes away, on average, in decibels, which punch makes up.
+	punch  float32
+	makeup float32
+	// drive pushes the mix into a soft clip, and driveOut brings it
+	// back.
+	drive, driveOut float32
+	// lo-fi: steps are the levels a sample may take, hold how many
+	// frames each is held, and lp and hp its cuts.
+	lofi   bool
+	steps  float32
+	hold   int
+	held   int
+	holdV  [2]float32
+	lp, hp [2][2]svf
+}
+
+// set readies the tweaker for t.
+func (tw *tweaker) set(t Tweak) {
+	clamp := func(x, lo, hi float64) float64 { return min(max(x, lo), hi) }
+	tone, bass, space := clamp(t.Tone, -1, 1), clamp(t.Bass, -1, 1), clamp(t.Space, -1, 1)
+	punch, width, drive, lofi := clamp(t.Punch, 0, 1), clamp(t.Width, -1, 1), clamp(t.Drive, 0, 1), clamp(t.LoFi, 0, 1)
+	tw.on = tone != 0 || bass != 0 || space != 0 || punch != 0 || width != 0 || drive != 0 || lofi != 0
+	tw.space = 1
+	if space < 0 {
+		tw.space = float32(1 + space)
+	} else {
+		tw.space = float32(1 + 2*space)
+	}
+	tw.width, tw.side = width != 0, float32(1+width)
+	tw.tilt = tone != 0
+	tw.lowG, tw.highG = float32(dbGain(-6*tone)), float32(dbGain(6*tone))
+	for i := range 2 {
+		tw.split[i].set(800)
+		tw.shelf[i].set(120)
+		for k := range 2 {
+			tw.lp[i][k].set(float32(16000*math.Exp2(-2.7*lofi)), 0.1)
+			tw.hp[i][k].set(float32(20*math.Exp2(3.6*lofi)), 0.1)
+		}
+	}
+	tw.bass, tw.bassG = bass != 0, float32(dbGain(9*bass)-1)
+	tw.punch = float32(punch)
+	tw.drive = float32(1 + 4*drive)
+	tw.driveOut = 1 / float32(math.Sqrt(float64(tw.drive)))
+	tw.lofi = lofi > 0
+	tw.steps = float32(math.Exp2(15 - 11*lofi))
+	tw.hold = 1 + int(math.Round(5*lofi))
+}
+
+// pre turns the mix's width, tilt and bass, before the compressor.
+func (tw *tweaker) pre(l, r []float32) {
+	if tw.width {
+		for i := range l {
+			m, s := (l[i]+r[i])*0.5, (l[i]-r[i])*0.5*tw.side
+			l[i], r[i] = m+s, m-s
+		}
+	}
+	if tw.tilt {
+		for i := range l {
+			lo := tw.split[0].lp(l[i])
+			l[i] = lo*tw.lowG + (l[i]-lo)*tw.highG
+			lo = tw.split[1].lp(r[i])
+			r[i] = lo*tw.lowG + (r[i]-lo)*tw.highG
+		}
+	}
+	if tw.bass {
+		for i := range l {
+			l[i] += tw.shelf[0].lp(l[i]) * tw.bassG
+			r[i] += tw.shelf[1].lp(r[i]) * tw.bassG
+		}
+	}
+}
+
+// post makes up the level the compressor took, where punched, drives,
+// and makes the mix lo-fi, after the compressor, which takes reduction
+// decibels away now.
+func (tw *tweaker) post(l, r []float32, reduction float32) {
+	if tw.punch > 0 {
+		// The make-up follows the reduction over a second or so, so it
+		// holds the mix's level as the squeeze holds its peaks down, and
+		// lifts it a little more.
+		tw.makeup += (reduction - tw.makeup) * min(float32(len(l))/rate, 1)
+		g := float32(dbGain(float64(tw.makeup + 2*tw.punch)))
+		for i := range l {
+			l[i] *= g
+			r[i] *= g
+		}
+	}
+	if tw.drive != 1 {
+		for i := range l {
+			l[i] = softClip(l[i]*tw.drive) * tw.driveOut
+			r[i] = softClip(r[i]*tw.drive) * tw.driveOut
+		}
+	}
+	if tw.lofi {
+		for i := range l {
+			if tw.held == 0 {
+				tw.holdV[0] = float32(math.Round(float64(l[i]*tw.steps))) / tw.steps
+				tw.holdV[1] = float32(math.Round(float64(r[i]*tw.steps))) / tw.steps
+			}
+			tw.held = (tw.held + 1) % tw.hold
+			for ch, x := range tw.holdV {
+				for k := range 2 {
+					x, _, _ = tw.lp[ch][k].step(x)
+					_, _, x = tw.hp[ch][k].step(x)
+				}
+				if ch == 0 {
+					l[i] = x
+				} else {
+					r[i] = x
+				}
+			}
+		}
+	}
+}
+
+// The kinds of distortion.
+const (
+	distFuzz = iota
+	distAmp
+	distFold
+)
+
+var distortKinds = map[string]int{"": distFuzz, "fuzz": distFuzz, "amp": distAmp, "fold": distFold}
+
+// distortion is a track's distortion: a fuzz's hard clip, a guitar
+// amplifier's and its cabinet's, or a wavefolder's.
+type distortion struct {
+	on    bool
+	kind  int
+	gain  float32
+	level float32
+	// The amp's: tight takes the lows out before the valves, and dc
+	// what their lean leaves; the cabinet cuts the lows and the highs
+	// and sings at 1.6 kHz.
+	tight, dc  [2]onePole
+	cabLP      [2][2]svf
+	cabHP, mid [2]svf
+}
+
+func (d *distortion) set(amount float64, kind string) {
+	amount = min(max(amount, 0), 1)
+	d.on = amount > 0
+	if !d.on {
+		return
+	}
+	k := distortKinds[kind]
+	if k != d.kind || d.gain == 0 {
+		*d = distortion{kind: k}
+		for ch := range 2 {
+			d.tight[ch].set(320)
+			d.dc[ch].set(18)
+			d.cabLP[ch][0].set(4500, 0.2)
+			d.cabLP[ch][1].set(4500, 0.2)
+			d.cabHP[ch].set(85, 0.1)
+			d.mid[ch].set(1600, 0.5)
+		}
+	}
+	d.on = true
+	a := float32(amount)
+	switch k {
+	case distFuzz:
+		d.gain, d.level = 1+80*a*a, 1-0.5*a
+	case distAmp:
+		d.gain, d.level = 1+50*a*a, 0.75-0.3*a
+	case distFold:
+		d.gain, d.level = 1+6*a, 0.8
+	}
+}
+
+func (d *distortion) process(l, r []float32) {
+	for ch, x := range [2][]float32{l, r} {
+		switch d.kind {
+		case distFuzz:
+			for i, v := range x {
+				v *= d.gain
+				x[i] = min(max(v, -1), 1) * d.level
+			}
+		case distAmp:
+			const lean = 0.25
+			bias := softClip(lean)
+			for i, v := range x {
+				// The lows tightened, so the chug stays clear.
+				v = (v - 0.7*d.tight[ch].lp(v)) * d.gain
+				// Valves clip one way sooner than the other.
+				v = softClip(v+lean) - bias
+				v -= d.dc[ch].lp(v)
+				_, _, v = d.cabHP[ch].step(v)
+				v, _, _ = d.cabLP[ch][0].step(v)
+				v, _, _ = d.cabLP[ch][1].step(v)
+				_, m, _ := d.mid[ch].step(v)
+				x[i] = (v + 0.6*m) * d.level
+			}
+		case distFold:
+			for i, v := range x {
+				// A sine of the sound folds it back on itself each
+				// time it passes full scale.
+				x[i] = sin1(wrap(v*d.gain*0.25)) * d.level
+			}
+		}
+	}
+}
+
+// smasher mixes a smashed copy of a track under it: compressed as an
+// 1176 is with every ratio's button in, its attack near instant and its
+// release quick, so it pumps, and then driven.
+type smasher struct {
+	mix  float32
+	env  float32
+	gain float32
+}
+
+func (s *smasher) process(l, r []float32) {
+	const (
+		threshold = 0.05
+		att       = 0.5
+		rel       = 0.0004
+	)
+	if s.gain == 0 {
+		s.gain = 1
+	}
+	for i := range l {
+		x := max(abs32(l[i]), abs32(r[i]))
+		if x > s.env {
+			s.env += (x - s.env) * att
+		} else {
+			s.env += (x - s.env) * rel * 4
+		}
+		// Far over the threshold, at a ratio of 20 or more: the level
+		// held near the threshold, and made up to near full scale.
+		g := float32(1)
+		if s.env > threshold {
+			g = threshold / s.env
+		}
+		s.gain += (g - s.gain) * 0.02
+		w := s.gain * 24
+		wl, wr := softClip(l[i]*w), softClip(r[i]*w)
+		l[i] += (wl*0.6 - l[i]*0.4) * s.mix
+		r[i] += (wr*0.6 - r[i]*0.4) * s.mix
+	}
+}
+
+// wash is a track's own reverb, put before its distortion, as a reverb
+// pedal ahead of a fuzz: a hall, four combs and two allpasses a side,
+// long and bright; or a spring, a delay whose echoes run round through
+// a chain of allpasses that smear their highs from their lows, so each
+// returns as a chirp, as a spring tank's drip.
+type wash struct {
+	spring bool
+	mix    float32
+	combs  [2][4]washComb
+	ap     [2][2]allpass
+	// The spring: its line, where it is written, its taps, and the
+	// chain of allpasses its echoes pass through.
+	line    []float32
+	at      int
+	taps    [2]int
+	disp    [12]disperse
+	damp    onePole
+	springG float32
+}
+
+type washComb struct {
+	buf  []float32
+	at   int
+	g, d float32
+	z    float32
+}
+
+func (c *washComb) step(x float32) float32 {
+	y := c.buf[c.at]
+	c.z += (y - c.z) * c.d
+	c.buf[c.at] = x + c.z*c.g
+	c.at++
+	if c.at == len(c.buf) {
+		c.at = 0
+	}
+	return y
+}
+
+// disperse is a first-order allpass, which delays the highs less than
+// the lows.
+type disperse struct{ x1, y1 float32 }
+
+func (d *disperse) step(x, a float32) float32 {
+	y := -a*x + d.x1 + a*d.y1
+	d.x1, d.y1 = x, y
+	return y
+}
+
+// washCombMs are the hall's combs' lengths, in milliseconds, the right
+// side's a little longer, so the sides differ.
+var washCombMs = [4]float64{25.3, 26.9, 29.0, 30.7}
+
+func newWash(kind string) *wash {
+	w := &wash{spring: kind == "spring"}
+	if w.spring {
+		w.line = make([]float32, rate/10)
+		w.taps = [2]int{int(0.033 * rate), int(0.041 * rate)}
+		w.damp.set(4200)
+		// Each trip round loses as much as falls 60 dB in 2.2 s.
+		w.springG = float32(math.Pow(10, -3*float64(w.taps[0])/(2.2*rate)))
+		return w
+	}
+	// A decay of about 2.5 s: each comb loses as much a trip.
+	for ch := range 2 {
+		for k, ms := range washCombMs {
+			n := int((ms + float64(ch)*0.53) * rate / 1000)
+			g := float32(math.Pow(10, -3*float64(n)/(2.5*rate)))
+			w.combs[ch][k] = washComb{buf: make([]float32, n), g: g, d: 0.55}
+		}
+		for k, ms := range []float64{5.0, 1.7} {
+			w.ap[ch][k] = allpass{buf: make([]float32, int((ms+float64(ch)*0.23)*rate/1000)), g: 0.5}
+		}
+	}
+	return w
+}
+
+func (w *wash) process(l, r []float32) {
+	dry := 1 - w.mix*0.4
+	for i := range l {
+		x := (l[i] + r[i]) * 0.5
+		var wl, wr float32
+		if w.spring {
+			// The echo comes back off the spring's line, is darkened and
+			// smeared into a chirp, and goes round again with the sound.
+			n := len(w.line)
+			back := w.line[(w.at-w.taps[0]+n)%n]
+			wr = w.line[(w.at-w.taps[1]+n)%n]
+			y := x + w.damp.lp(back)*w.springG
+			for k := range w.disp {
+				y = w.disp[k].step(y, 0.62)
+			}
+			w.line[w.at] = y + 1e-18
+			w.at = (w.at + 1) % n
+			wl = back
+		} else {
+			for k := range 4 {
+				wl += w.combs[0][k].step(x)
+				wr += w.combs[1][k].step(x)
+			}
+			wl, wr = wl*0.25, wr*0.25
+			for k := range 2 {
+				wl = w.ap[0][k].step(wl)
+				wr = w.ap[1][k].step(wr)
+			}
+		}
+		l[i] = l[i]*dry + wl*w.mix
+		r[i] = r[i]*dry + wr*w.mix
 	}
 }

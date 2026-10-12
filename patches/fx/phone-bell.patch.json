@@ -1,0 +1,31 @@
+{
+	"Osc": [
+		{
+			"Wave": "fm",
+			"Ratio": 3.5,
+			"Index": 2.5,
+			"Decay": 0.3,
+			"Sustain": 0.4
+		},
+		{
+			"Wave": "sine",
+			"Octave": -1,
+			"Level": 0.4
+		}
+	],
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 0.1,
+		"Sustain": 1,
+		"Release": 0.15
+	},
+	"LFO": [
+		{
+			"To": "amp",
+			"Wave": "square",
+			"Hz": 20,
+			"Depth": 0.9
+		}
+	],
+	"Poly": 1
+}

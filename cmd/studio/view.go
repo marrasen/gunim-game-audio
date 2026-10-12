@@ -17,6 +17,7 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	"github.com/marrasen/gunim-game-audio/internal/songpicker"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // The studio's own tokens.
@@ -33,6 +34,7 @@ type view struct {
 	*widget.Pad
 	songs     *songpicker.Picker
 	about     *widget.Label
+	font      *widget.MenuButton
 	play      *widget.Button
 	tiers     *widget.Segmented
 	tierLabel *widget.Label
@@ -57,6 +59,7 @@ type view struct {
 	kit       *kitPane
 	fx        *fxPane
 	pattern   *patternPane
+	beat      *beatPane
 	// focused is the focus last sent, and editorGen the studio's
 	// EditorGen last obeyed.
 	focused   Focus
@@ -113,10 +116,23 @@ func buildView(s Studio) *root {
 	v.volume.OnChange = func(x float32, _ *gunim.UI) gunim.Intent { return VolumeSet{Volume: x} }
 	save := widget.NewIconButton(icon.Save, "Save the song as a song.json")
 	save.OnClick = widget.Sends(Saved{})
+	v.font = widget.NewMenuButton("", fontItems(s))
+	v.font.Icon = icon.Piano
+	v.font.OnPick = func(i int, _ *gunim.UI) gunim.Intent {
+		switch i {
+		case 1:
+			return FontChoose{}
+		case 2:
+			return FontFetch{}
+		case 3:
+			return FontNone{}
+		}
+		return nil
+	}
 	gap := widget.NewSpacer()
 	top := widget.Row(title, v.songs, v.play, restart, v.tierLabel, v.tiers, v.stings, v.sting, gap,
 		widget.NewSized(v.bpm.TextField, 104, 0), down, v.key, up, widget.NewIcon(icon.Volume2, "Volume"),
-		widget.NewSized(v.volume, 110, 0), save).Grow(gap, 1)
+		widget.NewSized(v.volume, 110, 0), v.font, save).Grow(gap, 1)
 	top.Cross = widget.CrossCenter
 	v.about = small("")
 
@@ -129,8 +145,9 @@ func buildView(s Studio) *root {
 	v.kit = newKitPane(func(string, string) gunim.Intent { return v.focus() })
 	v.fx = newFxPane()
 	v.pattern = newPatternPane(func(string) gunim.Intent { return v.focus() })
-	v.tabs = widget.NewTabs(editorTabs, stagePage, v.mixer, v.patch, v.kit, v.fx, v.pattern)
-	v.tabs.Icons = []*icon.Icon{icon.Orbit, icon.SlidersHorizontal, icon.AudioWaveform, icon.Drum, icon.Waves, icon.Grid3x3}
+	v.beat = newBeatPane()
+	v.tabs = widget.NewTabs(editorTabs, stagePage, v.mixer, v.patch, v.kit, v.fx, v.pattern, v.beat)
+	v.tabs.Icons = []*icon.Icon{icon.Orbit, icon.SlidersHorizontal, icon.AudioWaveform, icon.Drum, icon.Waves, icon.Grid3x3, icon.Drumstick}
 	v.tabs.OnChange = func(int, *gunim.UI) gunim.Intent { return v.focus() }
 	left := v.tabs
 
@@ -187,12 +204,67 @@ func buildView(s Studio) *root {
 
 func (r *root) update(s Studio, u *gunim.UI) { r.view.update(s, u) }
 
+// fontNow says what the songs' sampled instruments play on: a bank, the
+// bank downloading, or the engine's own sounds.
+func fontNow(s Studio) string {
+	switch {
+	case s.Fetching >= 0:
+		return fmt.Sprintf("downloading %s, %.0f%%", soundfont.Banks[0].Name, s.Fetching*100)
+	case s.FontBank != "":
+		return "on " + s.FontBank
+	}
+	return "no sound font, the engine's own sounds"
+}
+
+// fontItems are the sound font menu's items: a caption of what plays
+// now, then choosing a bank's file, downloading MuseScore General, and
+// the engine's own sounds.
+func fontItems(s Studio) []widget.MenuItem {
+	bank := soundfont.Banks[0]
+	return []widget.MenuItem{
+		{Label: "Sound font: " + fontNow(s), Caption: true},
+		{Label: "Choose a bank…", Hint: ".sf2 or .sf3", Icon: icon.FolderOpen},
+		{Label: "Download " + bank.Name, Hint: fmt.Sprintf("%d MB · %s licence", bank.Size>>20, bank.License), Icon: icon.Download,
+			Disabled: s.Fetching >= 0 || s.FontBank == bank.Name},
+		{Label: "The engine's own sounds", Icon: icon.Cpu, Disabled: s.Font == ""},
+	}
+}
+
+// Handle takes SoundFont banks dropped on the window.
+func (r *root) Handle(e input.Event, u *gunim.UI) bool {
+	switch e := e.(type) {
+	case input.DragOver:
+		f, ok := e.Data.(input.Files)
+		return ok && (len(f.Paths) == 0 || slices.ContainsFunc(f.Paths, isBank))
+	case input.Drop:
+		paths := e.Paths
+		if f, ok := e.Data.(input.Files); ok && len(paths) == 0 {
+			paths = f.Paths
+		}
+		if len(paths) == 0 {
+			return false
+		}
+		u.Send(r, FontDropped{Paths: paths})
+		return true
+	}
+	return false
+}
+
+// Overhear tells the wheel's guard of each move and turn of the wheel,
+// wherever it lands.
+func (r *root) Overhear(e input.Event, _ *gunim.UI) { wheel.overhear(e) }
+
 // update shows s.
 func (v *view) update(s Studio, u *gunim.UI) {
 	v.s = s
 	v.songs.SetSongs(s.Songs, s.Categories)
 	v.songs.Choose(s.Song, u)
-	v.about.Text = s.About
+	v.about.Text = s.About + " · " + fontNow(s)
+	if items := fontItems(s); !slices.Equal(items, v.font.Items()) {
+		v.font.SetItems(items)
+	}
+	v.font.Active = s.FontBank != ""
+	v.font.Tooltip = "Sound font: " + fontNow(s) + ". Drop an .sf2 or .sf3 on the window to play on it."
 	if s.Playing {
 		v.play.Label, v.play.Icon = "Pause", icon.Pause
 	} else {
@@ -255,12 +327,15 @@ func (v *view) update(s Studio, u *gunim.UI) {
 		v.editorGen = s.EditorGen
 		v.open(s, u)
 	}
-	v.side.open = v.tabs.Selected() != tabMixer
+	// The mixer and the patch page, which shows the track's strip and steps
+	// through the tracks, take the window's width.
+	v.side.open = v.tabs.Selected() != tabMixer && v.tabs.Selected() != tabPatch
 	v.mixer.update(s, u)
 	v.patch.update(s)
 	v.kit.update(s)
 	v.fx.update(s)
 	v.pattern.update(s, u)
+	v.beat.update(s, u)
 	if f := v.focus(); f != v.focused {
 		v.focused = f
 		u.Send(v.root, f)
@@ -466,7 +541,7 @@ func (s *spectrum) Step(dt time.Duration) bool {
 }
 
 // The editors the middle of the window shows, by their tabs.
-var editorTabs = []string{"Stage", "Mixer", "Patch", "Kit", "Effects", "Pattern"}
+var editorTabs = []string{"Stage", "Mixer", "Patch", "Kit", "Effects", "Pattern", "Beat"}
 
 const (
 	tabStage = iota
@@ -475,6 +550,7 @@ const (
 	tabKit
 	tabEffects
 	tabPattern
+	tabBeat
 )
 
 // focus says what the editors show: the patch and the drum to render,
@@ -496,6 +572,11 @@ func (v *view) focus() Focus {
 	switch v.tabs.Selected() {
 	case tabPatch:
 		f.Track = firstPlaying(v.patch.name)
+		if song != nil {
+			if t := track(song, v.patch.track); t != nil && t.Patch == v.patch.name {
+				f.Track = t.Name
+			}
+		}
 	case tabKit:
 		f.Track = firstPlaying(v.kit.name)
 	case tabPattern:
@@ -527,6 +608,7 @@ func (v *view) open(s Studio, u *gunim.UI) {
 				v.kit.choose(t.Patch)
 			} else {
 				v.patch.choose(t.Patch)
+				v.patch.track = t.Name
 			}
 		}
 	}

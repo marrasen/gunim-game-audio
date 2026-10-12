@@ -7,7 +7,8 @@
 //
 // A tiers song plays each tier for -phrases phrases, from tier 1 up, and
 // then the stings, one after another; any other song plays -phrases
-// phrases in all.
+// phrases in all. -soundfont plays the songs' sampled instruments on a
+// bank; without one, they play the engine's own sounds.
 package main
 
 import (
@@ -22,6 +23,7 @@ import (
 	"github.com/marrasen/gunim/audio/band"
 
 	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
@@ -32,7 +34,15 @@ func main() {
 	tracks := flag.Bool("tracks", false, "measure each track alone too")
 	bands := flag.Bool("bands", false, "with -tracks, show how loud each track is in each octave")
 	seed := flag.Uint64("seed", 1, "how the band plays the song")
+	font := flag.String("soundfont", "", "a General MIDI SoundFont bank, .sf2 or .sf3, for the songs' sampled instruments to play on")
 	flag.Parse()
+	if *font != "" {
+		f, err := soundfont.Open(*font)
+		if err != nil {
+			log.Fatal(err)
+		}
+		music.UseSoundFont(f)
+	}
 	s, err := music.Song(*name)
 	if err != nil {
 		log.Fatal(err)

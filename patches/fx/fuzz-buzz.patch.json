@@ -1,0 +1,22 @@
+{
+	"Osc": [
+		{
+			"Wave": "saw",
+			"Unison": 2,
+			"Spread": 16
+		}
+	],
+	"Noise": 0.3,
+	"Filter": {
+		"Type": "lp24",
+		"Cutoff": 400,
+		"Res": 0.5
+	},
+	"Amp": {
+		"Attack": 0.01,
+		"Decay": 0.1,
+		"Sustain": 1,
+		"Release": 0.1
+	},
+	"Poly": 1
+}

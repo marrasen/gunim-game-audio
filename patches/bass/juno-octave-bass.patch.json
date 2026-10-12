@@ -1,0 +1,36 @@
+{
+	"Osc": [
+		{
+			"Wave": "saw"
+		},
+		{
+			"Wave": "pulse",
+			"Width": 0.5,
+			"Octave": -1,
+			"Level": 0.55
+		}
+	],
+	"Filter": {
+		"Type": "lp24",
+		"Cutoff": 330,
+		"Res": 0.3,
+		"Env": 2.6,
+		"Key": 0.4,
+		"Vel": 0.6
+	},
+	"Amp": {
+		"Attack": 0.002,
+		"Decay": 0.2,
+		"Sustain": 0.75,
+		"Release": 0.04
+	},
+	"FilterEnv": {
+		"Attack": 0.001,
+		"Decay": 0.16,
+		"Sustain": 0.12,
+		"Release": 0.05
+	},
+	"Poly": 1,
+	"Drift": 3,
+	"Drive": 0.2
+}

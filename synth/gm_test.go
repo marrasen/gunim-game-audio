@@ -1,0 +1,570 @@
+package synth
+
+import (
+	"bytes"
+	"encoding/binary"
+	"io"
+	"math"
+	"os"
+	"testing"
+
+	"github.com/marrasen/gunim/audio"
+
+	"github.com/marrasen/gunim-game-audio/internal/sftest"
+	"github.com/marrasen/gunim-game-audio/midi"
+	"github.com/marrasen/gunim-game-audio/soundfont"
+)
+
+func TestGMPatchesCompile(t *testing.T) {
+	for _, style := range GMStyles {
+		for prog := range 128 {
+			p, err := GMStylePatch(style, prog)
+			if err == nil {
+				_, err = p.compile(GMNames[prog])
+			}
+			if err != nil {
+				t.Errorf("%s, program %d, %s: %v", style, prog, GMNames[prog], err)
+			}
+		}
+		for _, kit := range []int{0, 24, 25} {
+			if _, err := GMStyleKit(style, kit).compile("kit"); err != nil {
+				t.Errorf("%s, kit %d: %v", style, kit, err)
+			}
+		}
+	}
+	if err := NewGM().SetStyle("amiga"); err == nil {
+		t.Error("SetStyle took a style there is none of")
+	}
+}
+
+// peak renders secs of g and returns its peak, failing on a sample that
+// is not a number.
+func peak(t *testing.T, g *GM, secs float64) float32 {
+	t.Helper()
+	buf := make([]float32, 2*512)
+	var p float32
+	for range int(secs * rate / 512) {
+		g.Read(buf)
+		for _, x := range buf {
+			if math.IsNaN(float64(x)) || math.IsInf(float64(x), 0) {
+				t.Fatalf("a sample of %v", x)
+			}
+			p = max(p, abs32(x))
+		}
+	}
+	return p
+}
+
+func TestGMEveryInstrumentSounds(t *testing.T) {
+	for _, style := range GMStyles {
+		for prog := range 128 {
+			g := NewGM()
+			if err := g.SetStyle(style); err != nil {
+				t.Fatal(err)
+			}
+			g.Send(midi.Program, byte(prog), 0, nil)
+			g.Send(midi.NoteOn, 60, 100, nil)
+			if p := peak(t, g, 0.5); p < 0.01 || p > 1 {
+				t.Errorf("%s, program %d, %s, peaks at %v", style, prog, GMNames[prog], p)
+			}
+		}
+		for key := range 128 {
+			g := NewGM()
+			if err := g.SetStyle(style); err != nil {
+				t.Fatal(err)
+			}
+			g.Send(midi.NoteOn|9, byte(key), 100, nil)
+			p := peak(t, g, 0.3)
+			if GMDrumName(key) != "" && p < 0.01 {
+				t.Errorf("%s, drum %d, %s, is silent", style, key, GMDrumName(key))
+			}
+			if GMDrumName(key) == "" && p > 1e-6 {
+				t.Errorf("%s, key %d, no drum, sounds", style, key)
+			}
+		}
+	}
+}
+
+func TestGMNoteOffAndSustain(t *testing.T) {
+	g := NewGM()
+	g.Send(midi.Program, 19, 0, nil) // an organ, which holds its notes
+	g.Send(midi.NoteOn, 60, 100, nil)
+	peak(t, g, 0.2)
+	g.Send(midi.NoteOff, 60, 0, nil)
+	peak(t, g, 1.5)
+	if g.Sounding() {
+		t.Fatal("a note let go still sounds")
+	}
+	g.Send(midi.Control, 64, 127, nil)
+	g.Send(midi.NoteOn, 62, 100, nil)
+	g.Send(midi.NoteOn, 62, 0, nil) // a note off, as a note on of velocity 0
+	peak(t, g, 1.5)
+	if !g.Sounding() {
+		t.Fatal("the sustain pedal did not hold the note")
+	}
+	g.Send(midi.Control, 64, 0, nil)
+	peak(t, g, 1.5)
+	if g.Sounding() {
+		t.Fatal("the note still sounds after the pedal's lift")
+	}
+}
+
+func TestGMPitchBend(t *testing.T) {
+	g := NewGM()
+	g.Send(midi.NoteOn, 60, 100, nil)
+	g.Send(midi.PitchBend, 0, 0x60, nil) // half way up: a tone at the range of 2
+	peak(t, g, 0.05)
+	v := g.ch[0].held[0].v
+	if got := v.n.pitch; math.Abs(float64(got)-61) > 0.01 {
+		t.Errorf("bent half way up, the note is at %v, want 61", got)
+	}
+	// The range set to 12 semitones by RPN 0.
+	g.Send(midi.Control, 101, 0, nil)
+	g.Send(midi.Control, 100, 0, nil)
+	g.Send(midi.Control, 6, 12, nil)
+	peak(t, g, 0.05)
+	if got := v.n.pitch; math.Abs(float64(got)-66) > 0.01 {
+		t.Errorf("with a range of 12, the note is at %v, want 66", got)
+	}
+}
+
+func TestGMSysExDrumPart(t *testing.T) {
+	g := NewGM()
+	// GS: part 11, channel 11, to drums.
+	g.Send(midi.SysEx, 0, 0, []byte{0x41, 0x10, 0x42, 0x12, 0x40, 0x1A, 0x15, 0x01, 0x10, 0xF7})
+	if !g.ch[10].drums {
+		t.Fatal("channel 11 is not a drum channel")
+	}
+	g.Send(midi.SysEx, 0, 0, []byte{0x7E, 0x7F, 0x09, 0x01, 0xF7})
+	if g.ch[10].drums || !g.ch[9].drums {
+		t.Fatal("GM reset did not restore channel 10 alone as drums")
+	}
+}
+
+// demo is a MIDI file of 8 bars at 120 BPM: drums, a bass, piano chords,
+// strings and a flute, for the player's tests, and to listen to.
+func demo() []byte {
+	type ev struct {
+		tick int
+		msg  []byte
+	}
+	var evs []ev
+	add := func(tick int, msg ...byte) { evs = append(evs, ev{tick, msg}) }
+	note := func(ch byte, tick, dur int, key, vel byte) {
+		add(tick, 0x90|ch, key, vel)
+		add(tick+dur, 0x80|ch, key, 0)
+	}
+	const beat = 480
+	add(0, 0xC0, 0)  // piano
+	add(0, 0xC1, 33) // finger bass
+	add(0, 0xC2, 48) // strings
+	add(0, 0xC3, 73) // flute
+	add(0, 0xB2, 7, 70)
+	add(0, 0xB0, 10, 40)
+	add(0, 0xB3, 10, 88)
+	chords := [][]byte{{57, 60, 64}, {53, 57, 60}, {48, 52, 55}, {55, 59, 62}}
+	tune := []byte{76, 74, 72, 74, 76, 76, 76, 0, 74, 74, 74, 0, 76, 79, 79, 0}
+	for bar := range 8 {
+		at := bar * 4 * beat
+		ch := chords[bar%4]
+		for _, k := range ch {
+			note(0, at, 2*beat-20, k, 80)
+			note(0, at+2*beat, 2*beat-20, k, 70)
+			note(2, at, 4*beat-10, k-12, 70)
+		}
+		for i := range 8 {
+			note(1, at+i*beat/2, beat/2-30, ch[0]-24, byte(90+10*(i%2)))
+		}
+		for i := range 4 {
+			note(9, at+i*beat, 100, map[bool]byte{true: 36, false: 38}[i%2 == 0], 110)
+			note(9, at+i*beat+beat/2, 50, 42, 80)
+			note(9, at+i*beat, 50, 42, 90)
+		}
+		if bar >= 4 {
+			for i := range 4 {
+				if k := tune[(bar-4)*4+i]; k != 0 {
+					note(3, at+i*beat, beat-20, k, 90)
+				}
+			}
+		}
+	}
+	add(8*4*beat, 0xFF, 0x2F, 0x00)
+	// Sorted by tick, stably, so a note's end and the next start keep
+	// their order.
+	for i := 1; i < len(evs); i++ {
+		for j := i; j > 0 && evs[j].tick < evs[j-1].tick; j-- {
+			evs[j], evs[j-1] = evs[j-1], evs[j]
+		}
+	}
+	var trk []byte
+	last := 0
+	for _, e := range evs {
+		d := e.tick - last
+		last = e.tick
+		var vl []byte
+		for vl = []byte{byte(d & 0x7F)}; d > 0x7F; {
+			d >>= 7
+			vl = append([]byte{byte(d&0x7F | 0x80)}, vl...)
+		}
+		trk = append(trk, vl...)
+		trk = append(trk, e.msg...)
+	}
+	var b bytes.Buffer
+	b.WriteString("MThd")
+	b.Write(binary.BigEndian.AppendUint32(nil, 6))
+	b.Write([]byte{0, 0, 0, 1, beat >> 8, beat & 0xFF})
+	b.WriteString("MTrk")
+	b.Write(binary.BigEndian.AppendUint32(nil, uint32(len(trk))))
+	b.Write(trk)
+	return b.Bytes()
+}
+
+func TestMIDIPlayerPlaysToTheEnd(t *testing.T) {
+	data := demo()
+	if out := os.Getenv("GM_DEMO"); out != "" {
+		// GM_DEMO=demo.mid go test -run MIDIPlayer writes the demo out.
+		if err := os.WriteFile(out, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f, err := midi.Read(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Length(); math.Abs(got-16) > 1e-9 {
+		t.Fatalf("Length = %v, want 16 s", got)
+	}
+	p := NewMIDIPlayer(f)
+	buf := make([]float32, 2*1000)
+	var m audio.LoudnessMeter
+	frames := 0
+	for {
+		n, err := p.Read(buf)
+		m.Write(buf[:2*n])
+		frames += n
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if frames > 30*rate {
+			t.Fatal("still playing at 30 s")
+		}
+	}
+	// The file, then the last notes' release and the reverb's tail.
+	if secs := float64(frames) / rate; secs < 16 || secs > 21 {
+		t.Errorf("played %.2f s, want 16 and a tail", secs)
+	}
+	lufs, _ := m.Integrated()
+	if lufs < -22 || lufs > -12 || m.Peak() > 1 {
+		t.Errorf("played at %.1f LUFS, peak %v", lufs, m.Peak())
+	}
+	t.Logf("%.1f LUFS, peak %.1f dB", lufs, 20*math.Log10(float64(m.Peak())))
+
+	// Sought to bar 5, the flute is set for the tune.
+	p.Seek(8.5)
+	if got := p.gm.ch[3].program; got != 73 {
+		t.Errorf("sought, channel 4 plays program %d, want 73", got)
+	}
+	if got := p.Position(); got != 8.5 {
+		t.Errorf("sought to 8.5 s, Position = %v", got)
+	}
+}
+
+func TestMIDIPlayerSpeedMuteAndTime(t *testing.T) {
+	f, err := midi.Read(bytes.NewReader(demo()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := NewMIDIPlayer(f)
+	p.SetSpeed(2)
+	buf := make([]float32, 2*480)
+	for range 100 { // 1 s given
+		if _, err := p.Read(buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := p.Position(); math.Abs(got-2) > 0.01 {
+		t.Errorf("at twice the speed, 1 s plays %v s of the file, want 2", got)
+	}
+	if got := p.TimeAt(24000); math.Abs(got-1) > 0.01 {
+		t.Errorf("TimeAt half a second given = %v, want 1", got)
+	}
+	p.Seek(10)
+	p.SetSpeed(1)
+	for range 10 {
+		_, _ = p.Read(buf)
+	}
+	if got := p.TimeAt(48000 + 4800); math.Abs(got-10.1) > 0.01 {
+		t.Errorf("after a seek, TimeAt = %v, want 10.1", got)
+	}
+	// Every channel muted: silence, once the reverb's tail of what came
+	// before has died.
+	for ch := range 16 {
+		p.SetMute(ch, true)
+	}
+	for range 400 {
+		_, _ = p.Read(buf)
+	}
+	var peak float32
+	for range 20 {
+		_, _ = p.Read(buf)
+		for _, x := range buf {
+			peak = max(peak, abs32(x))
+		}
+	}
+	if peak > 1e-3 {
+		t.Errorf("all muted, the player peaks at %v", peak)
+	}
+}
+
+func TestGMMixStripsMetersAndMaster(t *testing.T) {
+	play := func(m GMMix) (GMMeters, float32) {
+		g := NewGM()
+		g.SetMix(m)
+		g.Send(midi.Program, 19, 0, nil) // an organ, held
+		g.Send(midi.NoteOn, 60, 100, nil)
+		g.Send(midi.NoteOn|1, 64, 100, nil)
+		p := peak(t, g, 0.5)
+		return g.TakeMeters(), p
+	}
+	flat := DefaultGMMix()
+	m0, p0 := play(flat)
+	if m0.Channels[0] <= 0 || m0.Channels[1] <= 0 || m0.Left <= 0 || m0.Channels[2] != 0 {
+		t.Fatalf("the meters read %+v", m0)
+	}
+	// Channel 1 turned down 60 dB: its meter falls, and channel 2's holds.
+	quiet := flat
+	quiet.Channels[0].Gain = -60
+	m1, _ := play(quiet)
+	if m1.Channels[0] > m0.Channels[0]/100 || math.Abs(float64(m1.Channels[1]-m0.Channels[1])) > 1e-3 {
+		t.Errorf("channel 1 at -60 dB meters %v, from %v; channel 2 %v, from %v", m1.Channels[0], m0.Channels[0], m1.Channels[1], m0.Channels[1])
+	}
+	// The master turned up 12 dB, the limiter holds it under its ceiling.
+	loud := flat
+	loud.Gain = 12
+	loud.Limiter.Ceiling = -3
+	m2, p2 := play(loud)
+	if p2 > float32(dbGain(-3))*1.02 || m2.Limit <= 0 {
+		t.Errorf("12 dB up, the limiter at -3 dB lets through %v (%v), reducing %v dB", p2, p0, m2.Limit)
+	}
+	// The delay sends: echoes ring on after the notes stop.
+	echo := flat
+	echo.Channels[0].Delay = 1
+	echo.Delay.Feedback = 0.6
+	g := NewGM()
+	g.SetMix(echo)
+	g.Send(midi.NoteOn, 60, 110, nil)
+	peak(t, g, 0.1)
+	g.Send(midi.NoteOff, 60, 0, nil)
+	peak(t, g, 0.6)
+	if p := peak(t, g, 0.4); p < 1e-3 {
+		t.Errorf("the delay's echoes are gone 0.6 s after the note: %v", p)
+	}
+}
+
+func TestGMBandResponse(t *testing.T) {
+	b := GMBand{Freq: 1000, Gain: 6, Q: 1}
+	if got := GMBandResponse(2, b, 1000); math.Abs(got-6) > 0.1 {
+		t.Errorf("a bell of 6 dB at 1 kHz lifts 1 kHz by %v dB", got)
+	}
+	if got := GMBandResponse(2, b, 50); math.Abs(got) > 0.3 {
+		t.Errorf("a bell at 1 kHz lifts 50 Hz by %v dB", got)
+	}
+	if got := GMBandResponse(0, GMBand{Freq: 100, Gain: -9, Q: 0.7}, 20); math.Abs(got+9) > 0.5 {
+		t.Errorf("a low shelf of -9 dB at 100 Hz takes 20 Hz down %v dB", got)
+	}
+}
+
+func TestTheSoundFontStylePlaysTheBank(t *testing.T) {
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := NewGM()
+	g.SetSoundFont(f)
+	if err := g.SetStyle("soundfont"); err != nil {
+		t.Fatal(err)
+	}
+	g.Send(midi.NoteOn, 72, 127, nil)
+	buf := make([]float32, 2*4800)
+	g.Read(buf)
+	// The square of 100 frames at 44100 Hz is 441 Hz at its root, 60:
+	// key 72 plays it an octave up. It is panned hard right.
+	crossings, first, last := 0, -1, -1
+	var left, right float32
+	for i := 1; i < 4800; i++ {
+		a, b := buf[2*(i-1)+1], buf[2*i+1]
+		left = max(left, abs32(buf[2*i]))
+		right = max(right, abs32(buf[2*i+1]))
+		if a <= 0 && b > 0 {
+			if first < 0 {
+				first = i
+			}
+			last, crossings = i, crossings+1
+		}
+	}
+	if crossings < 2 {
+		t.Fatal("the bank's note is silent")
+	}
+	if hz := float64(crossings-1) * rate / float64(last-first); math.Abs(hz-882) > 5 {
+		t.Errorf("key 72 plays at %.1f Hz, want 882", hz)
+	}
+	if left > right*0.3 {
+		t.Errorf("panned right, it plays %v left and %v right", left, right)
+	}
+	// Let go, it dies in its release of a tenth of a second.
+	g.Send(midi.NoteOff, 72, 0, nil)
+	peak(t, g, 0.5)
+	if g.Sounding() {
+		t.Error("the note sounds half a second after it was let go")
+	}
+	// A program the bank lacks plays on the engine's own instruments.
+	g.Send(midi.Program, 40, 0, nil)
+	g.Send(midi.NoteOn, 60, 100, nil)
+	if p := peak(t, g, 0.2); p < 0.01 {
+		t.Error("a program the bank lacks is silent")
+	}
+}
+
+func TestASongPatchPlaysOnARegisteredBankOrWithout(t *testing.T) {
+	song := func() *Song {
+		return &Song{BPM: 120, Patches: map[string]*Patch{"keys": {SoundFont: "test bank", Program: 0}},
+			Tracks: []*Track{{Name: "keys", Tier: 1, Patch: "keys", Pattern: "c5"}}}
+	}
+	key := 0
+	render := func() (pitch float64, peak float32) {
+		p := NewPlayer(song(), 1)
+		if err := p.Err(); err != nil {
+			t.Fatal(err)
+		}
+		p.SetTier(1)
+		buf := make([]float32, 2*12000)
+		p.Read(buf)
+		if ns := p.Notes(nil, 0); len(ns) > 0 {
+			key = ns[0].Pitch
+		}
+		crossings, first, last := 0, -1, -1
+		for i := 1; i < len(buf)/2; i++ {
+			peak = max(peak, abs32(buf[2*i+1]))
+			a, b := buf[2*(i-1)+1], buf[2*i+1]
+			if a <= 0 && b > 0 {
+				if first < 0 {
+					first = i
+				}
+				last, crossings = i, crossings+1
+			}
+		}
+		if crossings > 2 {
+			pitch = float64(crossings-1) * rate / float64(last-first)
+		}
+		return pitch, peak
+	}
+	// No bank of the name: General MIDI's piano plays it.
+	if _, pk := render(); pk < 0.01 {
+		t.Fatal("without its bank, the patch is silent")
+	}
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	RegisterSoundFont("test bank", f)
+	defer RegisterSoundFont("test bank", nil)
+	// With it, the bank's square plays, 441 Hz at its root, 60, and an
+	// octave up each 12 keys over it.
+	hz, pk := render()
+	want := 441 * math.Pow(2, float64(key-60)/12)
+	if pk < 0.01 || math.Abs(hz-want) > want*0.01 {
+		t.Errorf("on its bank, key %d plays %.1f Hz at %v, want %.1f", key, hz, pk, want)
+	}
+}
+
+func TestAKitPlaysOnARegisteredBankOrWithout(t *testing.T) {
+	render := func(pattern string) (left, right float32) {
+		s := &Song{BPM: 120, Patches: map[string]*Patch{"kit": {Kind: "drums", SoundFont: "test bank"}},
+			Tracks: []*Track{{Name: "kit", Tier: 1, Patch: "kit", Pattern: pattern}}}
+		p := NewPlayer(s, 1)
+		if err := p.Err(); err != nil {
+			t.Fatal(err)
+		}
+		p.SetTier(1)
+		buf := make([]float32, 2*12000)
+		p.Read(buf)
+		for i := 0; i < len(buf); i += 2 {
+			left, right = max(left, abs32(buf[i])), max(right, abs32(buf[i+1]))
+		}
+		return left, right
+	}
+	// No bank: the engine's snare, in the middle.
+	if l, r := render("sn"); l < 0.01 || r < 0.01 {
+		t.Fatalf("without its bank, the snare peaks at %v and %v", l, r)
+	}
+	f, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	RegisterSoundFont("test bank", f)
+	defer RegisterSoundFont("test bank", nil)
+	// The bank's kit has the snare, key 38, panned hard right.
+	if l, r := render("sn"); r < 0.01 || l > r*0.05 {
+		t.Errorf("on its bank, the snare peaks at %v left and %v right; want the bank's, hard right", l, r)
+	}
+	// It has no crash, key 49: the engine's plays it.
+	if l, _ := render("cr"); l < 0.005 {
+		t.Errorf("a drum the bank lacks peaks at %v left; want the engine's", l)
+	}
+}
+
+func TestATierClimbsOnARoll(t *testing.T) {
+	s := &Song{BPM: 120, PhraseBars: 4, Chords: []string{"Dm"},
+		Patches: map[string]*Patch{"kit": {Kind: "drums"}, "keys": GMPatch(0)},
+		Tracks:  []*Track{{Name: "keys", Tier: 1, Patch: "keys", Pattern: "c0"}, {Name: "kit", Tier: 2, Patch: "kit", Pattern: "bd"}},
+		Mix:     Mix{Transitions: &Transitions{Patch: "kit", Lift: 2, Roll: "tim"}}}
+	p := NewPlayer(s, 1)
+	if err := p.Err(); err != nil {
+		t.Fatal(err)
+	}
+	p.SetTier(1)
+	buf := make([]float32, 2*1024)
+	read := func(bars float64) {
+		for n := int(bars * p.c.fpb); n > 0; n -= len(buf) / 2 {
+			p.Read(buf[:2*min(len(buf)/2, n)])
+		}
+	}
+	read(1.5)
+	p.SetTier(2)
+	read(0.6)
+	// Into bar 3, the roll's two bars are queued: 4 quarters, then 8
+	// 8ths, swelling, on D, the chord's root.
+	var vels []float32
+	for _, q := range p.queue {
+		if q.t == p.trans && q.d.name == "tim" {
+			vels = append(vels, q.n.vel)
+			if q.pitch != 38 {
+				t.Fatalf("the timpani rolls on %v, want 38, D", q.pitch)
+			}
+		}
+	}
+	if len(vels) != 12 {
+		t.Fatalf("the roll has %d hits, want 12", len(vels))
+	}
+	// Notes tells each hit once, as its bar comes.
+	read(2)
+	heard := 0
+	for _, n := range p.Notes(nil, 0) {
+		if n.Track == "transitions" && n.Drum == "tim" {
+			heard++
+		}
+	}
+	if heard != 12 {
+		t.Errorf("Notes tells %d hits of the roll, want 12", heard)
+	}
+	if vels[0] > 0.35 || vels[len(vels)-1] < 0.9 {
+		t.Errorf("the roll swells from %v to %v", vels[0], vels[len(vels)-1])
+	}
+	// In its last bar, the 8ths off the beat fall back from those on it.
+	if on, off := vels[6], vels[5]; off >= on {
+		t.Errorf("an 8th off the beat plays at %v, the beat after at %v", off, on)
+	}
+}

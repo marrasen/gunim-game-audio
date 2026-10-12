@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"slices"
 	"time"
@@ -21,11 +22,20 @@ import (
 // type, its knobs, and its sound drawn.
 type kitPane struct {
 	*widget.Scroll
-	base    string
-	name    string
-	drum    string
-	names   []string
-	picker  *widget.Dropdown
+	base   string
+	name   string
+	drum   string
+	names  []string
+	picker *widget.Dropdown
+	// sampled picks what the kit plays on: the engine's drums, or a
+	// bank's kit, and fontKit which of its kits; sampleN and kitN are
+	// their items' bank names and programs.
+	sampled *widget.Dropdown
+	fontKit *widget.Dropdown
+	sampleN []string
+	kitN    []int
+	lib     *libraryBar
+	tree    *presetTree
 	about   *widget.Label
 	copy    *widget.IconButton
 	load    *widget.IconButton
@@ -49,16 +59,34 @@ func newKitPane(changed func(kit, drum string) gunim.Intent) *kitPane {
 		}
 		return kp.changed(kp.name, kp.drum)
 	}
-	newKit := widget.NewButton("New kit")
-	newKit.Icon, newKit.OnClick, newKit.Ghost = icon.Plus, widget.Sends(PatchNew{Kind: "drums"}), true
+	newKit := widget.NewIconButton(icon.Plus, "A new kit")
+	newKit.OnClick = widget.Sends(PatchNew{Kind: "drums"})
 	kp.copy = widget.NewIconButton(icon.Copy, "Copy the kit")
 	kp.load = widget.NewIconButton(icon.FolderOpen, "Load a kit from a file in this one's place")
 	kp.save = widget.NewIconButton(icon.Save, "Save the kit to a file")
 	importK := widget.NewIconButton(icon.FileInput, "Load a kit from a file as a new one")
 	importK.OnClick = widget.Sends(PatchLoad{})
 	kp.about = small("")
+	kp.sampled = widget.NewDropdown(widget.Labels("Own drums"))
+	kp.sampled.Label = "Plays on"
+	kp.sampled.Tooltip = "The engine's drums, or a SoundFont bank's kit; where the bank is missing, as in a game that ships none, or lacks a drum, the engine's drum plays"
+	kp.sampled.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+		name := ""
+		if i > 0 && i < len(kp.sampleN) {
+			name = kp.sampleN[i]
+		}
+		return SetValue{Path: kp.base + "/SoundFont", Str: name, IsStr: true}
+	}
+	kp.fontKit = widget.NewDropdown(widget.Labels("–"))
+	kp.fontKit.Label = "Kit"
+	kp.fontKit.OnChange = func(i int, _ *gunim.UI) gunim.Intent {
+		if i >= len(kp.kitN) {
+			return nil
+		}
+		return SetValue{Path: kp.base + "/Program", Num: float64(kp.kitN[i])}
+	}
 	gap := widget.NewSpacer()
-	head := widget.Row(kp.picker, kp.about, gap, newKit, kp.copy, importK, kp.load, kp.save).Grow(gap, 1)
+	head := widget.Row(kp.picker, kp.about, gap, kp.sampled, kp.fontKit, newKit, kp.copy, importK, kp.load, kp.save).Grow(gap, 1)
 	head.Cross = widget.CrossCenter
 
 	kp.pads = &pads{names: synth.DrumNames}
@@ -92,12 +120,18 @@ func newKitPane(changed func(kit, drum string) gunim.Intent) *kitPane {
 	drumHead.Grow(drumHead.Children()[1], 1)
 	drumHead.Cross = widget.CrossCenter
 	editor := panelWith(drumHead, knobs(kp.ks...), sized(kp.hit, 0, 110), sized(kp.close, 0, 90))
-	padPanel := panel("PADS · press one to play it and edit it", sized(kp.pads, 0, 340))
+	padPanel := panel("PADS · press one to play it and edit it", kp.pads)
 	body := widget.Row(padPanel, editor).Grow(padPanel, 1.1).Grow(editor, 1)
 	body.Cross = widget.CrossStretch
-	col := widget.Column(head, body)
+	kp.lib = newLibraryBar()
+	col := widget.Column(head, kp.lib, body)
 	col.Cross = widget.CrossStretch
-	kp.Scroll = widget.NewScroll(widget.NewPad(col))
+	kp.tree = newPresetTree(true)
+	shelf := widget.Column(small("KIT LIBRARY"), widget.NewSized(widget.NewScroll(kp.tree), 0, 560))
+	shelf.Cross = widget.CrossStretch
+	page := widget.Row(widget.NewSized(shelf, 196, 0), col).Grow(col, 1)
+	page.Cross = widget.CrossStart
+	kp.Scroll = widget.NewScroll(widget.NewPad(page))
 	return kp
 }
 
@@ -133,6 +167,8 @@ func (kp *kitPane) update(st Studio) {
 	if p == nil {
 		return
 	}
+	kp.lib.update(st, kp.name)
+	kp.tree.update(st, kp.name)
 	var users []string
 	for _, t := range song.Tracks {
 		if t.Patch == kp.name {
@@ -143,6 +179,10 @@ func (kp *kitPane) update(st Studio) {
 	if len(users) == 0 {
 		kp.about.Text = "kit · played by nothing yet"
 	}
+	if p.SoundFont != "" && st.Font != p.SoundFont {
+		kp.about.Text = p.SoundFont + " is not loaded: the engine's drums play"
+	}
+	kp.showSampled(st, p)
 	kp.copy.OnClick, kp.load.OnClick, kp.save.OnClick = widget.Sends(PatchCopy{Name: kp.name}), widget.Sends(PatchLoad{Name: kp.name}), widget.Sends(PatchSave{Name: kp.name})
 	kp.pads.kit, kp.pads.chosen = p, kp.drum
 	kp.pads.playButton.OnClick = widget.Sends(Audition{Patch: kp.name, Drum: kp.drum})
@@ -168,6 +208,55 @@ func (kp *kitPane) update(st Studio) {
 	}
 }
 
+// gmKits are the drum kits of General MIDI's banks, as Roland's GS has
+// them, for a kit naming a bank that is not loaded.
+var gmKits = []FontKit{{0, "Standard"}, {8, "Room"}, {16, "Power"}, {24, "Electronic"}, {25, "TR-808"},
+	{32, "Jazz"}, {40, "Brush"}, {48, "Orchestra"}}
+
+// showSampled shows what the kit plays on: the engine's drums, the bank
+// registered, or a bank it names that is not, and which of its kits.
+func (kp *kitPane) showSampled(st Studio, p *synth.Patch) {
+	names := []string{""}
+	labels := []string{"Own drums"}
+	if st.Font != "" {
+		names, labels = append(names, st.Font), append(labels, st.Font)
+	}
+	if p.SoundFont != "" && p.SoundFont != st.Font {
+		names, labels = append(names, p.SoundFont), append(labels, p.SoundFont+" (not loaded)")
+	}
+	// Labels too: a bank loaded, or let go, keeps the names but not
+	// their labels.
+	if items := widget.Labels(labels...); !slices.Equal(names, kp.sampleN) || !slices.Equal(items, kp.sampled.Items()) {
+		kp.sampleN = names
+		kp.sampled.SetItems(items)
+	}
+	kp.sampled.SetSelected(max(slices.Index(names, p.SoundFont), 0), nil)
+	kp.sampled.Disabled = len(names) == 1
+	kits := gmKits
+	if p.SoundFont != "" && p.SoundFont == st.Font && len(st.FontKits) > 0 {
+		kits = st.FontKits
+	}
+	progs := make([]int, len(kits))
+	for i, k := range kits {
+		progs[i] = k.Program
+	}
+	if !slices.Contains(progs, p.Program) {
+		// A kit the list lacks still shows, by its number.
+		kits = append(slices.Clone(kits), FontKit{p.Program, fmt.Sprintf("Kit %d", p.Program+1)})
+		progs = append(progs, p.Program)
+	}
+	if !slices.Equal(progs, kp.kitN) {
+		kp.kitN = progs
+		ls := make([]string, len(kits))
+		for i, k := range kits {
+			ls[i] = k.Name
+		}
+		kp.fontKit.SetItems(widget.Labels(ls...))
+	}
+	kp.fontKit.SetSelected(slices.Index(progs, p.Program), nil)
+	kp.fontKit.Disabled = p.SoundFont == ""
+}
+
 // pads are a kit's drums as pads, four across, each its drum's name and
 // type, lit as the drum is hit.
 type pads struct {
@@ -182,9 +271,16 @@ type pads struct {
 
 const padCols = 4
 
+// padRowH is how tall a row of pads is: room for a drum's name and,
+// under it, its type.
+const padRowH = 56
+
+// Layout makes the pads as tall as their rows, so each has room for
+// both its lines, however many drums the kit has.
 func (pd *pads) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
-	pd.size = c.Max
-	return c.Max
+	rows := (len(pd.names) + padCols - 1) / padCols
+	pd.size = c.Constrain(geom.Sz(c.Max.W, float32(max(rows, 1))*padRowH))
+	return pd.size
 }
 
 func (pd *pads) rect(i int) geom.Rect {

@@ -1,0 +1,168 @@
+{
+	"Kind": "synth",
+	"Title": "Mirror Shine",
+	"Category": "Grooves",
+	"Artist": "Marcus Johansson",
+	"BPM": 124,
+	"BeatsPerBar": 4,
+	"PhraseBars": 16,
+	"Key": "G",
+	"Scale": "minor",
+	"Chords": [
+		"Gm"
+	],
+	"Mode": "wander",
+	"Clap": {"Track": "snare", "Drum": "sn"},
+	"Patches": {
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd9": {"Tune": -1, "Decay": 1.2, "Tone": 0.5},
+				"sn": {"Tune": 4, "Tone": 0.45, "Decay": 0.7},
+				"cp": {"Tone": 0.3},
+				"hh": {"Tone": 0.6, "Gain": 0.8},
+				"oh": {"Tone": 0.6, "Decay": 0.4, "Gain": 0.6},
+				"rd": {"Tone": 0.3, "Decay": 0.6},
+				"rim": {"Gain": 0.9},
+				"cr": {"Tone": 0.4},
+				"riser": {"Tone": 0.5}
+			}
+		},
+		"stab": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 2, "Spread": 20},
+				{"Wave": "pulse", "Width": 0.5, "Level": 0.5}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 2200, "Res": 0.3, "Env": 1.5, "Key": 0.4, "Vel": 0.6},
+			"Amp": {"Attack": 0.002, "Decay": 0.18, "Sustain": 0, "Release": 0.08},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.12, "Sustain": 0, "Release": 0.08},
+			"Bend": {"Semis": 3, "Time": 0.06},
+			"Poly": 4,
+			"Drift": 3,
+			"Gain": 0.7
+		},
+		"line": {
+			"Osc": [
+				{"Wave": "pulse", "Width": 0.3}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 900, "Res": 0.4, "Env": 1.5, "Key": 0.4, "Vel": 0.7},
+			"Amp": {"Attack": 0.001, "Decay": 0.14, "Sustain": 0, "Release": 0.05},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.1, "Sustain": 0, "Release": 0.05},
+			"LFO": [{"To": "width", "Wave": "sine", "Hz": 0.3, "Depth": 0.25}],
+			"Poly": 2,
+			"Drift": 3,
+			"Gain": 0.8
+		},
+		"buzz": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 2, "Spread": 16}
+			],
+			"Noise": 0.3,
+			"Filter": {"Type": "lp24", "Cutoff": 400, "Res": 0.5},
+			"Amp": {"Attack": 0.01, "Decay": 0.1, "Sustain": 1, "Release": 0.1},
+			"Poly": 1,
+			"Gain": 0.8
+		},
+		"voice": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 2, "Spread": 8},
+				{"Wave": "pulse", "Width": 0.4, "Level": 0.5},
+				{"Wave": "saw", "Octave": -1, "Level": 0.4}
+			],
+			"Noise": 0.08,
+			"Vocoder": true,
+			"Vowel": "a",
+			"Amp": {"Attack": 0.008, "Decay": 0.15, "Sustain": 0.85, "Release": 0.08},
+			"Poly": 1,
+			"Drift": 2,
+			"Gain": 1
+		},
+		"acid": {
+			"Osc": [
+				{"Wave": "saw"}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 380, "Res": 0.78, "Env": 2.4, "Key": 0.4, "Vel": 0.8},
+			"Amp": {"Attack": 0.003, "Decay": 3.5, "Sustain": 0, "Release": 0.016},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.5, "Sustain": 0, "Release": 0.02},
+			"Poly": 1,
+			"Glide": 0.06,
+			"Slide": true,
+			"Accent": 1.4,
+			"Drive": 0.3,
+			"Gain": 0.8
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "kick", "Core": true, "Patch": "kit", "Color": "#ff5c5c",
+			"Pattern": "<[bd9*4]*16 [bd9*4]*16 [bd9*4]*16 [bd9*4]*16 [bd9*4]*16 [[~]*8 [bd9*4]*8] [bd9*4]*16 [bd9*4]*16>",
+			"Bars": 16, "Gain": -0.5
+		},
+		{
+			"Name": "snare", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "<[~ sn ~ sn]*16 [~ sn ~ sn]*16 [~ sn ~ sn]*16 [~ sn ~ sn]*16 [~ sn ~ sn]*16 [~ ~ ~ ~ ~ ~ ~ ~ [~ sn ~ sn] [~ sn ~ sn] [~ sn ~ sn] [~ sn ~ sn] [~ sn ~ sn] [~ sn ~ sn] [~ sn ~ sn] [~ sn ~ [sn sn sn sn]]] [~ sn ~ sn]*16 [~ sn ~ sn]*16>",
+			"Bars": 16, "Gain": -7, "Reverb": 0.12
+		},
+		{
+			"Name": "claps", "Core": true, "Patch": "kit", "Color": "#ffb070",
+			"Pattern": "<~ ~ ~ [[~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ [cp cp cp cp]]] ~ ~ [[~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ cp] [~ cp ~ [cp cp cp cp]]] [[~ cp ~ cp]*8 [~]*8]>",
+			"Bars": 16, "Gain": -4.5, "Reverb": 0.25, "Pan": 0.1
+		},
+		{
+			"Name": "hats", "Core": true, "Patch": "kit", "Color": "#ffcf5c",
+			"Pattern": "<[~ hh ~ hh]*16 [~ hh ~ hh]*16 [hh hh oh hh]*16 [hh hh oh hh]*16 [~ hh ~ hh]*16 [[~]*8 [hh hh oh hh]*8] [hh hh oh hh]*16 [[hh hh oh hh]*8 [~ hh ~ hh]*8]>",
+			"Bars": 16, "Params": {"vel": "[0.6 0.5 0.9 0.5]*64"}, "Gain": 3, "Pan": 0.2, "Duck": 0.2
+		},
+		{
+			"Name": "ride", "Core": true, "Patch": "kit", "Color": "#d8d0a0",
+			"Pattern": "<~ [~ rd ~ rd ~ rd ~ rd]*16 [~ rd ~ rd ~ rd ~ rd]*16 [~ rd ~ rd ~ rd ~ rd]*16 ~ ~ [~ rd ~ rd ~ rd ~ rd]*16 [~ rd ~ rd ~ rd ~ rd]*16>",
+			"Bars": 16, "Params": {"tune": "<~ ~ ~ ~ ~ ~ ~ [0*8 saw:0:7 saw:7:0]>", "vel": "[0.7 0.9]*128"}, "Gain": -8, "Pan": -0.25, "LPF": 7000, "Reverb": 0.15, "Duck": 0.3
+		},
+		{
+			"Name": "rim", "Core": true, "Patch": "kit", "Color": "#ffe28a",
+			"Pattern": "<~ ~ ~ ~ ~ ~ [~ ~ rim ~ ~ rim ~ ~ ~ ~ rim ~ ~ rim ~ rim]*16 [[~ ~ rim ~ ~ rim ~ ~ ~ ~ rim ~ ~ rim ~ rim]*8 [~]*8]>",
+			"Bars": 16, "Gain": -3, "Pan": -0.15, "Delay": 0.12
+		},
+		{
+			"Name": "fx", "Core": true, "Patch": "kit", "Color": "#9aa3b5",
+			"Pattern": "<~ [cr ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~] [cr ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~] ~ [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ riser _] [cr ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~] ~>",
+			"Bars": 16, "Gain": -17, "Reverb": 0.3
+		},
+		{
+			"Name": "stab", "Core": true, "Patch": "stab", "Color": "#ff6b9d",
+			"Pattern": "<[[G4 ~ ~ G4 ~ ~ Bb4 ~ ~ ~ ~ ~ F4 ~ G4 ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D5 C5]]*8 [[G4 ~ ~ G4 ~ ~ Bb4 ~ ~ ~ ~ ~ F4 ~ G4 ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D5 C5]]*8 [[G4 ~ ~ G4 ~ ~ Bb4 ~ ~ ~ ~ ~ F4 ~ G4 ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D5 C5]]*8 [[G4 ~ ~ G4 ~ ~ Bb4 ~ ~ ~ ~ ~ F4 ~ G4 ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D5 C5]]*8 ~ [[G4 ~ ~ G4 ~ ~ Bb4 ~ ~ ~ ~ ~ F4 ~ G4 ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D5 C5]]*8 [[G4 ~ ~ G4 ~ ~ Bb4 ~ ~ ~ ~ ~ F4 ~ G4 ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D5 C5]]*8 [[[G4 ~ ~ G4 ~ ~ Bb4 ~ ~ ~ ~ ~ F4 ~ G4 ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D5 C5]]*4 ~]>",
+			"Bars": 16, "Params": {"vel": "[1 0.85]*128"}, "Gain": 2, "Reverb": 0.18, "Delay": 0.22, "Duck": 0.3, "ChorusType": "juno2", "Chorus": 0.4
+		},
+		{
+			"Name": "line", "Core": true, "Patch": "line", "Color": "#5ce1a8",
+			"Pattern": "<~ [G3 ~ G3 G4 ~ G3 F3 ~ G3 ~ Bb3 ~ G3 G4 ~ F3]*16 [G3 ~ G3 G4 ~ G3 F3 ~ G3 ~ Bb3 ~ G3 G4 ~ F3]*16 [G3 ~ G3 G4 ~ G3 F3 ~ G3 ~ Bb3 ~ G3 G4 ~ F3]*16 ~ ~ [G3 ~ G3 G4 ~ G3 F3 ~ G3 ~ Bb3 ~ G3 G4 ~ F3]*16 [[G3 ~ G3 G4 ~ G3 F3 ~ G3 ~ Bb3 ~ G3 G4 ~ F3]*8 [~]*8]>",
+			"Bars": 16, "Params": {"vel": "[1 0.6 0.8 0.6]*64"}, "Gain": -1, "Pan": 0.2, "Delay": 0.15, "Duck": 0.4
+		},
+		{
+			"Name": "buzz", "Core": true, "Patch": "buzz", "Color": "#c0a060",
+			"Pattern": "<~ ~ ~ G2*256 G2*256 ~ G2*256 G2*256>",
+			"Bars": 16, "Legato": 1, "Params": {"cutoff": "<~ ~ ~ saw:250:2200 saw:2200:150 ~ sine:700:2600:0.5 saw:1800:120>"}, "Gain": -18, "Distort": 0.7, "Duck": 0.45
+		},
+		{
+			"Name": "voice", "Core": true, "Patch": "voice", "Color": "#c58cff",
+			"Pattern": "<~ ~ [[[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [F4 ~ D4 ~ C4 ~ Bb3 _ ~ ~ ~ ~ ~ ~ ~ ~]]]*2 [[[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [F4 ~ D4 ~ C4 ~ Bb3 _ ~ ~ ~ ~ ~ ~ ~ ~]]]*2 [[[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [F4 ~ D4 ~ C4 ~ Bb3 _ ~ ~ ~ ~ ~ ~ ~ ~]]]*2 [[[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [F4 ~ D4 ~ C4 ~ Bb3 _ ~ ~ ~ ~ ~ ~ ~ ~]]]*2 [[[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [F4 ~ D4 ~ C4 ~ Bb3 _ ~ ~ ~ ~ ~ ~ ~ ~]]]*2 [[[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [D4 ~ C4 ~ D4 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~]] [[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ D4 D4] [F4 ~ D4 ~ C4 ~ Bb3 _ ~ ~ ~ ~ ~ ~ ~ ~]] ~ ~ ~ ~]>",
+			"Bars": 16, "Legato": 0.9, "Params": {"vowel": "[a a a a a a a a a a a a a a i e a a o a e a a a a a a a a a a a]*8"}, "Gain": -3.5, "Reverb": 0.12, "Delay": 0.25, "ChorusType": "juno1", "Chorus": 0.6
+		},
+		{
+			"Name": "acid", "Core": true, "Patch": "acid", "Color": "#3fd0c9",
+			"Pattern": "<~ ~ ~ ~ ~ ~ [G2 G2 G3 ~ Bb2 G2 ~ F2 G2 ~ G3 G2 Bb2 ~ F3 G2]*16 [[G2 G2 G3 ~ Bb2 G2 ~ F2 G2 ~ G3 G2 Bb2 ~ F3 G2]*8 [~]*8]>",
+			"Bars": 16, "Params": {"vel": "[1 0.6 0.7 0.6 1 0.6 0.6 0.8 0.6 0.6 1 0.6 0.7 0.6 1 0.6]*16", "legato": "[0.5 0.5 1.2 0.5 0.5 0.5 0.5 1.2 0.5 0.5 0.5 1.2 0.5 0.5 0.5 0.5]*16", "cutoff": "<~ ~ ~ ~ ~ ~ sine:260:900:0.5 saw:700:200>"}, "Gain": -11.5, "Distort": 0.2, "Duck": 0.35, "Delay": 0.08
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 0.6, "Decay": 1.2, "Tone": 0.55, "PreDelay": 0.015},
+		"Delay": {"Beats": 0.75, "Feedback": 0.32, "Tone": 0.35},
+		"Duck": "kick",
+		"MonoBass": 150,
+		"Air": 1.5,
+		"Tape": 0.7,
+		"Threshold": -5,
+		"Ratio": 2,
+		"Gain": 4
+	}
+}

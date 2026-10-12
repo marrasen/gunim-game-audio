@@ -5,7 +5,8 @@
 //
 // -song picks the song, by name, and -list lists them. -seed picks how
 // the band plays it; each seed plays it its own way. -tier sets the
-// tier of a song that has tiers. The jukebox, cmd/jukebox, is a window
+// tier of a song that has tiers. -soundfont plays the songs' sampled
+// instruments on a General MIDI bank, .sf2 or .sf3. The jukebox, cmd/jukebox, is a window
 // to try the songs in.
 package main
 
@@ -23,6 +24,7 @@ import (
 	"github.com/marrasen/gunim/audio/speaker"
 
 	music "github.com/marrasen/gunim-game-audio"
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 func main() {
@@ -30,7 +32,15 @@ func main() {
 	list := flag.Bool("list", false, "list the songs, and quit")
 	seed := flag.Uint64("seed", uint64(time.Now().UnixNano()), "how the band plays the song")
 	tier := flag.Int("tier", 1, "the tier to play, for a song that has tiers")
+	font := flag.String("soundfont", "", "a General MIDI SoundFont bank, .sf2 or .sf3, for the songs' sampled instruments to play on")
 	flag.Parse()
+	if *font != "" {
+		f, err := soundfont.Open(*font)
+		if err != nil {
+			log.Fatal(err)
+		}
+		music.UseSoundFont(f)
+	}
 	if *list {
 		for _, n := range music.Songs() {
 			if s, err := music.Song(n); err == nil {

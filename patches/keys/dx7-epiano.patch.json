@@ -1,0 +1,26 @@
+{
+	"Osc": [
+		{
+			"Wave": "fm",
+			"Ratio": 1,
+			"Index": 1,
+			"Decay": 0.6,
+			"Sustain": 0.25
+		},
+		{
+			"Wave": "fm",
+			"Ratio": 14,
+			"Index": 2,
+			"Decay": 0.03,
+			"Sustain": 0,
+			"Level": 0.35
+		}
+	],
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 0.7,
+		"Sustain": 0,
+		"Release": 0.15
+	},
+	"Poly": 12
+}

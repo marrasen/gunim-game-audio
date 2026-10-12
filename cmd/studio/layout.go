@@ -162,3 +162,56 @@ func segmentedIndex(options []string, v string) int {
 	}
 	return 0
 }
+
+// slider shows its child sliding in from one side and fading in, as a
+// page turned to the next or the one before; laid out where it rests,
+// it is only drawn moving, so a click lands where it will be.
+type slider struct {
+	child gunim.Node
+	// t runs from 0, the slide begun, to 1, at rest; dir is the side it
+	// comes from, 1 the right and -1 the left.
+	t, dir float32
+}
+
+// slideDur is how long a slide takes, and slideBy how far it comes.
+const (
+	slideDur = 260 * time.Millisecond
+	slideBy  = 56
+)
+
+func newSlider(child gunim.Node) *slider { return &slider{child: child, t: 1} }
+
+// start slides the child in from the right where dir is 1, or the left
+// where it is -1.
+func (s *slider) start(dir float32) { s.t, s.dir = 0, dir }
+
+func (s *slider) Children() []gunim.Node { return []gunim.Node{s.child} }
+
+func (s *slider) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
+	k := kids.At(0)
+	size := k.Layout(c)
+	k.Place(geom.Pt(0, 0))
+	return size
+}
+
+func (s *slider) Paint(p *paint.Painter, _ gunim.Frame, box geom.Size, kids gunim.Children) {
+	if s.t >= 1 {
+		kids.At(0).Paint(p)
+		return
+	}
+	// Eased out: quick at first, settling into place.
+	e := 1 - (1-s.t)*(1-s.t)*(1-s.t)
+	end := p.Layer(paint.LayerOpts{Bounds: geom.Rc(-slideBy, 0, box.W+2*slideBy, box.H), Opacity: 0.25 + 0.75*e})
+	pop := p.Push(paint.Translate(geom.Pt(s.dir*slideBy*(1-e), 0)))
+	kids.At(0).Paint(p)
+	pop()
+	end()
+}
+
+func (s *slider) Step(dt time.Duration) bool {
+	if s.t >= 1 {
+		return false
+	}
+	s.t = min(1, s.t+float32(dt)/float32(slideDur))
+	return true
+}

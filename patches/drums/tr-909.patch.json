@@ -1,0 +1,34 @@
+{
+	"Kind": "drums",
+	"Kit": {
+		"bd9": {
+			"Tune": -1,
+			"Decay": 1.2,
+			"Tone": 0.5
+		},
+		"sn": {
+			"Tune": 4,
+			"Tone": 0.45,
+			"Decay": 0.7
+		},
+		"cp": {
+			"Tone": 0.3
+		},
+		"hh": {
+			"Tone": 0.6,
+			"Gain": 0.8
+		},
+		"oh": {
+			"Tone": 0.6,
+			"Decay": 0.4,
+			"Gain": 0.6
+		},
+		"rd": {
+			"Tone": 0.3,
+			"Decay": 0.6
+		},
+		"rim": {
+			"Gain": 0.9
+		}
+	}
+}

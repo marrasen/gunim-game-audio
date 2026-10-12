@@ -3,7 +3,11 @@ package synth
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // A Patch is an instrument: how a note sounds.
@@ -30,11 +34,34 @@ type Patch struct {
 	// gliding from note to note over Glide seconds.
 	Poly  int
 	Glide float64
+	// Slide glides only into a note that starts while the one before is
+	// still held, as a TB-303 slides between tied notes; a note after a
+	// rest jumps to its pitch. A track's legato over 1 ties its notes.
+	Slide bool `json:",omitempty"`
+	// Accent is how many octaves an accented note opens the filter by,
+	// as a TB-303's accent sweeps it: a note of velocity 1 is accented,
+	// its filter envelope falling in 0.2 s, and accents close together
+	// stack, each opening it further, as the 303's capacitor charges
+	// before it has drained. Give the notes not accented a velocity
+	// under 1.
+	Accent float64 `json:",omitempty"`
 	// Drive saturates the oscillators before the filter, from 0.
 	Drive float64
+	// Drift detunes each note by up to that many cents, at random, as
+	// an analogue synth's oscillators drift: a chord's notes beat
+	// against each other, and no two notes are quite alike.
+	Drift float64
 	// Vowel makes the patch sing a vowel, a, e, i, o or u, as a voice
 	// does; a track's vowel parameter changes it note by note.
 	Vowel string
+	// Vocoder sings the vowel through a vocoder's ten bands, as a
+	// Roland VP-330's, in place of a voice's three resonances: the
+	// robot's voice of electronic pop, which a track's vowels make speak.
+	Vocoder bool `json:",omitempty"`
+	// Singer sings the vowel as a voice of its type does, through the
+	// five formants of a bass, baritone, tenor, alto or soprano, in
+	// place of three; with a glottal oscillator, a voice sings.
+	Singer string `json:",omitempty"`
 	// Pluck is how a pluck patch's string sounds.
 	Pluck Pluck
 	// Arpeggio plays a chord as one voice, its notes in turn, fast, as a
@@ -47,10 +74,19 @@ type Patch struct {
 	// Kit is a drums patch's drums, by the names a pattern plays them
 	// by. A name the kit leaves out is a drum of the same name, as bd,
 	// sn, cp, hh, oh, rim, lt, mt, ht, cr, rd, sh, snap, tim, boom,
-	// riser or down; see Drum.
+	// riser, down, the syn-toms syn1 to syn3, cb, a cowbell, bd9, a
+	// TR-909's kick, mtl, a metal hit, or tamb, a tambourine; see Drum.
 	Kit map[string]Drum
 	// Gain is the patch's level, 1 by default.
 	Gain float64
+	// SoundFont plays the patch on the SoundFont bank a program
+	// registered by this name with RegisterSoundFont: its Program of
+	// Bank, sampled. Where no bank of the name is registered, as in a
+	// game that ships none, the patch plays as its other fields say, or,
+	// with none, as General MIDI's Program does on the engine's own
+	// instruments, so a song sounds without the bank, only less real.
+	SoundFont     string `json:",omitempty"`
+	Bank, Program int    `json:",omitempty"`
 }
 
 // Osc is one of a synth patch's oscillators.
@@ -59,7 +95,8 @@ type Osc struct {
 	// another sine moves, as a bell or an electric piano. A Commodore
 	// 64's SID chip gives noise, pitched by the note as its noise is, and
 	// the waves it makes of two at once, sawtri, pulsetri and pulsesaw,
-	// thin and buzzing.
+	// thin and buzzing; and glottal, a voice's buzz, the air through
+	// its vocal folds, to sing through a Singer's formants.
 	Wave string
 	// The Nintendo chips give nespulse, a pulse snapped to the widths of
 	// 12.5, 25, 50 and 75% they have; nestri, the NES's stepped triangle;
@@ -133,7 +170,11 @@ type Pluck struct {
 // Drum is a drum of a kit.
 type Drum struct {
 	// Type is what it is: kick, snare, clap, hat, ohat, rim, tom,
-	// crash, ride, shaker, snap, timpani, boom, riser or down; or the
+	// crash, ride, shaker, snap, timpani, boom, riser or down; syntom, an
+	// electronic tom as a Simmons drum's, its pitch diving; cowbell, a
+	// TR-808's; kick909, a TR-909's kick, its pitch falling fast from
+	// high with a click; metal, a struck piece of metal, its partials
+	// clanging; tambourine, its jingles clashing; or the
 	// SID's, built a frame at a time as a Commodore 64's drums are:
 	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
 	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
@@ -146,6 +187,10 @@ type Drum struct {
 	// Gain is its level, 1 by default, and Pan its place between the
 	// speakers.
 	Gain, Pan float64
+	// Key is the note a SoundFont kit plays it on, where its patch names
+	// a bank: 0 takes General MIDI's for its name, as 36 for bd, or, for
+	// a drum named by a number, as GMKit's are, that note.
+	Key int
 }
 
 // drumNames are the drums a kit has by name.
@@ -168,11 +213,17 @@ var drumNames = map[string]string{
 	"sbd":   "sidkick", "ssn": "sidsnare", "scp": "sidclap", "shh": "sidhat", "soh": "sidohat",
 	"stom": "sidtom", "szap": "sidzap",
 	"nbd": "neskick", "nsn": "nessnare", "nhh": "neshat", "noh": "nesohat", "ntom": "nestom", "nclk": "nesmetal",
-	"ncp": "nesclap",
+	"ncp":  "nesclap",
+	"syn1": "syntom", "syn2": "syntom", "syn3": "syntom", "syntom": "syntom",
+	"cb": "cowbell", "cowbell": "cowbell",
+	"bd9": "kick909", "kick909": "kick909",
+	"mtl": "metal", "metal": "metal",
+	"tamb": "tambourine", "tambourine": "tambourine",
 }
 
-// tomTune tunes the low and high toms either side of the middle one.
-var tomTune = map[string]float64{"lt": -5, "ht": 5}
+// tomTune tunes the low and high toms either side of the middle one,
+// and the syn-toms, syn1 the highest, as a kit numbers its toms.
+var tomTune = map[string]float64{"lt": -5, "ht": 5, "syn1": 5, "syn3": -5}
 
 // The types of drum.
 const (
@@ -205,6 +256,11 @@ const (
 	drNESTom
 	drNESMetal
 	drNESClap
+	drSynTom
+	drCowbell
+	drKick909
+	drMetal
+	drTambourine
 )
 
 var drumTypes = map[string]int{
@@ -215,6 +271,7 @@ var drumTypes = map[string]int{
 	"sidtom": drSIDTom, "sidzap": drSIDZap,
 	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
 	"nesclap": drNESClap,
+	"syntom":  drSynTom, "cowbell": drCowbell, "kick909": drKick909, "metal": drMetal, "tambourine": drTambourine,
 }
 
 // The waves of an oscillator.
@@ -250,6 +307,7 @@ const (
 	kindSynth = iota
 	kindPluck
 	kindDrums
+	kindFont
 )
 
 // patch is a Patch made ready to play: its names read into numbers.
@@ -270,9 +328,13 @@ type patch struct {
 	filter     int
 	lfo        []lfo
 	vowel      byte
+	vocoder    bool
+	singer     string
 	poly       int
 	kit        map[string]drum
 	gain       float32
+	// font is the bank a SoundFont patch plays.
+	font *soundfont.Font
 }
 
 type osc struct {
@@ -310,10 +372,71 @@ type drum struct {
 	name string
 	kind int
 	gain float32
+	// key is the note a bank's kit plays it on, 0 for none; prog, where
+	// it is not -1, is instead the bank's program it plays, pitched, as
+	// the timpani; and fine the semitones a kit's Tune moves it.
+	key, prog int
+	fine      float64
 }
+
+// fontKeys are the notes General MIDI's kit plays the drums on, by
+// their names.
+var fontKeys = map[string]int{
+	"bd": 36, "kick": 36, "bd9": 36, "kick909": 36, "sn": 38, "snare": 38, "cp": 39, "clap": 39,
+	"hh": 42, "hat": 42, "oh": 46, "ohat": 46, "rim": 37, "lt": 43, "mt": 47, "ht": 50, "tom": 47,
+	"cr": 49, "crash": 49, "rd": 51, "ride": 51, "sh": 82, "shaker": 82, "cb": 56, "cowbell": 56,
+	"tamb": 54, "tambourine": 54, "mtl": 53, "metal": 53,
+}
+
+// fontProgs are the drums a bank plays on one of its instruments,
+// pitched, by their names: the timpani, tuned to the chord.
+var fontProgs = map[string]int{"tim": 47, "timpani": 47}
 
 // compile readies p, named name for its errors.
 func (p *Patch) compile(name string) (*patch, error) {
+	if p.SoundFont != "" && p.Kind == "drums" {
+		// A kit: the engine's drums, played on the bank's kit where the
+		// bank is registered.
+		fb := *p
+		fb.SoundFont = ""
+		c, err := fb.compile(name)
+		if err != nil {
+			return nil, err
+		}
+		c.src = p
+		if f := SoundFontNamed(p.SoundFont); f != nil {
+			c.font = f
+			c.poly = min(max(c.poly, 24), 48)
+		}
+		return c, nil
+	}
+	if p.SoundFont != "" {
+		if f := SoundFontNamed(p.SoundFont); f != nil {
+			c := &patch{src: p, kind: kindFont, font: f, gain: 1, poly: p.Poly}
+			if p.Gain != 0 {
+				c.gain = float32(p.Gain)
+			}
+			if c.poly <= 0 {
+				c.poly = 16
+			}
+			c.poly = min(c.poly, 48)
+			return c, nil
+		}
+		// No bank: the patch as its other fields say, or General MIDI's.
+		fb := *p
+		fb.SoundFont = ""
+		if fb.Kind == "" && len(fb.Osc) == 0 && fb.Noise == 0 {
+			gm := GMPatch(p.Program & 127)
+			if p.Gain != 0 {
+				gm.Gain *= p.Gain
+			}
+			if p.Poly != 0 {
+				gm.Poly = p.Poly
+			}
+			fb = *gm
+		}
+		return fb.compile(name)
+	}
 	c := &patch{src: p, gain: 1, poly: p.Poly}
 	if p.Gain != 0 {
 		c.gain = float32(p.Gain)
@@ -375,6 +498,8 @@ func (p *Patch) compile(name string) (*patch, error) {
 				}
 			}
 			co.wave, co.table = oscTable, stepped(steps)
+		case "glottal":
+			co.wave, co.table = oscTable, glottalTable
 		case "nesnoise", "nesmetal":
 			co.wave = oscNESNoise
 		case "sawtri", "pulsetri", "pulsesaw":
@@ -384,7 +509,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 			}
 			co.table = combined(co.wave, co.Width)
 		default:
-			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri, pulsesaw, nespulse, nestri, nesnoise, nesmetal or gbwave", name, i+1, o.Wave)
+			return nil, fmt.Errorf("synth: patch %s, oscillator %d, has wave %q, not saw, pulse, tri, sine, fm, noise, sawtri, pulsetri, pulsesaw, nespulse, nestri, nesnoise, nesmetal gbwave or glottal", name, i+1, o.Wave)
 		}
 		if (o.Sync || o.Ring) && i == 0 {
 			return nil, fmt.Errorf("synth: patch %s syncs or rings its first oscillator, which has none before it", name)
@@ -486,10 +611,24 @@ func (p *Patch) compile(name string) (*patch, error) {
 		}
 		c.vowel = p.Vowel[0]
 	}
+	c.vocoder = p.Vocoder
+	if p.Singer != "" {
+		if _, ok := singers[p.Singer]; !ok {
+			return nil, fmt.Errorf("synth: patch %s sings as %q, not bass, baritone, tenor, alto or soprano", name, p.Singer)
+		}
+		c.singer = p.Singer
+	}
 	if c.kind == kindDrums {
 		c.kit = map[string]drum{}
 		for n, t := range drumNames {
 			c.kit[n] = drum{Drum: Drum{Type: t, Tune: tomTune[n]}, name: n, kind: drumTypes[t], gain: 1}
+		}
+		for n, d := range c.kit {
+			d.key, d.prog = fontKeys[n], -1
+			if pr, ok := fontProgs[n]; ok {
+				d.key, d.prog = 0, pr
+			}
+			c.kit[n] = d
 		}
 		for n, d := range p.Kit {
 			t := d.Type
@@ -504,7 +643,16 @@ func (p *Patch) compile(name string) (*patch, error) {
 				d.Tune = tomTune[n]
 			}
 			d.Type = t
-			cd := drum{Drum: d, name: n, kind: k, gain: 1}
+			cd := drum{Drum: d, name: n, kind: k, gain: 1, key: fontKeys[n], prog: -1, fine: p.Kit[n].Tune}
+			if pr, ok := fontProgs[n]; ok {
+				cd.key, cd.prog = 0, pr
+			}
+			if key, err := strconv.Atoi(n); err == nil && key > 0 && key < 128 {
+				cd.key = key
+			}
+			if d.Key > 0 {
+				cd.key, cd.prog = min(d.Key, 127), -1
+			}
 			if d.Gain != 0 {
 				cd.gain = float32(d.Gain)
 			}
@@ -521,4 +669,27 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sortStrings(keys)
 	return keys
+}
+
+// soundFonts are the banks registered, by name.
+var soundFonts sync.Map
+
+// RegisterSoundFont registers bank f by name, for patches that name it
+// to play on, as SoundFont says; nil unregisters it. Register a bank
+// before the songs that play it are played: a patch finds its bank as
+// its song starts.
+func RegisterSoundFont(name string, f *soundfont.Font) {
+	if f == nil {
+		soundFonts.Delete(name)
+		return
+	}
+	soundFonts.Store(name, f)
+}
+
+// SoundFontNamed returns the bank registered by name, or nil.
+func SoundFontNamed(name string) *soundfont.Font {
+	if f, ok := soundFonts.Load(name); ok {
+		return f.(*soundfont.Font)
+	}
+	return nil
 }

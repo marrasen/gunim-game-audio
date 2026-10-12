@@ -1,0 +1,28 @@
+{
+	"Osc": [
+		{
+			"Wave": "glottal"
+		}
+	],
+	"Noise": 0.03,
+	"Amp": {
+		"Attack": 0.04,
+		"Decay": 0.3,
+		"Sustain": 0.9,
+		"Release": 0.25
+	},
+	"Vowel": "a",
+	"Singer": "baritone",
+	"LFO": [
+		{
+			"To": "pitch",
+			"Wave": "sine",
+			"Hz": 5.2,
+			"Depth": 0.18,
+			"Delay": 0.35
+		}
+	],
+	"Poly": 1,
+	"Glide": 0.04,
+	"Drift": 5
+}

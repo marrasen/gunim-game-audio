@@ -1,0 +1,28 @@
+{
+	"Osc": [
+		{
+			"Wave": "sine"
+		},
+		{
+			"Wave": "tri",
+			"Level": 0.2
+		}
+	],
+	"Amp": {
+		"Attack": 0.08,
+		"Decay": 0.2,
+		"Sustain": 0.9,
+		"Release": 0.3
+	},
+	"LFO": [
+		{
+			"To": "pitch",
+			"Wave": "sine",
+			"Hz": 6,
+			"Depth": 0.3,
+			"Delay": 0.15
+		}
+	],
+	"Poly": 1,
+	"Glide": 0.12
+}

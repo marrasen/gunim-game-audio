@@ -1,0 +1,26 @@
+{
+	"Osc": [
+		{
+			"Wave": "fm",
+			"Ratio": 3.01,
+			"Index": 1.4,
+			"Decay": 0.2,
+			"Sustain": 0.1
+		},
+		{
+			"Wave": "tri",
+			"Level": 0.4
+		}
+	],
+	"Filter": {
+		"Type": "lp",
+		"Cutoff": 6000
+	},
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 0.8,
+		"Sustain": 0,
+		"Release": 0.4
+	},
+	"Poly": 8
+}

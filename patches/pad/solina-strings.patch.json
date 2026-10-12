@@ -1,0 +1,27 @@
+{
+	"Osc": [
+		{
+			"Wave": "saw",
+			"Unison": 3,
+			"Spread": 12
+		},
+		{
+			"Wave": "saw",
+			"Octave": 1,
+			"Level": 0.4
+		}
+	],
+	"Filter": {
+		"Type": "lp",
+		"Cutoff": 3800,
+		"Res": 0.05
+	},
+	"Amp": {
+		"Attack": 0.35,
+		"Decay": 1,
+		"Sustain": 0.9,
+		"Release": 1
+	},
+	"Poly": 8,
+	"Drift": 4
+}

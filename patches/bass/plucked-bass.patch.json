@@ -1,0 +1,19 @@
+{
+	"Kind": "pluck",
+	"Pluck": {
+		"Decay": 0.9,
+		"Bright": 0.45,
+		"Body": 0.4
+	},
+	"Filter": {
+		"Type": "lp",
+		"Cutoff": 1600
+	},
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 1,
+		"Sustain": 1,
+		"Release": 0.08
+	},
+	"Poly": 2
+}

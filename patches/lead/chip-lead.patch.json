@@ -1,0 +1,19 @@
+{
+	"Osc": [
+		{
+			"Wave": "nespulse",
+			"Width": 0.25
+		}
+	],
+	"Amp": {
+		"Attack": 0.001,
+		"Decay": 0.4,
+		"Sustain": 0.7,
+		"Release": 0.08
+	},
+	"Chip": {
+		"Levels": 16,
+		"Hz": 60
+	},
+	"Poly": 1
+}

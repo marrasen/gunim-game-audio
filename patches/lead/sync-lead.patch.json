@@ -1,0 +1,44 @@
+{
+	"Osc": [
+		{
+			"Wave": "saw"
+		},
+		{
+			"Wave": "saw",
+			"Octave": 1,
+			"Semi": 5,
+			"Sync": true
+		}
+	],
+	"Filter": {
+		"Type": "lp24",
+		"Cutoff": 3200,
+		"Res": 0.15,
+		"Env": 1.0,
+		"Key": 0.3
+	},
+	"Amp": {
+		"Attack": 0.003,
+		"Decay": 0.3,
+		"Sustain": 0.85,
+		"Release": 0.2
+	},
+	"FilterEnv": {
+		"Attack": 0.002,
+		"Decay": 0.4,
+		"Sustain": 0.4,
+		"Release": 0.2
+	},
+	"LFO": [
+		{
+			"To": "pitch",
+			"Wave": "sine",
+			"Hz": 5.5,
+			"Depth": 0.1,
+			"Delay": 0.3
+		}
+	],
+	"Poly": 1,
+	"Glide": 0.03,
+	"Drift": 3
+}
