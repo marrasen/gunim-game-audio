@@ -19,7 +19,8 @@ const (
 type note struct {
 	pitch float32
 	vel   float32
-	// gate is how many frames the note is held, before it is let go.
+	// gate is how many frames the note is held, before it is let go; 0
+	// holds it until it is let go, as a key held down is.
 	gate int64
 	// pan, cutoff and res are the note's own, where set: cutoff in
 	// hertz, 0 for the patch's, res from 0 to 1, -1 for the patch's.
@@ -67,6 +68,9 @@ type voice struct {
 	// drift is how far the note is off its pitch, in semitones, as an
 	// analogue oscillator drifts.
 	drift float32
+	// bend is how far the note is bent, in semitones, as a player bends
+	// a note held: it moves the pitch at once, past any glide.
+	bend float32
 	// accent is the charge of the voice's accents, which each accented
 	// note adds to and which drains, opening the filter as it stands.
 	accent float32
@@ -74,13 +78,16 @@ type voice struct {
 	// tuning, kept to tune it again only once they move.
 	hz, pitchAt, cut, res float32
 	// The plucked string: its delay line, where it is read, its length,
-	// and the body it sounds through.
-	str    []float32
-	strAt  int
-	strLen float32
-	strZ   float32
-	strG   float32
-	body   [2]svf
+	// its length as plucked, the bend it is at, and the body it sounds
+	// through.
+	str     []float32
+	strAt   int
+	strLen  float32
+	strBase float32
+	strBend float32
+	strZ    float32
+	strG    float32
+	body    [2]svf
 }
 
 func newVoice(seed uint64) *voice {
@@ -145,7 +152,7 @@ func (v *voice) start(p *patch, n note, age uint64) {
 		v.fenv.set(e)
 		v.accent = min(v.accent+1, 2.5)
 	}
-	v.drift = 0
+	v.drift, v.bend = 0, 0
 	if src.Drift > 0 {
 		v.drift = float32(src.Drift/100) * v.noise.bipolar()
 	}
@@ -180,6 +187,7 @@ func (v *voice) pluck() {
 	pl := v.p.src.Pluck
 	hz := float32(noteHz(float64(v.n.pitch)))
 	v.strLen = min(max(rate/hz, 2), pluckFrame-2)
+	v.strBase, v.strBend = v.strLen, 0
 	decay := pl.Decay
 	if decay <= 0 {
 		decay = 1
@@ -268,7 +276,7 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		if b := p.src.Bend; b != nil && b.Time > 0 {
 			lPitch += float32(b.Semis * max(0, 1-float64(v.frames)/(b.Time*rate)))
 		}
-		if pitch := v.pitch + lPitch + v.drift; pitch != v.pitchAt || v.hz == 0 {
+		if pitch := v.pitch + lPitch + v.drift + v.bend; pitch != v.pitchAt || v.hz == 0 {
 			v.pitchAt, v.hz = pitch, float32(noteHz(float64(pitch)))
 		}
 		hz := v.hz
@@ -337,6 +345,11 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 		clear(bl)
 		clear(br)
 		if p.kind == kindPluck {
+			if v.bend != v.strBend {
+				// A bent string is a shorter one, or a longer.
+				v.strBend = v.bend
+				v.strLen = min(max(v.strBase/exp2(v.bend/12), 2), pluckFrame-2)
+			}
 			v.renderString(bl, hz)
 			copy(br, bl)
 		} else {
