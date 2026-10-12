@@ -151,6 +151,7 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 		h.Set(SoundID, float64(i), u)
 		h.End(SoundID, u)
 		v.sound = i
+		v.dim()
 	}
 	v.sections = []*plugui.Section{
 		plugui.NewSection(h, &Descriptor, "SOUND", 0).Add(v.pick, float32(len(Sounds))*16+16),
@@ -160,7 +161,24 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 	}
 	_, out := h.Sound()
 	v.out = newMeter(out)
+	v.dim()
 	return v
+}
+
+// dim greys the knobs the sound has nothing for: the filter's, on a
+// sound with none, and the envelope's, on the drums.
+func (v *panel) dim() {
+	s := v.p.sounds[v.sound]
+	for _, sec := range v.sections {
+		for _, k := range sec.Knobs {
+			switch k.Param().ID {
+			case CutoffID, ResID:
+				k.Disabled = !s.filter
+			case AttackID, ReleaseID:
+				k.Disabled = !s.envelope
+			}
+		}
+	}
 }
 
 // The panel's sizes: how far in from its edges it draws, and where the
@@ -248,6 +266,7 @@ func (v *panel) Follow(id uint32, val float64, u *gunim.UI) {
 	if id == SoundID {
 		v.sound = soundAt(val)
 		v.pick.SetSelected(v.sound, u)
+		v.dim()
 	}
 	u.Invalidate()
 }

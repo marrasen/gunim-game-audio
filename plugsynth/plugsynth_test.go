@@ -73,18 +73,29 @@ func rms(x []float32) float64 {
 // hz returns how high x, at rate, sounds: the period, from 1 ms to 20,
 // over which it best matches itself.
 func hz(x []float32, rate float64) float64 {
-	best, at := math.Inf(-1), 0
-	for lag := int(rate / 1000); lag <= int(rate/50); lag++ {
-		var sum float64
+	lo, hi := int(rate/1000), int(rate/50)
+	sums := make([]float64, hi+2)
+	best := 0.0
+	for lag := lo - 1; lag <= hi+1; lag++ {
 		for i := lag; i < len(x); i++ {
-			sum += float64(x[i]) * float64(x[i-lag])
+			sums[lag] += float64(x[i]) * float64(x[i-lag])
 		}
-		sum /= float64(len(x) - lag)
-		if sum > best*1.02 {
-			best, at = sum, lag
+		sums[lag] /= float64(len(x) - lag)
+		best = max(best, sums[lag])
+	}
+	// The first peak near the best, so a period twice as long loses,
+	// placed between lags by the parabola through it.
+	for lag := lo; lag <= hi; lag++ {
+		a, b, c := sums[lag-1], sums[lag], sums[lag+1]
+		if b >= a && b >= c && b >= 0.9*best {
+			d := 0.0
+			if den := a - 2*b + c; den != 0 {
+				d = 0.5 * (a - c) / den
+			}
+			return float64(rate) / (float64(lag) + d)
 		}
 	}
-	return rate / float64(at)
+	return 0
 }
 
 func TestEverySoundPlaysANote(t *testing.T) {
@@ -253,4 +264,193 @@ func boundsOf(t *testing.T, pn *panel, size geom.Size, sections []*plugui.Sectio
 	}
 	w.Frame(time.Second / 60)
 	return out
+}
+
+// onset returns the first frame of x that sounds, or -1.
+func onset(x []float32) int {
+	for i, v := range x {
+		if v != 0 {
+			return i
+		}
+	}
+	return -1
+}
+
+// drum is a bass drum's NoteOn at frame f: it sounds from its first
+// frame.
+func drum(id int32, f int) plug.Event {
+	return plug.Event{Frame: f, Kind: plug.NoteOn, Note: id, Pitch: 36, Velocity: 1}
+}
+
+func TestANoteSoundsLatencyFramesLate(t *testing.T) {
+	p, _ := newSynth(t)
+	pr := p.Processor()
+	setup := plug.Setup{Rate: 48000, MaxBlock: 128, Channels: 2}
+	// Right after Prepare, at the first frame, and at frames inside and
+	// at the start of later blocks.
+	for _, f := range []int{0, 1, 77, 128, 300} {
+		out := plugtest.Play(t, pr, setup, 1024, params(5), drum(1, f))
+		if got := onset(out[0]); got != f+pr.Latency() {
+			t.Errorf("a drum at frame %d sounds from frame %d, not %d, Latency %d", f, got, f+pr.Latency(), pr.Latency())
+		}
+	}
+	// Right after a Reset, too.
+	for _, f := range []int{0, 5} {
+		pr.Reset()
+		l, r := make([]float32, 128), make([]float32, 128)
+		pr.Process(&plug.Block{Out: [][]float32{l, r}, Frames: 128, Events: []plug.Event{drum(2, f)}})
+		if got := onset(l); got != f+pr.Latency() {
+			t.Errorf("after Reset, a drum at frame %d sounds from frame %d, not %d", f, got, f+pr.Latency())
+		}
+	}
+}
+
+func TestTheDelayIsTheSameAtOtherRates(t *testing.T) {
+	// At 44.1 kHz each 147 frames are 160 of the engine's, and at 96 kHz
+	// each 2 are 1: a note moved by as many sounds the same, moved.
+	for _, c := range []struct {
+		rate  float64
+		every int
+		delay int
+	}{{44100, 147, 2}, {96000, 2, 5}} {
+		setup := plug.Setup{Rate: c.rate, MaxBlock: 100, Channels: 2}
+		// Each on a synth of its own, so its drum's noise starts alike.
+		p, _ := newSynth(t)
+		pr := p.Processor()
+		a := plugtest.Play(t, pr, setup, 4000, params(5), drum(1, c.every))
+		q, _ := newSynth(t)
+		b := plugtest.Play(t, q.Processor(), setup, 4000, params(5), drum(1, 7*c.every))
+		if pr.Latency() != c.delay {
+			t.Errorf("at %.0f Hz, Latency is %d, want %d", c.rate, pr.Latency(), c.delay)
+		}
+		shift := 6 * c.every
+		for i := range 4000 - shift {
+			if a[0][i] != b[0][i+shift] {
+				t.Errorf("at %.0f Hz, a drum moved %d frames sounds otherwise from frame %d", c.rate, shift, i)
+				break
+			}
+		}
+		if got := onset(a[0]); got < c.every+c.delay-3 || got > c.every+c.delay {
+			t.Errorf("at %.0f Hz, a drum at %d starts sounding at %d, Latency %d", c.rate, c.every, got, c.delay)
+		}
+	}
+}
+
+func TestTheTailIsAsLongAsTheRelease(t *testing.T) {
+	p, _ := newSynth(t)
+	pr := p.Processor()
+	setup := plug.Setup{Rate: 48000, MaxBlock: 512, Channels: 2}
+	ps := params(0)
+	ps[ReleaseID-1].Default = 8
+	n := 48000 * 14
+	out := plugtest.Play(t, pr, setup, n, ps, note(1, 57, 0, 24000)...)
+	tail := pr.Tail()
+	if tail < 48000*8 {
+		t.Fatalf("with the release stretched 8 times, the tail is %d frames", tail)
+	}
+	if rms(out[0][24000+tail/2:24000+tail/2+4800]) < 1e-4 {
+		t.Errorf("halfway through the tail of %d frames, the note is silent", tail)
+	}
+	if end := 24000 + tail; end+4800 <= n && rms(out[0][end:end+4800]) > 1e-3 {
+		t.Errorf("after the tail of %d frames, the note sounds at %.4f", tail, rms(out[0][end:end+4800]))
+	}
+}
+
+func TestTheKnobsTurnEverySound(t *testing.T) {
+	setup := plug.Setup{Rate: 48000, MaxBlock: 512, Channels: 2}
+	level := func(changes ...plug.Change) float64 {
+		p, _ := newSynth(t)
+		pr := p.Processor()
+		pr.Prepare(setup)
+		l, r := make([]float32, 512), make([]float32, 512)
+		first := &plug.Block{Out: [][]float32{l, r}, Frames: 512, Changes: changes,
+			Events: []plug.Event{{Frame: 10, Kind: plug.NoteOn, Note: 1, Pitch: 57, Velocity: 1}}}
+		pr.Process(first)
+		sum := 0.0
+		for range 40 {
+			pr.Process(&plug.Block{Out: [][]float32{l, r}, Frames: 512})
+			sum += rms(l)
+		}
+		return sum
+	}
+	lead := level(plug.Change{ID: SoundID, Value: 3})
+	// The gain turned before the sound changes, and after.
+	before := level(plug.Change{ID: GainID, Value: -20}, plug.Change{ID: SoundID, Value: 3})
+	after := level(plug.Change{ID: SoundID, Value: 3}, plug.Change{ID: GainID, Value: -20})
+	for name, got := range map[string]float64{"before": before, "after": after} {
+		if r := got / lead; math.Abs(r-0.1) > 0.01 {
+			t.Errorf("-20 dB of gain turned %s the sound changed turns the lead by %.3f, not 0.1", name, r)
+		}
+	}
+}
+
+func TestPressureAndModLeaveThePitchBe(t *testing.T) {
+	for _, e := range []plug.ExprKind{plug.Pressure, plug.Mod} {
+		p, _ := newSynth(t)
+		setup := plug.Setup{Rate: 48000, MaxBlock: 512, Channels: 2}
+		events := append(note(1, 57, 0, 47999), plug.Event{Frame: 100, Kind: plug.Expression, Note: 1, Expr: e, Value: 1})
+		out := plugtest.Play(t, p.Processor(), setup, 48000, params(3), events...)
+		if got := hz(out[0][24000:], 48000); math.Abs(got-110) > 2 {
+			t.Errorf("expression %d moves the lead to %.1f Hz", e, got)
+		}
+	}
+}
+
+// knob returns the panel's knob of parameter id.
+func knob(pn *panel, id uint32) *plugui.Knob {
+	for _, s := range pn.sections {
+		for _, k := range s.Knobs {
+			if k.Param().ID == id {
+				return k
+			}
+		}
+	}
+	return nil
+}
+
+func TestTheKnobsASoundIgnoresAreGrey(t *testing.T) {
+	p, h := newSynth(t)
+	pn, ok := p.View(plug.Panel, h).(*panel)
+	if !ok {
+		t.Fatal("the panel is of another type")
+	}
+	for i, s := range Sounds {
+		pn.Follow(SoundID, float64(i), nil)
+		filter := s.Short == "Pad" || s.Short == "Bass" || s.Short == "Lead"
+		if knob(pn, CutoffID).Disabled == filter || knob(pn, ResID).Disabled == filter {
+			t.Errorf("%s: the filter's knobs are grey %v, though it has a filter %v", s.Short, knob(pn, CutoffID).Disabled, filter)
+		}
+		if env := s.Short != "Drums"; knob(pn, ReleaseID).Disabled == env || knob(pn, AttackID).Disabled == env {
+			t.Errorf("%s: the envelope's knobs are grey %v", s.Short, knob(pn, ReleaseID).Disabled)
+		}
+		if knob(pn, GainID).Disabled {
+			t.Errorf("%s: the gain is grey", s.Short)
+		}
+	}
+	pn.pick.OnPick(1, nil)
+	if !knob(pn, CutoffID).Disabled {
+		t.Error("a pick of the pluck leaves its cutoff lit")
+	}
+}
+
+func TestTheSoundIsTheSameInAnyBlockSize(t *testing.T) {
+	for _, s := range []int{0, 2} {
+		var want []float32
+		for _, block := range []int{256, 1, 37} {
+			p, _ := newSynth(t)
+			setup := plug.Setup{Rate: 48000, MaxBlock: block, Channels: 2}
+			events := append(note(1, 45, 10, 30000), note(2, 52, 9000, 20000)...)
+			out := plugtest.Play(t, p.Processor(), setup, 40000, params(s), events...)[0]
+			if want == nil {
+				want = out
+				continue
+			}
+			for i := range want {
+				if out[i] != want[i] {
+					t.Errorf("%s in blocks of %d differs from blocks of 256 from frame %d", Sounds[s].Short, block, i)
+					break
+				}
+			}
+		}
+	}
 }

@@ -109,10 +109,12 @@ func patches() []plug.Patch {
 	return out
 }
 
-// sound is a sound made ready: its patch, and what it sounds like.
+// sound is a sound made ready: its patch, what it sounds like, and
+// whether it has a filter and an envelope for the knobs to turn.
 type sound struct {
-	patch *synth.Patch
-	about string
+	patch            *synth.Patch
+	about            string
+	filter, envelope bool
 }
 
 // sounds returns the sounds' patches, from the library.
@@ -125,7 +127,9 @@ func sounds() []sound {
 	for i, s := range Sounds {
 		for _, p := range presets {
 			if p.Name == s.Preset {
-				out[i] = sound{patch: p.Patch, about: p.About}
+				f := p.Patch.Filter.Type
+				drums := p.Patch.Kind == "drums"
+				out[i] = sound{patch: p.Patch, about: p.About, filter: f != "" && f != "none" && !drums, envelope: !drums}
 			}
 		}
 		if out[i].patch == nil {
@@ -166,12 +170,18 @@ func (p *plugin) SetState(b []byte) error {
 // Close implements [plug.Plugin].
 func (p *plugin) Close() {}
 
-// lookahead is how many of the engine's frames past the one it gives
-// the resampler reads: the cubic's two after it, and one for rounding.
-const lookahead = 3
+// before is how many of the engine's frames, silent, the buffer holds
+// before its first: the cubic reads the one before where it reads, and
+// the first host frame reads up to 3 frames back.
+const before = 4
 
 // processor plays the notes it is given on the sound chosen, at the
 // engine's rate, and resamples them to the host's.
+//
+// The engine runs in step with the host: before an event at the host's
+// frame f, it has made every frame before f*step, its own time then, so
+// the event takes effect there. The host's frame j reads the engine at
+// (j-delay)*step, delay frames back, which it has always made by then.
 type processor struct {
 	// ins are an instrument for each sound, and cur the one playing;
 	// prev is the one played before, ringing out.
@@ -179,14 +189,17 @@ type processor struct {
 	cur, prev *synth.Instrument
 	knobs     synth.Knobs
 	// rate is the host's rate, and step how many of the engine's frames
-	// pass in one of the host's.
+	// pass in one of the host's; delay is how many of the host's frames
+	// the sound comes late.
 	rate, step float64
-	// bl and br hold the engine's sound, have frames of it, the first
-	// the one before pos, where the next frame for the host is read; tl
-	// and tr are room for the sound ringing out.
+	delay      int
+	// bl and br hold the engine's sound, from its frame base on, have
+	// frames of it; tl and tr are room for the sound ringing out.
 	bl, br, tl, tr []float32
+	base           int64
 	have           int
-	pos            float64
+	// at counts the host's frames since the last Reset.
+	at int64
 }
 
 func newProcessor(ss []sound) *processor {
@@ -210,30 +223,36 @@ func (p *processor) Prepare(s plug.Setup) {
 		p.rate = synth.Rate
 	}
 	p.step = synth.Rate / p.rate
-	n := int(math.Ceil(float64(max(s.MaxBlock, 1))*p.step)) + lookahead + 4
+	// The host's frame j reads up to the engine's frame
+	// floor((j-delay)*step)+2, which must come before (j+1)*step, the
+	// engine's time at the host's next frame.
+	p.delay = max(int(math.Ceil(3/p.step-1)), 0)
+	n := int(math.Ceil(float64(max(s.MaxBlock, 1))*p.step)) + before + 8
 	p.bl, p.br = make([]float32, n), make([]float32, n)
 	p.tl, p.tr = make([]float32, n), make([]float32, n)
 	p.Reset()
 }
 
-// Reset implements [plug.Processor]: every note ends, at once.
+// Reset implements [plug.Processor]: every note ends at once, every
+// pedal lifts, and every bend goes back to none.
 func (p *processor) Reset() {
 	for _, in := range p.ins {
 		in.Silence()
 	}
 	p.prev = nil
-	// The frame before the first is silence.
-	p.bl[0], p.br[0] = 0, 0
-	p.have, p.pos = 1, 1
+	clear(p.bl[:before])
+	clear(p.br[:before])
+	p.base, p.have, p.at = -before, before, 0
 }
 
-// Latency implements [plug.Processor]: the frames the resampler reads
-// ahead, as the host counts them.
-func (p *processor) Latency() int { return int(math.Ceil(lookahead / p.step)) }
+// Latency implements [plug.Processor]: an event at the host's frame f
+// sounds from frame f+Latency, give or take a frame of the engine's
+// where the rates differ.
+func (p *processor) Latency() int { return p.delay }
 
-// Tail implements [plug.Processor]: two seconds, as long as the
-// sounds' releases ring.
-func (p *processor) Tail() int { return int(2 * p.rate) }
+// Tail implements [plug.Processor]: as long as the sound playing rings
+// once its notes are let go.
+func (p *processor) Tail() int { return int(math.Ceil(p.cur.Tail()*p.rate)) + p.delay }
 
 // Process implements [plug.Processor]: each change and each note takes
 // effect from its frame on.
@@ -264,6 +283,7 @@ func (p *processor) Process(b *plug.Block) {
 	for ; ei < len(b.Events); ei++ {
 		p.play(b.Events[ei])
 	}
+	p.at += int64(b.Frames)
 }
 
 // take takes a change to a parameter.
@@ -317,25 +337,29 @@ func (p *processor) play(e plug.Event) {
 }
 
 // fill writes the frames of out from index from up to index to,
-// resampled from the engine's sound, which it makes as far as it needs.
+// resampled from the engine's sound, which it makes up to the host's
+// time at to.
 func (p *processor) fill(out [][]float32, from, to int) {
 	if to <= from {
 		return
 	}
-	// Drop the frames read, but the one before pos.
-	if drop := int(p.pos) - 1; drop > 0 {
+	j0 := p.at + int64(from)
+	// Drop the frames before the first the cubic reads.
+	if drop := int(int64(math.Floor(p.engineAt(j0-int64(p.delay)))) - 1 - p.base); drop > 0 {
 		copy(p.bl, p.bl[drop:p.have])
 		copy(p.br, p.br[drop:p.have])
 		p.have -= drop
-		p.pos -= float64(drop)
+		p.base += int64(drop)
 	}
-	if need := int(p.pos+float64(to-from-1)*p.step) + lookahead; need > p.have {
-		p.render(min(need, len(p.bl)) - p.have)
+	end := int64(math.Ceil(p.engineAt(p.at + int64(to))))
+	if n := int(end - p.base - int64(p.have)); n > 0 {
+		p.render(n)
 	}
 	bl, br := p.bl, p.br
 	for j := from; j < to; j++ {
-		i := int(p.pos)
-		f := float32(p.pos - float64(i))
+		u := p.engineAt(p.at+int64(j)-int64(p.delay)) - float64(p.base)
+		i := int(math.Floor(u))
+		f := float32(u - float64(i))
 		l := cubic(bl[i-1], bl[i], bl[i+1], bl[i+2], f)
 		r := cubic(br[i-1], br[i], br[i+1], br[i+2], f)
 		switch len(out) {
@@ -348,8 +372,18 @@ func (p *processor) fill(out [][]float32, from, to int) {
 				ch[j] = 0
 			}
 		}
-		p.pos += p.step
 	}
+}
+
+// engineAt returns the engine's time at the host's frame j, in its
+// frames: on a frame where it falls within rounding of one, so a host
+// frame that falls on an engine frame reads it whole.
+func (p *processor) engineAt(j int64) float64 {
+	u := float64(j) * p.step
+	if r := math.Round(u); math.Abs(u-r) < 1e-6 {
+		return r
+	}
+	return u
 }
 
 // render makes n frames more of the engine's sound.
