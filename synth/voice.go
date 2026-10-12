@@ -65,6 +65,15 @@ type voice struct {
 	noise *rng
 	// pan is where the note sits, LFO and all, this control block.
 	pan float32
+	// left is how many frames of the control step are left to play, by
+	// what the step set: the pitch heard, the LFOs' width, the gains of
+	// the two sides and the level, whether it sings, and each FM
+	// oscillator's index.
+	left                   int
+	stepHz, stepWidth      float32
+	stepL, stepR, stepGain float32
+	stepSing               bool
+	fmIndex                [maxOsc]float32
 	// drift is how far the note is off its pitch, in semitones, as an
 	// analogue oscillator drifts.
 	drift float32
@@ -152,7 +161,7 @@ func (v *voice) start(p *patch, n note, age uint64) {
 		v.fenv.set(e)
 		v.accent = min(v.accent+1, 2.5)
 	}
-	v.drift, v.bend = 0, 0
+	v.drift, v.bend, v.left = 0, 0, 0
 	if src.Drift > 0 {
 		v.drift = float32(src.Drift/100) * v.noise.bipolar()
 	}
@@ -231,129 +240,163 @@ func (v *voice) quiet() bool { return !v.on || v.amp.stage == envRelease }
 type renderCtx struct {
 	// beatHz is beats a second, for LFOs in time with the song.
 	beatHz float64
+	// carry keeps each voice's place in its control step from one render
+	// to the next.
+	carry bool
 	// buf is room to make sound in.
 	l, r []float32
 }
 
-// render adds n frames of the voice's sound to outL and outR.
+// modulate starts a control step: it moves the LFOs, the glide, the
+// filter and the vowel, and sets what the step's frames play by.
+func (v *voice) modulate(ctx *renderCtx) {
+	p := v.p
+	src := p.src
+	var lPitch, lCut, lAmp, lWidth, lPan float32
+	for i, l := range p.lfo {
+		hz := l.Hz
+		if l.Beats > 0 {
+			hz = ctx.beatHz / l.Beats
+		}
+		v.lfoP[i] += float32(hz * control / rate)
+		if v.lfoP[i] >= 1 {
+			v.lfoP[i] -= float32(math.Floor(float64(v.lfoP[i])))
+			v.lfoR[i] = v.noise.bipolar()
+		}
+		x := lfoAt(l.wave, v.lfoP[i], v.lfoR[i]) * float32(l.Depth)
+		if l.Delay > 0 {
+			t := float64(v.frames)/rate/l.Delay - 1
+			x *= float32(min(max(t, 0), 1))
+		}
+		switch l.to {
+		case toPitch:
+			lPitch += x
+		case toCutoff:
+			lCut += x
+		case toAmp:
+			lAmp += x
+		case toWidth:
+			lWidth += x
+		case toPan:
+			lPan += x
+		}
+	}
+	v.pitch += (v.n.pitch - v.pitch) * v.glide
+	if b := p.src.Bend; b != nil && b.Time > 0 {
+		lPitch += float32(b.Semis * max(0, 1-float64(v.frames)/(b.Time*rate)))
+	}
+	if pitch := v.pitch + lPitch + v.drift + v.bend; pitch != v.pitchAt || v.hz == 0 {
+		v.pitchAt, v.hz = pitch, float32(noteHz(float64(pitch)))
+	}
+	hz := v.hz
+	if step := v.arpStep(); step != 0 {
+		hz *= exp2(step / 12)
+	}
+	if p.filter != filterNone {
+		f := src.Filter
+		cut := float32(f.Cutoff)
+		if v.n.cutoff > 0 {
+			cut = v.n.cutoff
+		}
+		if cut <= 0 {
+			cut = 20000
+		}
+		oct := v.fenv.v*float32(f.Env) + lCut + float32(f.Key)*(v.pitch-60)/12 + float32(f.Vel)*(v.n.vel-1)
+		if v.accent > 0 {
+			oct += float32(src.Accent) * v.accent
+			v.accent *= accentDrain
+			if v.accent < 1e-3 {
+				v.accent = 0
+			}
+		}
+		cut *= exp2(oct)
+		res := float32(f.Res)
+		if v.n.res >= 0 {
+			res = v.n.res
+		}
+		// The channels share their tuning, worked out once, and
+		// only as the cutoff moves, as it does not while a note is
+		// held with nothing moving it.
+		if d := cut - v.cut; d > v.cut*0.002 || d < -v.cut*0.002 || res != v.res {
+			v.cut, v.res = cut, res
+			v.fl.set(cut, res)
+			v.fr.tuneAs(&v.fl)
+			if p.filter == filterLP24 {
+				v.gl.set(cut, res*0.5)
+				v.gr.tuneAs(&v.gl)
+			}
+		}
+	}
+	// The vowel is the note's, or else the patch's as it is now, so
+	// a patch's vowel turned off or changed is heard at once.
+	vowel := v.n.vowel
+	if vowel == 0 {
+		vowel = p.vowel
+	}
+	sing := vowel != 0
+	if sing {
+		if vowel != v.vowel {
+			v.aim(vowel)
+		}
+		switch {
+		case p.vocoder:
+			v.voc.tune()
+		case p.singer != "":
+			v.sng.tune()
+		default:
+			v.form.tune()
+		}
+	}
+	v.pan = min(max(v.n.pan+lPan, -1), 1)
+	v.stepL, v.stepR = panGains(v.pan)
+	v.stepGain = v.n.vel * p.gain * (1 + lAmp)
+	v.stepHz, v.stepWidth, v.stepSing = hz, lWidth, sing
+	if p.kind == kindPluck && v.bend != v.strBend {
+		// A bent string is a shorter one, or a longer.
+		v.strBend = v.bend
+		v.strLen = min(max(v.strBase/exp2(v.bend/12), 2), pluckFrame-2)
+	}
+	for oi := range p.osc {
+		if o := &p.osc[oi]; o.wave == oscFM {
+			// The modulator's index falls from Index to Index*Sustain.
+			t := float64(v.frames) / rate
+			d := o.Decay
+			if d <= 0 {
+				d = 1e9
+			}
+			v.fmIndex[oi] = float32(o.Index * (o.Sustain + (1-o.Sustain)*math.Exp(-t/d)))
+		}
+	}
+}
+
+// render adds n frames of the voice's sound to outL and outR. Its
+// modulation moves once a control step: where ctx carries, the voice
+// keeps its place in its step from one call to the next, so its sound
+// is the same however finely it is rendered; else each call starts a
+// step, as a song's player renders up to each note.
 func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 	n := len(outL)
 	p := v.p
 	src := p.src
-	for at := 0; at < n && v.on; at += control {
-		m := min(control, n-at)
-		// Modulation, once a control block.
-		var lPitch, lCut, lAmp, lWidth, lPan float32
-		for i, l := range p.lfo {
-			hz := l.Hz
-			if l.Beats > 0 {
-				hz = ctx.beatHz / l.Beats
-			}
-			v.lfoP[i] += float32(hz * control / rate)
-			if v.lfoP[i] >= 1 {
-				v.lfoP[i] -= float32(math.Floor(float64(v.lfoP[i])))
-				v.lfoR[i] = v.noise.bipolar()
-			}
-			x := lfoAt(l.wave, v.lfoP[i], v.lfoR[i]) * float32(l.Depth)
-			if l.Delay > 0 {
-				t := float64(v.frames)/rate/l.Delay - 1
-				x *= float32(min(max(t, 0), 1))
-			}
-			switch l.to {
-			case toPitch:
-				lPitch += x
-			case toCutoff:
-				lCut += x
-			case toAmp:
-				lAmp += x
-			case toWidth:
-				lWidth += x
-			case toPan:
-				lPan += x
-			}
+	if !ctx.carry {
+		v.left = 0
+	}
+	for at := 0; at < n && v.on; {
+		if v.left == 0 {
+			v.modulate(ctx)
+			v.left = control
 		}
-		v.pitch += (v.n.pitch - v.pitch) * v.glide
-		if b := p.src.Bend; b != nil && b.Time > 0 {
-			lPitch += float32(b.Semis * max(0, 1-float64(v.frames)/(b.Time*rate)))
-		}
-		if pitch := v.pitch + lPitch + v.drift + v.bend; pitch != v.pitchAt || v.hz == 0 {
-			v.pitchAt, v.hz = pitch, float32(noteHz(float64(pitch)))
-		}
-		hz := v.hz
-		if step := v.arpStep(); step != 0 {
-			hz *= exp2(step / 12)
-		}
-		if p.filter != filterNone {
-			f := src.Filter
-			cut := float32(f.Cutoff)
-			if v.n.cutoff > 0 {
-				cut = v.n.cutoff
-			}
-			if cut <= 0 {
-				cut = 20000
-			}
-			oct := v.fenv.v*float32(f.Env) + lCut + float32(f.Key)*(v.pitch-60)/12 + float32(f.Vel)*(v.n.vel-1)
-			if v.accent > 0 {
-				oct += float32(src.Accent) * v.accent
-				v.accent *= accentDrain
-				if v.accent < 1e-3 {
-					v.accent = 0
-				}
-			}
-			cut *= exp2(oct)
-			res := float32(f.Res)
-			if v.n.res >= 0 {
-				res = v.n.res
-			}
-			// The channels share their tuning, worked out once, and
-			// only as the cutoff moves, as it does not while a note is
-			// held with nothing moving it.
-			if d := cut - v.cut; d > v.cut*0.002 || d < -v.cut*0.002 || res != v.res {
-				v.cut, v.res = cut, res
-				v.fl.set(cut, res)
-				v.fr.tuneAs(&v.fl)
-				if p.filter == filterLP24 {
-					v.gl.set(cut, res*0.5)
-					v.gr.tuneAs(&v.gl)
-				}
-			}
-		}
-		// The vowel is the note's, or else the patch's as it is now, so
-		// a patch's vowel turned off or changed is heard at once.
-		vowel := v.n.vowel
-		if vowel == 0 {
-			vowel = p.vowel
-		}
-		sing := vowel != 0
-		if sing {
-			if vowel != v.vowel {
-				v.aim(vowel)
-			}
-			switch {
-			case p.vocoder:
-				v.voc.tune()
-			case p.singer != "":
-				v.sng.tune()
-			default:
-				v.form.tune()
-			}
-		}
-		v.pan = min(max(v.n.pan+lPan, -1), 1)
-		pl, pr := panGains(v.pan)
-		gain := v.n.vel * p.gain * (1 + lAmp)
+		m := min(v.left, n-at)
+		hz, sing := v.stepHz, v.stepSing
+		pl, pr, gain := v.stepL, v.stepR, v.stepGain
 		bl, br := ctx.l[:m], ctx.r[:m]
 		clear(bl)
 		clear(br)
 		if p.kind == kindPluck {
-			if v.bend != v.strBend {
-				// A bent string is a shorter one, or a longer.
-				v.strBend = v.bend
-				v.strLen = min(max(v.strBase/exp2(v.bend/12), 2), pluckFrame-2)
-			}
 			v.renderString(bl, hz)
 			copy(br, bl)
 		} else {
-			v.renderOsc(bl, br, hz, lWidth)
+			v.renderOsc(bl, br, hz, v.stepWidth)
 		}
 		if src.Noise > 0 {
 			nl := float32(src.Noise)
@@ -409,6 +452,8 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 			outR[at+i] += br[i] * a * pr
 		}
 		v.frames += int64(m)
+		v.left -= m
+		at += m
 		if v.amp.idle() {
 			v.on = false
 		}
@@ -431,16 +476,7 @@ func (v *voice) renderOsc(l, r []float32, hz, lWidth float32) {
 		}
 		prevPh, prevDt = startPh, startDt
 		width := min(max(float32(o.Width)+lWidth, 0.05), 0.95)
-		var index float32
-		if o.wave == oscFM {
-			t := float64(v.frames) / rate
-			sus := o.Sustain
-			d := o.Decay
-			if d <= 0 {
-				d = 1e9
-			}
-			index = float32(o.Index * (sus + (1-sus)*math.Exp(-t/d)))
-		}
+		index := v.fmIndex[oi]
 		for u := range o.unison {
 			dt := base * o.detunes[u]
 			if dt >= 0.5 {

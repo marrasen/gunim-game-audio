@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	music "github.com/marrasen/gunim-game-audio"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
@@ -44,19 +45,29 @@ func rms(x []float32) float64 {
 // hz returns how high x sounds: the period, from 1 ms to 20, over which
 // it best matches itself.
 func hz(x []float32) float64 {
-	best, at := math.Inf(-1), 0
-	for lag := synth.Rate / 1000; lag <= synth.Rate/50; lag++ {
-		var sum float64
+	lo, hi := synth.Rate/1000, synth.Rate/50
+	sums := make([]float64, hi+2)
+	best := 0.0
+	for lag := lo - 1; lag <= hi+1; lag++ {
 		for i := lag; i < len(x); i++ {
-			sum += float64(x[i]) * float64(x[i-lag])
+			sums[lag] += float64(x[i]) * float64(x[i-lag])
 		}
-		sum /= float64(len(x) - lag)
-		// The first peak near the best, so a period twice as long loses.
-		if sum > best*1.02 {
-			best, at = sum, lag
+		sums[lag] /= float64(len(x) - lag)
+		best = max(best, sums[lag])
+	}
+	// The first peak near the best, so a period twice as long loses,
+	// placed between lags by the parabola through it.
+	for lag := lo; lag <= hi; lag++ {
+		a, b, c := sums[lag-1], sums[lag], sums[lag+1]
+		if b >= a && b >= c && b >= 0.9*best {
+			d := 0.0
+			if den := a - 2*b + c; den != 0 {
+				d = 0.5 * (a - c) / den
+			}
+			return float64(synth.Rate) / (float64(lag) + d)
 		}
 	}
-	return synth.Rate / float64(at)
+	return 0
 }
 
 func TestANoteHeldSoundsUntilItsNoteOff(t *testing.T) {
@@ -173,5 +184,110 @@ func TestRenderingAllocatesNothing(t *testing.T) {
 		if allocs != 0 {
 			t.Errorf("%s: a block allocates %.1f times", p.Kind, allocs)
 		}
+	}
+}
+
+// preset returns the patch library's preset named name.
+func preset(t *testing.T, name string) *synth.Patch {
+	t.Helper()
+	ps, err := music.Presets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range ps {
+		if p.Name == name {
+			return p.Patch
+		}
+	}
+	t.Fatalf("the library has no preset %s", name)
+	return nil
+}
+
+func TestTheSoundIsTheSameHoweverFinelyItIsRendered(t *testing.T) {
+	// The pad's filter breathes by an LFO, and the bass glides.
+	for _, name := range []string{"Juno pad", "Moog bass"} {
+		var want []float32
+		for _, chunk := range []int{256, 1, 37} {
+			in := instrument(t, preset(t, name))
+			var out []float32
+			l, r := make([]float32, chunk), make([]float32, chunk)
+			// Each run is 9600 frames, then its events.
+			for _, ev := range []func(){
+				func() { in.NoteOn(1, 45, 0.9, 0) },
+				func() { in.NoteOn(2, 52, 0.9, 0); in.Bend(2, 0.5) },
+				func() { in.NoteOff(2) },
+				func() { in.NoteOff(1) },
+			} {
+				ev()
+				for at := 0; at < 9600; at += chunk {
+					m := min(chunk, 9600-at)
+					in.Render(l[:m], r[:m])
+					out = append(out, l[:m]...)
+				}
+			}
+			if want == nil {
+				want = out
+				continue
+			}
+			for i := range want {
+				if out[i] != want[i] {
+					t.Errorf("%s rendered %d frames at a time differs from 256 at a time from frame %d: %v, not %v", name, chunk, i, out[i], want[i])
+					break
+				}
+			}
+		}
+	}
+}
+
+func TestAMonoPatchGoesBackToTheNoteStillHeld(t *testing.T) {
+	mono := *sine
+	mono.Poly = 1
+	in := instrument(t, &mono)
+	in.NoteOn(1, 57, 1, 0) // A3, 220 Hz, held
+	listen(in, 0.1)
+	in.NoteOn(2, 64, 1, 0) // E4, 329.6 Hz
+	if got := hz(listen(in, 0.2)[synth.Rate/20:]); math.Abs(got-329.6) > 6 {
+		t.Fatalf("E4 over A3 held sounds at %.1f Hz", got)
+	}
+	in.NoteOff(2)
+	x := listen(in, 0.3)[synth.Rate/20:]
+	if got := hz(x); math.Abs(got-220) > 4 || rms(x) < 0.1 {
+		t.Errorf("E4 let go, with A3 still held, sounds %.3f at %.1f Hz, not A3", rms(x), got)
+	}
+	in.NoteOff(1)
+	listen(in, 0.5)
+	if in.Sounding() {
+		t.Error("A3 sounds on after its NoteOff")
+	}
+}
+
+func TestANewNoteStartsUnbent(t *testing.T) {
+	mono := *sine
+	mono.Poly = 1
+	in := instrument(t, &mono)
+	in.NoteOn(1, 57, 1, 0)
+	in.Bend(1, 7)
+	listen(in, 0.1)
+	in.NoteOff(1)
+	// The voice still rings, letting go, as the next note takes it.
+	in.NoteOn(2, 57, 1, 0)
+	if got := hz(listen(in, 0.2)[synth.Rate/20:]); math.Abs(got-220) > 4 {
+		t.Errorf("a new A3 on the voice a bent note played sounds at %.1f Hz, not 220", got)
+	}
+}
+
+func TestLiftingAPedalLetsGoOfItsGroupAlone(t *testing.T) {
+	in := instrument(t, sine)
+	in.Pedal(1, 1)
+	in.Pedal(2, 1)
+	in.NoteOn(1, 57, 0.8, 1) // 220 Hz
+	in.NoteOn(2, 81, 0.8, 2) // 880 Hz
+	listen(in, 0.1)
+	in.NoteOff(1)
+	in.NoteOff(2)
+	in.Pedal(2, 0)
+	x := listen(in, 0.6)[synth.Rate/2:]
+	if got := hz(x); math.Abs(got-220) > 5 || rms(x) < 0.1 {
+		t.Errorf("group 2's pedal lifted, the sound is %.3f at %.0f Hz, not group 1's 220 Hz alone", rms(x), got)
 	}
 }

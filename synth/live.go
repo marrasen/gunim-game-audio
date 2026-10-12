@@ -56,6 +56,10 @@ type liveNote struct {
 	id, group int32
 	v         *voice
 	age       uint64
+	// n is the note as struck, and bend how far it is bent, for a mono
+	// patch to go back to it.
+	n    note
+	bend float32
 	// sustained says its NoteOff came while the pedal held it.
 	sustained bool
 }
@@ -100,7 +104,7 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 		return nil, err
 	}
 	in.p = c
-	in.ctx = renderCtx{beatHz: 2, l: make([]float32, control), r: make([]float32, control)}
+	in.ctx = renderCtx{beatHz: 2, carry: true, l: make([]float32, control), r: make([]float32, control)}
 	if c.kind == kindDrums {
 		in.hs = newHits(c.poly)
 		for i := range in.hs.hs {
@@ -157,8 +161,9 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 	if in.n == maxLive {
 		in.let(0)
 	}
-	v := in.vs.play(in.p, note{pitch: float32(pitch), vel: float32(vel), res: -1})
-	in.held[in.n] = liveNote{id: id, group: group, v: v, age: v.age}
+	n := note{pitch: float32(pitch), vel: float32(vel), res: -1}
+	v := in.vs.play(in.p, n)
+	in.held[in.n] = liveNote{id: id, group: group, v: v, age: v.age, n: n}
 	in.n++
 }
 
@@ -173,7 +178,36 @@ func (in *Instrument) NoteOff(id int32) {
 		in.held[i].sustained = true
 		return
 	}
+	if in.p.poly == 1 && in.back(i) {
+		return
+	}
 	in.let(i)
+}
+
+// back hands a mono patch's voice, playing the note held at i, back to
+// the last note struck before it that is still held, as a mono synth
+// does, and forgets the note at i. It reports whether there was one.
+func (in *Instrument) back(i int) bool {
+	h := &in.held[i]
+	if !h.v.on || h.v.age != h.age {
+		return false
+	}
+	j := -1
+	for k := in.n - 1; k >= 0 && j < 0; k-- {
+		if k != i && !in.held[k].sustained {
+			j = k
+		}
+	}
+	if j < 0 {
+		return false
+	}
+	to := &in.held[j]
+	v := in.vs.play(in.p, to.n)
+	v.bend = to.bend
+	to.v, to.age = v, v.age
+	copy(in.held[i:in.n], in.held[i+1:in.n])
+	in.n--
+	return true
 }
 
 // Bend bends note id by semis semitones from its pitch, up, or down
@@ -189,8 +223,10 @@ func (in *Instrument) Bend(id int32, semis float64) {
 	if i < 0 {
 		return
 	}
-	if h := &in.held[i]; h.v.on && h.v.age == h.age {
-		h.v.bend = float32(semis)
+	h := &in.held[i]
+	h.bend = float32(semis)
+	if h.v.on && h.v.age == h.age {
+		h.v.bend = h.bend
 	}
 }
 
@@ -317,6 +353,21 @@ func (in *Instrument) Sounding() bool {
 		}
 	}
 	return false
+}
+
+// Tail returns how long, in seconds, the instrument rings once its
+// notes are let go: its envelope's release, as the knobs stretch it, or
+// a drums patch's longest drum.
+func (in *Instrument) Tail() float64 {
+	if in.p.kind != kindDrums {
+		return in.src.Amp.Release
+	}
+	// A crash rings longest, 6.6 s times its Decay.
+	tail := 0.0
+	for _, d := range in.p.kit {
+		tail = max(tail, 6.6*max(d.Decay, 1))
+	}
+	return tail
 }
 
 // Release lets go of every note, and lifts every pedal.
