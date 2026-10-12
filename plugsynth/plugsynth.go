@@ -1,8 +1,11 @@
 // Package plugsynth is the engine's synth as a plugin in gunim's
-// [plug] format: an instrument that plays a few of the patch library's
-// sounds, a pad, a pluck, a bass, a lead, an electric piano and a drum
-// kit, live, note by note, with knobs for the filter, the envelope and
-// the level. It registers itself as it starts; import it for that:
+// [plug] format: an instrument that plays any patch, live, note by note,
+// with knobs for the filter, the envelope and the level. It offers
+// every sound the module has, in a browser: the patch library's
+// presets, General MIDI's 128 instruments and its drum kits, and the
+// patches the songs play. Its state holds the whole patch, so a host
+// may hand it one of its own too. It registers itself as it starts;
+// import it for that:
 //
 //	import _ "github.com/marrasen/gunim-game-audio/plugsynth"
 //
@@ -12,23 +15,21 @@
 package plugsynth
 
 import (
-	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 
-	music "github.com/marrasen/gunim-game-audio"
 	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim/audio/plug"
 )
 
-// The parameters' IDs.
+// The parameters' IDs. ID 1 picked one of six sounds before the state
+// held the patch, and stays unused.
 const (
-	// SoundID picks the sound, by its place in Sounds.
-	SoundID uint32 = iota + 1
 	// CutoffID moves the filter's cutoff, in octaves, and ResID adds to
 	// its resonance.
-	CutoffID
+	CutoffID uint32 = iota + 2
 	ResID
 	// AttackID and ReleaseID stretch the envelope's attack and release,
 	// as factors.
@@ -38,36 +39,15 @@ const (
 	GainID
 )
 
-// A Sound is one of the sounds the plugin plays: a preset of the
-// patch library, by its name, and the short name its selector shows.
-type Sound struct {
-	Short, Preset string
-}
-
-// Sounds are the sounds the plugin plays, in the order its Sound
-// parameter steps through them.
-var Sounds = []Sound{
-	{"Pad", "Juno pad"},
-	{"Pluck", "Harp pluck"},
-	{"Bass", "Moog bass"},
-	{"Lead", "Jupiter brass lead"},
-	{"Keys", "DX7 E-piano"},
-	{"Drums", "TR-808"},
-}
-
 // Descriptor is the plugin, as it is registered.
 var Descriptor = plug.Descriptor{
 	ID:      "marrasen.gamesynth",
 	Name:    "Game Synth",
 	Vendor:  "Marras",
-	Version: "0.1.0",
+	Version: "0.2.0",
 	Kind:    "Instrument|Synth",
 	Notes:   true,
 	Params: []plug.Param{
-		{
-			ID: SoundID, Name: "Sound", Min: 0, Max: float64(len(Sounds) - 1), Steps: len(Sounds) - 1,
-			Format: func(v float64) string { return Sounds[soundAt(v)].Short },
-		},
 		{
 			ID: CutoffID, Name: "Cutoff", Unit: "oct", Min: -4, Max: 4, Flags: plug.Automatable,
 			Format: func(v float64) string { return fmt.Sprintf("%+.1f oct", v) },
@@ -89,8 +69,7 @@ var Descriptor = plug.Descriptor{
 			Format: func(v float64) string { return fmt.Sprintf("%+.1f dB", v) },
 		},
 	},
-	Patches: patches(),
-	New:     func(h plug.Host) plug.Plugin { return newPlugin(h) },
+	New: func(h plug.Host) plug.Plugin { return newPlugin(h) },
 }
 
 func init() { plug.Register(Descriptor) }
@@ -98,74 +77,88 @@ func init() { plug.Register(Descriptor) }
 // times writes a factor to show, as ×2.00.
 func times(v float64) string { return fmt.Sprintf("×%.2f", v) }
 
-// soundAt returns the sound the Sound parameter's value v picks.
-func soundAt(v float64) int { return min(max(int(math.Round(v)), 0), len(Sounds)-1) }
+// DefaultSound is the sound the plugin plays with an empty state.
+const DefaultSound = "Juno pad"
 
-// patches are a patch for each sound, named as the library names it.
-func patches() []plug.Patch {
-	out := make([]plug.Patch, len(Sounds))
-	for i, s := range Sounds {
-		out[i] = plug.Patch{Name: s.Preset, Category: s.Short, Params: map[uint32]float64{SoundID: float64(i)}}
+// defaultState is the state of DefaultSound.
+var defaultState = sync.OnceValue(func() State {
+	s, ok := Named(DefaultSound)
+	if !ok {
+		panic("plugsynth: the patch library has no preset " + DefaultSound)
 	}
-	return out
-}
-
-// sound is a sound made ready: its patch, what it sounds like, and
-// whether it has a filter and an envelope for the knobs to turn.
-type sound struct {
-	patch            *synth.Patch
-	about            string
-	filter, envelope bool
-}
-
-// sounds returns the sounds' patches, from the library.
-func sounds() []sound {
-	presets, err := music.Presets()
-	if err != nil {
-		panic("plugsynth: " + err.Error())
-	}
-	out := make([]sound, len(Sounds))
-	for i, s := range Sounds {
-		for _, p := range presets {
-			if p.Name == s.Preset {
-				f := p.Patch.Filter.Type
-				drums := p.Patch.Kind == "drums"
-				out[i] = sound{patch: p.Patch, about: p.About, filter: f != "" && f != "none" && !drums, envelope: !drums}
-			}
-		}
-		if out[i].patch == nil {
-			panic("plugsynth: the patch library has no preset " + s.Preset)
-		}
-	}
-	return out
-}
+	return State{Bank: s.Bank, Group: s.Group, Name: s.Name, Patch: s.Patch()}
+})
 
 // plugin is one synth.
 type plugin struct {
-	host   plug.Host
-	sounds []sound
-	proc   *processor
+	host plug.Host
+	proc *processor
+	// mu guards st and raw, which State and SetState reach from the
+	// app's goroutine and the views from the window's.
+	mu  sync.Mutex
+	st  State
+	raw []byte
 }
 
 func newPlugin(h plug.Host) *plugin {
-	p := &plugin{host: h, sounds: sounds()}
-	p.proc = newProcessor(p.sounds)
-	return p
+	st := defaultState()
+	in, err := synth.NewInstrument(st.Patch)
+	if err != nil {
+		panic("plugsynth: " + err.Error())
+	}
+	return &plugin{host: h, st: st, proc: newProcessor(in)}
 }
 
 // Processor implements [plug.Plugin].
 func (p *plugin) Processor() plug.Processor { return p.proc }
 
-// State implements [plug.Plugin]: the synth keeps nothing but its
-// parameters.
-func (p *plugin) State() []byte { return nil }
+// State implements [plug.Plugin]: the sound, as [State] writes it, or
+// nil for the default sound, as the plugin starts.
+func (p *plugin) State() []byte {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.raw
+}
 
-// SetState implements [plug.Plugin]: it takes only an empty state.
+// SetState implements [plug.Plugin]: it plays the sound the state holds,
+// and DefaultSound for an empty one. A state it cannot read, or whose
+// patch it cannot play, changes nothing. The sound is made here, and
+// handed to the processor whole, which takes it as its next block
+// starts: the notes held start again on it, and those of the sound
+// before ring out.
 func (p *plugin) SetState(b []byte) error {
+	st := defaultState()
 	if len(b) > 0 {
-		return errors.New("plugsynth: the synth keeps no state")
+		var err error
+		if st, err = DecodeState(b); err != nil {
+			return err
+		}
 	}
+	in, err := synth.NewInstrument(st.Patch)
+	if err != nil {
+		return fmt.Errorf("plugsynth: %s: %w", st.Name, err)
+	}
+	p.mu.Lock()
+	p.st, p.raw = st, nil
+	if len(b) > 0 {
+		p.raw = st.Encode()
+	}
+	p.mu.Unlock()
+	p.proc.offer(in)
 	return nil
+}
+
+// sound returns the state the plugin plays.
+func (p *plugin) sound() State {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.st
+}
+
+// pick plays sound s, as the browser picks it.
+func (p *plugin) pick(s Sound) {
+	// The library's own sounds always load.
+	_ = p.SetState(s.State())
 }
 
 // Close implements [plug.Plugin].
@@ -184,10 +177,11 @@ const before = 4
 // the event takes effect there. The host's frame j reads the engine at
 // (j-delay)*step, delay frames back, which it has always made by then.
 type processor struct {
-	// ins are an instrument for each sound, and cur the one playing;
-	// prev is the one played before, ringing out.
-	ins       []*synth.Instrument
+	// cur is the sound playing, and prev the one played before it,
+	// ringing out; next is a sound SetState made, for the next block to
+	// take.
 	cur, prev *synth.Instrument
+	next      atomic.Pointer[synth.Instrument]
 	knobs     synth.Knobs
 	// rate is the host's rate, and step how many of the engine's frames
 	// pass in one of the host's; delay is how many of the host's frames
@@ -206,16 +200,8 @@ type processor struct {
 	latency, tail atomic.Int64
 }
 
-func newProcessor(ss []sound) *processor {
-	p := &processor{}
-	for _, s := range ss {
-		in, err := synth.NewInstrument(s.patch)
-		if err != nil {
-			panic("plugsynth: " + err.Error())
-		}
-		p.ins = append(p.ins, in)
-	}
-	p.cur = p.ins[0]
+func newProcessor(in *synth.Instrument) *processor {
+	p := &processor{cur: in}
 	p.Prepare(plug.Setup{Rate: synth.Rate, MaxBlock: 512, Channels: 2})
 	return p
 }
@@ -241,9 +227,8 @@ func (p *processor) Prepare(s plug.Setup) {
 // Reset implements [plug.Processor]: every note ends at once, every
 // pedal lifts, and every bend goes back to none.
 func (p *processor) Reset() {
-	for _, in := range p.ins {
-		in.Silence()
-	}
+	p.adopt()
+	p.cur.Silence()
 	p.prev = nil
 	clear(p.bl[:before])
 	clear(p.br[:before])
@@ -270,6 +255,7 @@ func (p *processor) keepTail() {
 // Process implements [plug.Processor]: each change and each note takes
 // effect from its frame on.
 func (p *processor) Process(b *plug.Block) {
+	swapped := p.adopt()
 	ci, ei := 0, 0
 	for at := 0; at < b.Frames; {
 		for ci < len(b.Changes) && b.Changes[ci].Frame <= at {
@@ -297,9 +283,32 @@ func (p *processor) Process(b *plug.Block) {
 		p.play(b.Events[ei])
 	}
 	p.at += int64(b.Frames)
-	if len(b.Changes) > 0 {
+	if swapped || len(b.Changes) > 0 {
 		p.keepTail()
 	}
+}
+
+// offer hands the processor sound in, made off the audio thread, for
+// its next block to take. A sound offered before it, still untaken,
+// is dropped.
+func (p *processor) offer(in *synth.Instrument) { p.next.Store(in) }
+
+// adopt takes the sound offered, if any, and reports whether it did:
+// the notes held start again on it, at the knobs as they stand, and the
+// sound before rings out. A sound still ringing out from before that
+// stops at once.
+func (p *processor) adopt() bool {
+	in := p.next.Swap(nil)
+	if in == nil {
+		return false
+	}
+	in.SetKnobs(p.knobs)
+	if p.prev != nil {
+		p.prev.Silence()
+	}
+	p.cur.Pass(in)
+	p.prev, p.cur = p.cur, in
+	return true
 }
 
 // take takes a change to a parameter.
@@ -310,17 +319,6 @@ func (p *processor) take(c plug.Change) {
 	}
 	v := prm.Clamp(c.Value)
 	switch c.ID {
-	case SoundID:
-		in := p.ins[soundAt(v)]
-		if in == p.cur {
-			return
-		}
-		// The sound before rings out, its notes let go.
-		if p.prev != nil {
-			p.prev.Silence()
-		}
-		p.cur.Release()
-		p.prev, p.cur = p.cur, in
 	case CutoffID:
 		p.knobs.Cutoff = v
 	case ResID:
