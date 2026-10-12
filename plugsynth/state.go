@@ -1,9 +1,11 @@
 package plugsynth
 
 import (
+	"crypto/sha256"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/marrasen/gunim-game-audio/synth"
 )
@@ -55,11 +57,47 @@ func DecodeState(b []byte) (State, error) {
 		return State{}, errNoPatch
 	}
 	// A state from outside, as a song a user edited, may hold any
-	// patch: one that would fault as it plays is turned away here.
-	if err := synth.CheckPatch(s.Patch); err != nil {
-		return State{}, fmt.Errorf("plugsynth: %s: %w", s.Name, err)
+	// patch: one that would fault as it plays is turned away here. A
+	// state checked before, or a sound of the module's own, plays as it
+	// is: a sound picked is read twice, for the views and for the sound.
+	if !checked.has(b) {
+		if err := synth.CheckPatch(s.Patch); err != nil {
+			return State{}, fmt.Errorf("plugsynth: %s: %w", s.Name, err)
+		}
+		checked.add(b)
 	}
 	return s, nil
+}
+
+// checked are the states known to play, by their hashes: those the
+// module's sounds write, and those CheckPatch passed.
+var checked checkedStates
+
+// checkedStates is a set of states, by their hashes, safe on any
+// goroutine. It forgets them all once it holds maxChecked.
+type checkedStates struct {
+	mu sync.Mutex
+	m  map[[sha256.Size]byte]bool
+}
+
+// maxChecked is the most states checked keeps.
+const maxChecked = 4096
+
+func (c *checkedStates) has(b []byte) bool {
+	h := sha256.Sum256(b)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.m[h]
+}
+
+func (c *checkedStates) add(b []byte) {
+	h := sha256.Sum256(b)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.m == nil || len(c.m) >= maxChecked {
+		c.m = map[[sha256.Size]byte]bool{}
+	}
+	c.m[h] = true
 }
 
 // clonePatch returns a copy of p that shares nothing with it.
