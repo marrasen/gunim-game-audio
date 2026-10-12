@@ -54,7 +54,12 @@ func transposeChords(s string, n int) string {
 		body, bass, slash := strings.Cut(w, "/")
 		body = transposeName(body, n)
 		if slash {
-			body += "/" + transposeName(bass, n)
+			// A bass by its interval above the root, as b3, moves with
+			// it.
+			if _, ok := parseFigure(bass); !ok {
+				bass = transposeName(bass, n)
+			}
+			body += "/" + bass
 		}
 		words[i] = body
 	}

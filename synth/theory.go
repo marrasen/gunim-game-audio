@@ -190,7 +190,9 @@ var romans = []struct {
 // readChord reads a chord by name, as Am7, F#m, Cmaj7 or G/B, or by its
 // numeral in k, as vi, IV, V7, bVII or ii7. A numeral counts degrees of
 // k's scale: in A minor VI is F. Upper case is a major chord and lower
-// case a minor one, unless a suffix says otherwise.
+// case a minor one, unless a suffix says otherwise. A slash chord's bass
+// is a note, as in G/B, or an interval above the root, as in V/3 or
+// I/b7, which moves with the root.
 func readChord(s string, k key) (Chord, error) {
 	c := Chord{Name: s, names: k.names()}
 	body, bass, slash := strings.Cut(s, "/")
@@ -225,13 +227,41 @@ func readChord(s string, k key) (Chord, error) {
 	}
 	c.Bass = c.Root
 	if slash {
-		pc, n, ok := parsePitchClass(bass)
-		if !ok || n != len(bass) {
-			return c, fmt.Errorf("synth: chord %q has a bass %q that is no note", s, bass)
+		if pc, n, ok := parsePitchClass(bass); ok && n == len(bass) {
+			c.Bass = pc
+		} else if up, ok := parseFigure(bass); ok {
+			c.Bass = mod(c.Root+up, 12)
+		} else {
+			return c, fmt.Errorf("synth: chord %q has a bass %q that is no note or interval, such as G or b3", s, bass)
 		}
-		c.Bass = pc
 	}
 	return c, nil
+}
+
+// figureSteps are the intervals a slash chord's bass may name, by
+// number, in semitones up from the root: 3 is the major third, 5 the
+// fifth, 7 the major seventh, and 9, 11 and 13 an octave over 2, 4 and
+// 6.
+var figureSteps = map[string]int{"1": 0, "2": 2, "3": 4, "4": 5, "5": 7, "6": 9, "7": 11, "9": 2, "11": 5, "13": 9}
+
+// figures name the bass by its interval above the root, in semitones,
+// as Numeral writes it.
+var figures = [12]string{"1", "b2", "2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7"}
+
+// parseFigure reads an interval, as 3, b3, #5 or b7, and returns its
+// semitones up from the root, within the octave.
+func parseFigure(s string) (int, bool) {
+	shift := 0
+	for s != "" && (s[0] == 'b' || s[0] == '#') {
+		if s[0] == 'b' {
+			shift--
+		} else {
+			shift++
+		}
+		s = s[1:]
+	}
+	up, ok := figureSteps[s]
+	return mod(up+shift, 12), ok
 }
 
 func quality(suffix string) ([]int, bool) {
@@ -251,14 +281,19 @@ type roman struct {
 // parseRoman reads a numeral and its accidentals from the start of s,
 // and returns what is left of it.
 func parseRoman(s string, k key) (roman, string, bool) {
-	shift := 0
-	for s != "" && (s[0] == 'b' || s[0] == '#') && len(s) > 1 && strings.ContainsRune("IViv", rune(s[1])) {
-		if s[0] == 'b' {
+	shift, n := 0, 0
+	for n < len(s) && (s[n] == 'b' || s[n] == '#') {
+		if s[n] == 'b' {
 			shift--
 		} else {
 			shift++
 		}
-		s = s[1:]
+		n++
+	}
+	if n < len(s) && strings.ContainsRune("IViv", rune(s[n])) {
+		s = s[n:]
+	} else {
+		shift = 0
 	}
 	for _, r := range romans {
 		lower := strings.ToLower(r.s)
@@ -530,6 +565,77 @@ func KeyNote(root, scale string, d, oct int) (int, error) {
 		return 0, err
 	}
 	return k.degree(d, oct), nil
+}
+
+// IsNumeral reports whether name is a chord by numeral, as vi, bVII/3
+// or IV7, which ParseChord reads by degrees of the key, and so moves
+// with the key.
+func IsNumeral(name string) bool {
+	_, _, ok := parseRoman(name, key{scale: Scales["major"]})
+	return ok
+}
+
+// Numeral returns c by its numeral in the key root and scale, as vi7
+// for Am7 in C major: ParseChord reads it back in that key to c's root,
+// tones and bass. A root outside the scale takes the nearest
+// accidental, a flat where two lie as near, as bVII. A slash chord's
+// bass is its interval above the root, as I/3 for C/E, so the whole
+// chord moves with the key.
+func (c Chord) Numeral(root, scale string) (string, error) {
+	k, err := parseKey(root, scale)
+	if err != nil {
+		return "", err
+	}
+	suffix, ok := "", false
+	for _, q := range qualities {
+		if slicesEqual(q.tones, c.Tones) {
+			suffix, ok = q.suffix, true
+			break
+		}
+	}
+	if !ok {
+		return "", fmt.Errorf("synth: chord %q has tones %v that no suffix names", c.Name, c.Tones)
+	}
+	step := mod(c.Root-k.root, 12)
+	d, shift := 0, 12
+	for i, s := range k.scale {
+		sh := mod(step-s+6, 12) - 6
+		if abs(sh) < abs(shift) || abs(sh) == abs(shift) && sh < shift {
+			d, shift = i, sh
+		}
+	}
+	var b strings.Builder
+	for range -shift {
+		b.WriteByte('b')
+	}
+	for range shift {
+		b.WriteByte('#')
+	}
+	numeral := romanNumerals[d]
+	switch suffix {
+	case "m":
+		numeral, suffix = strings.ToLower(numeral), ""
+	case "m7", "m9":
+		// Lower case with 7 or 9 is a minor seventh or ninth.
+		numeral, suffix = strings.ToLower(numeral), suffix[1:]
+	case "m7b5", "m6", "madd9", "dim", "dim7":
+		numeral = strings.ToLower(numeral)
+	}
+	b.WriteString(numeral + suffix)
+	if c.Bass != c.Root {
+		b.WriteString("/" + figures[mod(c.Bass-c.Root, 12)])
+	}
+	return b.String(), nil
+}
+
+// romanNumerals are the numerals of the degrees, from I.
+var romanNumerals = [...]string{"I", "II", "III", "IV", "V", "VI", "VII"}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // ParseChord reads a chord, by name as Am7 or by numeral as vi, in the
