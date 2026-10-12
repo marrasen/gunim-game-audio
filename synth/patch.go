@@ -430,7 +430,7 @@ func (p *Patch) compile(name string) (*patch, error) {
 			if p.Gain != 0 {
 				gm.Gain *= p.Gain
 			}
-			if p.Poly != 0 {
+			if p.Poly > 0 {
 				gm.Poly = p.Poly
 			}
 			fb = *gm
@@ -451,15 +451,18 @@ func (p *Patch) compile(name string) (*patch, error) {
 	default:
 		return nil, fmt.Errorf("synth: patch %s is of kind %q, not synth, pluck or drums", name, p.Kind)
 	}
-	if c.poly == 0 {
+	if c.poly <= 0 {
 		c.poly = 8
 		if c.kind == kindDrums {
 			c.poly = 16
 		}
 	}
 	c.poly = min(c.poly, 32)
+	if len(p.Osc) > maxOsc {
+		return nil, fmt.Errorf("synth: patch %s has %d oscillators, and plays %d at most", name, len(p.Osc), maxOsc)
+	}
 	for i, o := range p.Osc {
-		co := osc{Osc: o, level: 1, unison: max(o.Unison, 1)}
+		co := osc{Osc: o, level: 1, unison: min(max(o.Unison, 1), maxUnison)}
 		if o.Level != 0 {
 			co.level = float32(o.Level)
 		}

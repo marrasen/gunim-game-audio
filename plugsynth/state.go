@@ -54,6 +54,11 @@ func DecodeState(b []byte) (State, error) {
 	if s.Patch == nil {
 		return State{}, errNoPatch
 	}
+	// A state from outside, as a song a user edited, may hold any
+	// patch: one that would fault as it plays is turned away here.
+	if err := synth.CheckPatch(s.Patch); err != nil {
+		return State{}, fmt.Errorf("plugsynth: %s: %w", s.Name, err)
+	}
 	return s, nil
 }
 

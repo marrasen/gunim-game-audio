@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -771,4 +772,56 @@ func preset(t *testing.T, name string) *synth.Patch {
 	}
 	t.Fatalf("the library has no preset %s", name)
 	return nil
+}
+
+func TestAPatchThatWouldFaultIsTurnedAway(t *testing.T) {
+	// A Poly below zero, or a Unison out of range, plays as the default.
+	for _, ok := range []string{
+		`{"Patch":{"Poly":-1,"Osc":[{"Wave":"saw"}]}}`,
+		`{"Patch":{"Kind":"drums","Poly":-3}}`,
+		`{"Patch":{"Osc":[{"Wave":"saw","Unison":-4}]}}`,
+		`{"Patch":{"Osc":[{"Wave":"saw","Unison":100000000}]}}`,
+	} {
+		p := synthOf(t, "Moog bass")
+		if err := p.SetState([]byte(ok)); err != nil {
+			t.Errorf("state %s is turned away: %v", ok, err)
+			continue
+		}
+		out := plugtest.Play(t, p.Processor(), plug.Setup{Rate: 48000, MaxBlock: 256, Channels: 2}, 4800, params(),
+			note(1, 60, 0, 2400)...)
+		for _, v := range out[0] {
+			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+				t.Fatalf("state %s plays %v", ok, v)
+			}
+		}
+	}
+	// Any other state either loads and plays, or is turned away: none
+	// faults.
+	for _, odd := range []string{
+		`{"Patch":{"Osc":[{"Wave":"saw"},{"Wave":"saw"},{"Wave":"saw"},{"Wave":"saw"},{"Wave":"saw"}]}}`,
+		`{"Patch":{"Osc":[{"Wave":"gbwave","Table":[99,-5,1000000000]}]}}`,
+		`{"Patch":{"Arpeggio":{"Steps":[400,-900],"Hz":-1},"Glide":-3,"Amp":{"Attack":-1,"Release":-2}}}`,
+		`{"Patch":{"Filter":{"Type":"lp","Cutoff":-1e308,"Res":1e308},"Amp":{"Release":1e308}}}`,
+	} {
+		p := synthOf(t, "Moog bass")
+		if err := p.SetState([]byte(odd)); err != nil {
+			continue
+		}
+		out := plugtest.Play(t, p.Processor(), plug.Setup{Rate: 48000, MaxBlock: 256, Channels: 2}, 4800, params(),
+			note(1, 60, 0, 2400)...)
+		for _, v := range out[0] {
+			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+				t.Fatalf("state %s plays %v", odd, v)
+			}
+		}
+	}
+	// A number that is not finite is turned away, by its place.
+	err := synth.CheckPatch(&synth.Patch{Osc: []synth.Osc{{Wave: "saw", Detune: math.NaN()}}})
+	if err == nil || !strings.Contains(err.Error(), "patch.Osc[0].Detune") {
+		t.Errorf("a detune of NaN is turned away with %v", err)
+	}
+	err = synth.CheckPatch(&synth.Patch{Osc: []synth.Osc{{Wave: "saw"}}, Arpeggio: &synth.Arpeggio{Steps: []int{0, 4}, Hz: math.Inf(1)}})
+	if err == nil || !strings.Contains(err.Error(), "patch.Arpeggio.Hz") {
+		t.Errorf("an arpeggio of endless speed is turned away with %v", err)
+	}
 }
