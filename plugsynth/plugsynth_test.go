@@ -409,8 +409,14 @@ func TestASoundChangedMidPlayKeepsTheNotesHeld(t *testing.T) {
 	}
 	states := swapStates(t)
 	for i, st := range states {
+		was := p.proc.cur
 		if err := p.SetState(st); err != nil {
 			t.Fatal(err)
+		}
+		// The next block takes the sound, with no Reset between.
+		block()
+		if p.proc.cur == was {
+			t.Fatalf("the block after the change to sound %d plays the sound before", i)
 		}
 		// Each frame of each block after the change, for a fifth of a
 		// second.
@@ -472,7 +478,7 @@ func TestTheViewsShowAndFollow(t *testing.T) {
 	p, h := newSynth(t)
 	play(t, p, "Moog bass")
 	c, ok := p.View(plug.Chip, h).(*chip)
-	if !ok || c.label.Text != "Moog bass" {
+	if !ok || c.name != "Moog bass" {
 		t.Fatal("the chip shows another sound than the Moog bass")
 	}
 	play(t, p, "TR-808")
@@ -486,8 +492,8 @@ func TestTheViewsShowAndFollow(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.Frame(time.Second / 60)
-	if c.label.Text != "TR-808" {
-		t.Errorf("the chip follows to %q, not TR-808", c.label.Text)
+	if c.name != "TR-808" {
+		t.Errorf("the chip follows to %q, not TR-808", c.name)
 	}
 	for _, size := range []plug.Size{plug.Panel, plug.Full} {
 		pn, ok := p.View(size, h).(*panel)

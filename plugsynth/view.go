@@ -65,42 +65,61 @@ func (m *meter) step(dt time.Duration) bool {
 }
 
 // chip shows the sound, in a plugin's chip in a chain, and, beside it,
-// the level that comes out, left over right.
+// the level that comes out, left over right. The name turns over as the
+// sound changes.
 type chip struct {
-	p     *plugin
-	label *plugui.ChipText
-	out   *meter
+	anim.Group
+	p        *plugin
+	name     string
+	was      string
+	turn     *anim.Float
+	out      *meter
+	measured geom.Size
 }
 
 func newChip(p *plugin, h plug.Host) *chip {
 	_, out := h.Sound()
-	return &chip{p: p, label: plugui.NewChipText(p.sound().Name), out: newMeter(out)}
+	c := &chip{p: p, name: p.sound().Name, turn: anim.NewFloat(1), out: newMeter(out)}
+	c.Add(c.turn)
+	return c
 }
 
-// chipBars is how wide the chip's bars are.
-const chipBars = 40
+// chipBars is how wide the chip's bars are, and chipText how big its
+// words.
+const (
+	chipBars = 34
+	chipText = 12
+)
 
-// Children implements [gunim.Composite].
-func (c *chip) Children() []gunim.Node { return []gunim.Node{c.label} }
-
-// Layout implements [gunim.Node]: the sound, and the bars at the right.
-func (c *chip) Layout(cs gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
-	kids.At(0).Layout(gunim.Constraints{Max: geom.Sz(max(cs.Max.W-chipBars-6, 0), cs.Max.H)})
-	kids.At(0).Place(geom.Point{})
-	return cs.Max
+// Layout implements [gunim.Node]: as big as it is given, at least the
+// height of its words.
+func (c *chip) Layout(cs gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
+	c.measured = cs.Constrain(geom.Sz(cs.Max.W, chipText*1.6))
+	return c.measured
 }
 
-// Paint implements [gunim.Node]: each channel's RMS over its peak,
-// fainter.
-func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.Children) {
-	kids.At(0).Paint(p)
+// Paint implements [gunim.Node]: the sound's name, centred on the
+// height and fading where it is cut, and each channel's RMS over its
+// peak, fainter.
+func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
 	ink, ground, over := widget.Ink.Get(f.Theme), audioui.Ground.Get(f.Theme), audioui.Over.Get(f.Theme)
+	room := box.W - chipBars - 8
+	t := c.turn.Value()
+	func() {
+		defer p.Layer(paint.LayerOpts{Bounds: geom.Rc(0, 0, room+2, box.H), Clip: true, Opacity: 1})()
+		if t < 1 && c.was != "" {
+			run := audioui.Shaped(c.was, chipText, false, false)
+			run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2-box.H*0.6*t), audioui.Faded(ink, 0.9*(1-t)), room, 18)
+		}
+		run := audioui.Shaped(c.name, chipText, false, false)
+		run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2+box.H*0.6*(1-t)), audioui.Faded(ink, 0.9*t), room, 18)
+	}()
 	x, h := box.W-chipBars, float32(3)
 	top := (box.H - 2*h - 2) / 2
 	lv := c.out.levels
 	for ch := range 2 {
 		y := top + float32(ch)*(h+2)
-		p.RRect(geom.Rc(x, y, chipBars, h), h/2, paint.Solid(audioui.Faded(ground, 0.85)))
+		p.RRect(geom.Rc(x, y, chipBars, h), h/2, paint.Solid(audioui.Faded(ground, 0.5)))
 		if lv.Peak[ch] > -59 {
 			p.RRect(geom.Rc(x, y, chipBars*audioui.MeterAt(lv.Peak[ch]), h), h/2, paint.Solid(audioui.Faded(ink, 0.3)))
 		}
@@ -114,16 +133,25 @@ func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 	}
 }
 
-// Step implements [gunim.Animator].
-func (c *chip) Step(dt time.Duration) bool { return c.out.step(dt) }
+// Step implements [gunim.Animator]: the name turning, and the bars.
+func (c *chip) Step(dt time.Duration) bool {
+	moving := c.Group.Step(dt)
+	return c.out.step(dt) || moving
+}
 
 // Access implements [gunim.Accessible]: the chip reads as the sound.
-func (c *chip) Access() access.Info { return c.label.Access() }
+func (c *chip) Access() access.Info { return access.Info{Role: access.RoleLabel, Name: c.name} }
 
 // FollowState implements [plug.StateFollower]: the chip names the sound
-// playing.
+// playing, the old name rising away as the new one comes up.
 func (c *chip) FollowState(u *gunim.UI) {
-	c.label.Text = c.p.sound().Name
+	name := c.p.sound().Name
+	if name == c.name {
+		return
+	}
+	c.was, c.name = c.name, name
+	c.turn.Jump(0)
+	c.turn.Animate(1, widget.Settle.Get(u.Theme()))
 	u.Invalidate()
 }
 
@@ -140,7 +168,11 @@ type panel struct {
 	prev     *widget.IconButton
 	next     *widget.IconButton
 	sections []*plugui.Section
-	out      *meter
+	// keys play notes of the sound, where the host lets them, and
+	// shown says they have room.
+	keys  *keys
+	shown bool
+	out   *meter
 	// turn runs from 0 to 1 as the name turns over to a new sound, and
 	// was is the name it turns from.
 	turn *anim.Float
@@ -161,6 +193,10 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 		plugui.NewSection(h, &Descriptor, "FILTER", 0, CutoffID, ResID),
 		plugui.NewSection(h, &Descriptor, "ENVELOPE", 0, AttackID, ReleaseID),
 		plugui.NewSection(h, &Descriptor, "OUTPUT", 0, GainID),
+	}
+	if a, ok := h.(plug.Auditioner); ok {
+		v.keys = newKeys(a)
+		v.keys.follow(v.st.Patch.Kind)
 	}
 	_, out := h.Sound()
 	v.out = newMeter(out)
@@ -196,7 +232,19 @@ const (
 	nameY      = panelInset
 	crumbY     = nameY + 30
 	aboutY     = crumbY + 22
+	meterTop   = 36
+	// keysMin and keysMax bound how tall the keys stand.
+	keysMin = 40
+	keysMax = 110
 )
+
+// factsY is where the facts stand, under what the sound is in full.
+func (v *panel) factsY() float32 {
+	if v.full {
+		return aboutY + 44
+	}
+	return crumbY + 26
+}
 
 // Children implements [gunim.Composite].
 func (v *panel) Children() []gunim.Node {
@@ -206,6 +254,9 @@ func (v *panel) Children() []gunim.Node {
 	}
 	if v.full {
 		kids = append(kids, v.browser)
+	}
+	if v.keys != nil {
+		kids = append(kids, v.keys)
 	}
 	return kids
 }
@@ -234,14 +285,27 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 	kids.At(0).Place(geom.Pt(right-2*stepW-4, nameY-2))
 	kids.At(1).Layout(gunim.Tight(geom.Sz(stepW, stepW)))
 	kids.At(1).Place(geom.Pt(right-stepW, nameY-2))
-	plugui.PlaceSections(d.Size(), panelInset, v.sections, func(i int, r geom.Rect) {
+	secTop := plugui.PlaceSections(d.Size(), panelInset, v.sections, func(i int, r geom.Rect) {
 		kids.At(2 + i).Layout(gunim.Tight(r.Size()))
 		kids.At(2 + i).Place(r.Min.Add(d.Min))
 	})
+	next := 2 + len(v.sections)
 	if v.full {
-		b := kids.At(2 + len(v.sections))
+		b := kids.At(next)
 		b.Layout(gunim.Tight(geom.Sz(browserW(size.W)-panelInset, max(size.H-2*panelInset, 0))))
 		b.Place(geom.Pt(panelInset, panelInset))
+		next++
+	}
+	if v.keys != nil {
+		top := v.factsY() + 34
+		h := min(secTop-14-top, keysMax)
+		w := min(d.Size().W-2*panelInset, 15*28)
+		v.shown = h >= keysMin
+		if !v.shown {
+			h, w = 0, 0
+		}
+		kids.At(next).Layout(gunim.Tight(geom.Sz(w, h)))
+		kids.At(next).Place(geom.Pt(d.Min.X+(d.Size().W-w)/2, top))
 	}
 	return size
 }
@@ -257,7 +321,7 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	if v.full {
 		bottom := max(box.H-panelInset, 80)
 		mx := box.W - audioui.MeterW - panelInset
-		audioui.PaintMeter(pt, f.Theme, geom.Rect{Min: geom.Pt(mx, panelInset), Max: geom.Pt(mx+audioui.MeterW, bottom)}, v.out.levels)
+		audioui.PaintMeter(pt, f.Theme, geom.Rect{Min: geom.Pt(mx, meterTop), Max: geom.Pt(mx+audioui.MeterW, bottom)}, v.out.levels)
 	}
 	// The name turns over: the old one rises and fades as the new one
 	// comes up from below.
@@ -278,6 +342,7 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	if v.full {
 		paintWrapped(pt, v.about(), geom.Pt(x, aboutY), d.Max.X-panelInset-x, 2, audioui.Faded(ink, 0.55))
 	}
+	paintFacts(pt, f, facts(v.st.Patch), geom.Pt(x, v.factsY()), d.Max.X-panelInset-x)
 	for i := range kids.Len() {
 		kids.At(i).Paint(pt)
 	}
@@ -342,6 +407,9 @@ func (v *panel) FollowState(u *gunim.UI) {
 	}
 	v.st = st
 	v.dim()
+	if v.keys != nil {
+		v.keys.follow(st.Patch.Kind)
+	}
 	v.browser.follow(u)
 	u.Invalidate()
 }
