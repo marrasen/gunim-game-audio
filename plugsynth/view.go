@@ -168,6 +168,9 @@ type panel struct {
 	prev     *widget.IconButton
 	next     *widget.IconButton
 	sections []*plugui.Section
+	// aheadShown says the last section, the swell's and the ghost's,
+	// shows: it gives way to the keys where both lack room.
+	aheadShown bool
 	// keys play notes of the sound, where the host lets them, and
 	// shown says they have room.
 	keys  *keys
@@ -193,6 +196,7 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 		plugui.NewSection(h, &Descriptor, "FILTER", 0, CutoffID, ResID),
 		plugui.NewSection(h, &Descriptor, "ENVELOPE", 0, AttackID, ReleaseID),
 		plugui.NewSection(h, &Descriptor, "OUTPUT", 0, GainID),
+		plugui.NewSection(h, &Descriptor, "AHEAD", 0, SwellID, GhostID),
 	}
 	if a, ok := h.(plug.Auditioner); ok {
 		v.keys = newKeys(a)
@@ -205,7 +209,7 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 }
 
 // dim greys the knobs the sound has nothing for: the filter's, on a
-// sound with none, and the envelope's, on drums.
+// sound with none, and the envelope's and the swell, on drums.
 func (v *panel) dim() {
 	pt := v.st.Patch
 	drums := pt.Kind == "drums"
@@ -215,7 +219,7 @@ func (v *panel) dim() {
 			switch k.Param().ID {
 			case CutoffID, ResID:
 				k.Disabled = !filter
-			case AttackID, ReleaseID:
+			case AttackID, ReleaseID, SwellID:
 				k.Disabled = drums
 			}
 		}
@@ -285,7 +289,21 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 	kids.At(0).Place(geom.Pt(right-2*stepW-4, nameY-2))
 	kids.At(1).Layout(gunim.Tight(geom.Sz(stepW, stepW)))
 	kids.At(1).Place(geom.Pt(right-stepW, nameY-2))
-	secTop := plugui.PlaceSections(d.Size(), panelInset, v.sections, func(i int, r geom.Rect) {
+	placed := v.sections
+	v.aheadShown = true
+	if v.keys != nil {
+		keysAt := v.factsY() + 34
+		roomy := func(secs []*plugui.Section) bool {
+			return plugui.PlaceSections(d.Size(), panelInset, secs, func(int, geom.Rect) {})-14-keysAt >= keysMin
+		}
+		if less := v.sections[:len(v.sections)-1]; !roomy(v.sections) && roomy(less) {
+			placed, v.aheadShown = less, false
+			ahead := kids.At(2 + len(less))
+			ahead.Layout(gunim.Tight(geom.Size{}))
+			ahead.Place(geom.Point{})
+		}
+	}
+	secTop := plugui.PlaceSections(d.Size(), panelInset, placed, func(i int, r geom.Rect) {
 		kids.At(2 + i).Layout(gunim.Tight(r.Size()))
 		kids.At(2 + i).Place(r.Min.Add(d.Min))
 	})
@@ -344,6 +362,9 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	}
 	paintFacts(pt, f, facts(v.st.Patch), geom.Pt(x, v.factsY()), d.Max.X-panelInset-x)
 	for i := range kids.Len() {
+		if i == 1+len(v.sections) && !v.aheadShown {
+			continue
+		}
 		kids.At(i).Paint(pt)
 	}
 }

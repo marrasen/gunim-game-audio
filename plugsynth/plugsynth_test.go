@@ -581,9 +581,36 @@ func TestTheViewsShowAndFollow(t *testing.T) {
 			t.Fatalf("view %d shows another sound than the TR-808", size)
 		}
 		for i, r := range boundsOf(t, pn, geom.Sz(900, 420), pn.sections) {
+			if i == len(pn.sections)-1 && !pn.aheadShown {
+				// The swell's and the ghost's give way to the keys.
+				continue
+			}
 			if r.Empty() || r.Min.X < 0 || r.Min.Y < 0 || r.Max.X > 900 || r.Max.Y > 420 {
 				t.Errorf("view %d: section %s is at %v, outside the view", size, pn.sections[i].Name, r)
 			}
+		}
+	}
+}
+
+func TestTheKnobsAheadGiveWayToTheKeys(t *testing.T) {
+	p, h := newSynth(t)
+	for _, c := range []struct {
+		size  plug.Size
+		room  geom.Size
+		shown bool
+	}{
+		{plug.Panel, geom.Sz(900, 420), true},
+		{plug.Full, geom.Sz(1200, 420), true},
+		{plug.Full, geom.Sz(900, 420), false},
+		{plug.Full, geom.Sz(900, 560), true},
+	} {
+		pn, ok := p.View(c.size, h).(*panel)
+		if !ok {
+			t.Fatal("the view is of another type")
+		}
+		r := boundsOf(t, pn, c.room, pn.sections)
+		if pn.aheadShown != c.shown || pn.aheadShown && r[len(r)-1].Empty() || !pn.shown {
+			t.Errorf("view %d at %v: the knobs ahead show %v, the keys %v", c.size, c.room, pn.aheadShown, pn.shown)
 		}
 	}
 }

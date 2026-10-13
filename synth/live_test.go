@@ -341,3 +341,29 @@ func TestLiftingAPedalLetsGoOfItsGroupAlone(t *testing.T) {
 		t.Errorf("group 2's pedal lifted, the sound is %.3f at %.0f Hz, not group 1's 220 Hz alone", rms(x), got)
 	}
 }
+
+func TestFadeMovesANotesLevelInAStraightLine(t *testing.T) {
+	in := instrument(t, sine)
+	in.NoteOn(1, 69, 1, 0)
+	full := rms(listen(in, 0.1))
+	// Halfway, at once: the note sounds at half its level.
+	in.Fade(1, 0.5, 0)
+	if r := rms(listen(in, 0.1)); math.Abs(r/full-0.5) > 0.01 {
+		t.Errorf("faded to a half, the note sounds at %.3f of its level", r/full)
+	}
+	// To nothing over 0.1 s: the first half of it louder than the
+	// second, and silent after.
+	in.Fade(1, 0, synth.Rate/10)
+	a, b := rms(listen(in, 0.05)), rms(listen(in, 0.05))
+	if a <= b || b == 0 {
+		t.Errorf("fading out, the note sounds at %.4f, then %.4f", a, b)
+	}
+	if r := rms(listen(in, 0.1)); r != 0 {
+		t.Errorf("faded out, the note sounds at %.5f", r)
+	}
+	// A note struck again starts at its full level.
+	in.NoteOn(1, 69, 1, 0)
+	if r := rms(listen(in, 0.1)); math.Abs(r/full-1) > 0.01 {
+		t.Errorf("struck again, the note sounds at %.3f of its level", r/full)
+	}
+}
