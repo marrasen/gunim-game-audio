@@ -41,6 +41,8 @@ type hit struct {
 	sid    lfsr
 	nes    nesNoise
 	sidVol float32
+	// part is the [DrumPart] an Instrument plays the hit into.
+	part uint8
 }
 
 // decay starts envelope i falling from 1 to 1/e over tau seconds.
@@ -462,8 +464,9 @@ type hits struct {
 
 func newHits(n int) *hits { return &hits{hs: make([]hit, n)} }
 
-// play sounds drum d. A closed hat chokes an open one.
-func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) {
+// play sounds drum d, and returns the hit that sounds it. A closed hat
+// chokes an open one.
+func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *hit {
 	hh.age++
 	if d.kind == drHat {
 		for i := range hh.hs {
@@ -483,6 +486,7 @@ func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) {
 		}
 	}
 	hh.hs[best].start(d, vel, pan, pitch, dur, tune, hh.age)
+	return &hh.hs[best]
 }
 
 func (hh *hits) render(l, r []float32) bool {
@@ -494,4 +498,20 @@ func (hh *hits) render(l, r []float32) bool {
 		}
 	}
 	return sounding
+}
+
+// renderParts adds each hit to the part it plays into, as parts has
+// room for it, or else to l and r.
+func (hh *hits) renderParts(l, r []float32, parts *[DrumParts]Part) {
+	for i := range hh.hs {
+		h := &hh.hs[i]
+		if !h.on {
+			continue
+		}
+		if p := &parts[h.part]; p.L != nil {
+			h.render(p.L, p.R)
+		} else {
+			h.render(l, r)
+		}
+	}
 }
