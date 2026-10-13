@@ -2,6 +2,8 @@ package plugsynth
 
 import (
 	"fmt"
+	"math/bits"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/marrasen/gunim/audio/plug"
 	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/geom"
+	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
 	"github.com/marrasen/gunim/widget"
@@ -23,43 +26,113 @@ import (
 // sounds while the pointer holds it, and a drag across the keys plays
 // each key it passes, letting the one before go, as a glissando; through
 // any other [plug.Auditioner], a press plays a short note. A key lights
-// as it sounds and fades after.
+// as it sounds and fades after: through a [plug.KeysHost], each key the
+// sound plays lights too, as the song plays it or a MIDI keyboard does.
+// The buttons at its sides, or Z and X, shift it an octave down or up,
+// and the keys slide across.
 type keys struct {
 	anim.Group
-	a   plug.Auditioner
-	low int
-	// lit is how lit each key is, from low up, and hover the key under
-	// the pointer, -1 for none.
-	lit   []*anim.Float
+	a  plug.Auditioner
+	kh plug.KeysHost
+	// base is the lowest key for the sound's kind, shift the octaves
+	// the keyboard stands from it, and low the lowest key it shows.
+	base, shift, low int
+	// slide is the white key at the left edge, as the keys slide there.
+	slide *anim.Float
+	// lit is how lit each key is, by MIDI note; heard are the keys the
+	// host says sound; and hover is the key under the pointer, -1 for
+	// none.
+	lit   [128]*anim.Float
+	heard plug.Keys
 	hover int
+	down  *widget.IconButton
+	up    *widget.IconButton
 	size  geom.Size
 	// pressing says the primary button holds the keyboard; held is the
-	// key it holds, -1 for none, and note the note it plays, which names
-	// it to the host.
+	// key it holds, -1 for none, which names its note to the host.
 	pressing bool
 	held     int
-	note     int
 }
 
 // keyCount is how many keys the keyboard has: two octaves and one.
-const keyCount = 25
+// shiftW is how wide the octave buttons stand at its sides.
+const (
+	keyCount = 25
+	shiftW   = 28
+)
 
 func newKeys(a plug.Auditioner) *keys {
-	k := &keys{a: a, low: 48, hover: -1, held: -1}
-	for range keyCount {
-		f := anim.NewFloat(0)
-		k.lit = append(k.lit, f)
-		k.Add(f)
+	k := &keys{a: a, base: 48, low: 48, hover: -1, held: -1}
+	k.kh, _ = a.(plug.KeysHost)
+	k.slide = anim.NewFloat(float32(whiteOf(k.low)))
+	k.Add(k.slide)
+	for n := range k.lit {
+		k.lit[n] = anim.NewFloat(0)
+		k.Add(k.lit[n])
 	}
+	k.down = widget.NewIconButton(icon.ChevronLeft, "An octave down (Z)")
+	k.up = widget.NewIconButton(icon.ChevronRight, "An octave up (X)")
+	k.down.OnClick = func(u *gunim.UI) gunim.Intent { k.shiftBy(-1, u); return nil }
+	k.up.OnClick = func(u *gunim.UI) gunim.Intent { k.shiftBy(1, u); return nil }
+	k.enable()
 	return k
 }
 
-// follow sets the keyboard's range for a patch of kind.
+// follow sets the keyboard's range for a patch of kind: a kind of
+// another range starts it at its own octave.
 func (k *keys) follow(kind string) {
-	k.low = 48
+	base := 48
 	if kind == "drums" {
-		k.low = 35
+		base = 35
 	}
+	if base == k.base {
+		return
+	}
+	k.base, k.shift = base, 0
+	k.low = base
+	k.slide.Jump(float32(whiteOf(k.low)))
+	k.enable()
+}
+
+// canShift reports whether the keyboard may shift by d octaves and stay
+// within MIDI's keys.
+func (k *keys) canShift(d int) bool {
+	low := k.base + 12*(k.shift+d)
+	return low >= 0 && low+keyCount-1 <= 127
+}
+
+// enable greys the octave buttons where the keyboard has no octave to
+// go to.
+func (k *keys) enable() {
+	k.down.Disabled = !k.canShift(-1)
+	k.up.Disabled = !k.canShift(1)
+}
+
+// shiftBy shifts the keyboard d octaves, where it may: the keys slide
+// across, and a key held lets its note go; the press goes on, and holds
+// the key the pointer moves onto next.
+func (k *keys) shiftBy(d int, u *gunim.UI) {
+	if !k.canShift(d) {
+		return
+	}
+	k.shift += d
+	k.low = k.base + 12*k.shift
+	k.enable()
+	k.slide.Animate(float32(whiteOf(k.low)), widget.Settle.Get(u.Theme()))
+	if k.pressing {
+		k.hold(-1, u)
+	}
+	u.Invalidate()
+}
+
+// rangeText writes the keys shown, as "C3 to C5".
+func (k *keys) rangeText() string {
+	return keyName(k.low) + " to " + keyName(k.low+keyCount-1)
+}
+
+// keyName names MIDI note n, as C4 for 60.
+func keyName(n int) string {
+	return [...]string{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}[n%12] + strconv.Itoa(n/12-1)
 }
 
 // black reports whether MIDI note n is a black key.
@@ -71,7 +144,13 @@ func black(n int) bool {
 	return false
 }
 
-// whites returns how many white keys the keyboard has.
+// whiteOf returns how many white keys lie below MIDI note n: for a
+// black key, the white key it stands after, plus one.
+func whiteOf(n int) int {
+	return n/12*7 + [12]int{0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6}[n%12]
+}
+
+// whites returns how many white keys the keyboard shows.
 func (k *keys) whites() int {
 	n := 0
 	for i := range keyCount {
@@ -82,40 +161,54 @@ func (k *keys) whites() int {
 	return n
 }
 
-// rect returns where key i stands.
-func (k *keys) rect(i int) geom.Rect {
-	ww := k.size.W / float32(k.whites())
-	white := 0
-	for j := range i {
-		if !black(k.low + j) {
-			white++
-		}
-	}
-	if !black(k.low + i) {
-		return geom.Rc(float32(white)*ww, 0, ww, k.size.H)
-	}
-	bw := ww * 0.62
-	return geom.Rc(float32(white)*ww-bw/2, 0, bw, k.size.H*0.6)
+// board is where the keys stand, between the octave buttons.
+func (k *keys) board() geom.Rect {
+	return geom.Rc(shiftW+4, 0, max(k.size.W-2*(shiftW+4), 0), k.size.H)
 }
 
-// at returns the key at p, the black keys over the white, or -1.
-func (k *keys) at(p geom.Point) int {
-	for i := range keyCount {
-		if black(k.low+i) && k.rect(i).Contains(p) {
-			return i
-		}
+// noteRect returns where MIDI note n stands, as the keys slide.
+func (k *keys) noteRect(n int) geom.Rect {
+	b := k.board()
+	ww := b.Size().W / float32(k.whites())
+	x := b.Min.X + (float32(whiteOf(n))-k.slide.Value())*ww
+	if !black(n) {
+		return geom.Rc(x, 0, ww, k.size.H)
 	}
-	for i := range keyCount {
-		if !black(k.low+i) && k.rect(i).Contains(p) {
-			return i
+	bw := ww * 0.62
+	return geom.Rc(x-bw/2, 0, bw, k.size.H*0.6)
+}
+
+// rect returns where key i, from the lowest shown, stands.
+func (k *keys) rect(i int) geom.Rect { return k.noteRect(k.low + i) }
+
+// at returns the MIDI note of the key at p, the black keys over the
+// white, or -1.
+func (k *keys) at(p geom.Point) int {
+	if !k.board().Contains(p) {
+		return -1
+	}
+	for _, want := range []bool{true, false} {
+		for n := max(k.low-12, 0); n <= min(k.low+keyCount+12, 127); n++ {
+			if black(n) == want && k.noteRect(n).Contains(p) {
+				return n
+			}
 		}
 	}
 	return -1
 }
 
-// Layout implements [gunim.Node].
-func (k *keys) Layout(c gunim.Constraints, _ gunim.Frame, _ gunim.Children) geom.Size {
+// Children implements [gunim.Composite]: the octave buttons.
+func (k *keys) Children() []gunim.Node { return []gunim.Node{k.down, k.up} }
+
+// Layout implements [gunim.Node]: the buttons at the sides, in the
+// middle of the height.
+func (k *keys) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
 	k.size = c.Max
+	y := (k.size.H - shiftW) / 2
+	kids.At(0).Layout(gunim.Tight(geom.Sz(shiftW, shiftW)))
+	kids.At(0).Place(geom.Pt(0, y))
+	kids.At(1).Layout(gunim.Tight(geom.Sz(shiftW, shiftW)))
+	kids.At(1).Place(geom.Pt(k.size.W-shiftW, y))
 	return c.Max
 }
 
@@ -146,12 +239,12 @@ func (k *keys) Handle(e input.Event, u *gunim.UI) bool {
 		if e.Button != input.ButtonPrimary {
 			return false
 		}
-		i := k.at(e.Pos)
-		if i < 0 {
+		n := k.at(e.Pos)
+		if n < 0 {
 			return false
 		}
 		k.pressing = true
-		k.hold(i, u)
+		k.hold(n, u)
 		return true
 	case input.PointerUp:
 		if !k.pressing {
@@ -169,67 +262,113 @@ func (k *keys) end(u *gunim.UI) {
 	k.pressing = false
 }
 
-// hold lets the key held go, and holds key i, -1 for none: it sounds
-// while held, through a host that holds notes, and for half a second
-// through one that plays them by length.
-func (k *keys) hold(i int, u *gunim.UI) {
+// hold lets the key held go, and holds MIDI note n, -1 for none: it
+// sounds while held, through a host that holds notes, and for half a
+// second through one that plays them by length.
+func (k *keys) hold(n int, u *gunim.UI) {
 	h, holds := k.a.(plug.Holder)
-	if k.held >= 0 {
+	if was := k.held; was >= 0 {
 		if holds {
-			h.Release(k.note, u)
+			h.Release(was, u)
 		}
-		k.lit[k.held].Animate(0, anim.Spring{Response: 0.6, Damping: 1})
+		k.held = -1
+		k.light(was)
 	}
-	k.held = i
-	if i >= 0 {
-		k.note = k.low + i
+	k.held = n
+	if n >= 0 {
 		if holds {
-			h.Hold(k.note, float64(k.note), 0.8, u)
+			h.Hold(n, float64(n), 0.8, u)
 		} else {
-			k.a.Audition(float64(k.note), 0.8, 500*time.Millisecond, u)
+			k.a.Audition(float64(n), 0.8, 500*time.Millisecond, u)
 		}
-		k.lit[i].Jump(1)
+		k.light(n)
 	}
 	u.Invalidate()
 }
 
-// Paint implements [gunim.Node]: ivory and ebony, a key lit in the
-// theme's accent, the Cs named.
-func (k *keys) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
-	ink, accent := widget.Ink.Get(f.Theme), widget.Accent.Get(f.Theme)
-	for pass := range 2 {
-		for i := range keyCount {
-			n := k.low + i
-			if black(n) != (pass == 1) {
-				continue
-			}
-			r := k.rect(i)
-			lit := k.lit[i].Value()
-			hv := float32(0)
-			if i == k.hover {
-				hv = 1
-			}
-			if pass == 0 {
-				body := r.Inset(geom.Insets{Left: 1, Right: 1})
-				p.RRect(body, 4, paint.Solid(audioui.Mix(audioui.Faded(ink, 0.82+0.1*hv), accent, lit)))
-				if n%12 == 0 {
-					run := audioui.Shaped(fmt.Sprintf("C%d", n/12-1), 9, true, false)
-					run.Paint(p, geom.Pt(r.Min.X+(r.Size().W-run.Advance)/2, r.Max.Y-run.Height()-4), audioui.Faded(audioui.Ground.Get(f.Theme), 0.6))
-				}
-				continue
-			}
-			p.ShadowRRect(r, 3, paint.Solid(audioui.Mix(audioui.Mix(audioui.Ground.Get(f.Theme), ink, 0.12*hv), accent, lit)),
-				paint.Shadow{Blur: 4, Offset: geom.Pt(0, 2), Color: audioui.Faded(audioui.Ground.Get(f.Theme), 0.6)})
+// light lights note n while the pointer holds it or the sound plays
+// it, and fades it after.
+func (k *keys) light(n int) {
+	if n == k.held || k.heard.Has(n) {
+		k.lit[n].Jump(1)
+		return
+	}
+	if k.lit[n].Target() != 0 {
+		k.lit[n].Animate(0, anim.Spring{Response: 0.6, Damping: 1})
+	}
+}
+
+// listen lights the keys the host says sound now, and fades those it
+// let go.
+func (k *keys) listen() {
+	if k.kh == nil {
+		return
+	}
+	now := k.kh.Keys()
+	if now == k.heard {
+		return
+	}
+	was := k.heard
+	k.heard = now
+	for w := range 2 {
+		for d := was[w] ^ now[w]; d != 0; d &= d - 1 {
+			k.light(w*64 + bits.TrailingZeros64(d))
 		}
 	}
 }
 
-// Step implements [gunim.Animator].
-func (k *keys) Step(dt time.Duration) bool { return k.Group.Step(dt) }
+// Paint implements [gunim.Node]: ivory and ebony, a key lit in the
+// theme's accent, the Cs named; then the octave buttons.
+func (k *keys) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.Children) {
+	ink, accent, ground := widget.Ink.Get(f.Theme), widget.Accent.Get(f.Theme), audioui.Ground.Get(f.Theme)
+	b := k.board()
+	func() {
+		defer p.Layer(paint.LayerOpts{Bounds: b, Clip: true, Opacity: 1})()
+		from, to := max(k.low-12, 0), min(k.low+keyCount+12, 127)
+		for pass := range 2 {
+			for n := from; n <= to; n++ {
+				if black(n) != (pass == 1) {
+					continue
+				}
+				r := k.noteRect(n)
+				if r.Max.X < b.Min.X || r.Min.X > b.Max.X {
+					continue
+				}
+				lit := k.lit[n].Value()
+				hv := float32(0)
+				if n == k.hover {
+					hv = 1
+				}
+				if pass == 0 {
+					body := r.Inset(geom.Insets{Left: 1, Right: 1})
+					p.RRect(body, 4, paint.Solid(audioui.Mix(audioui.Faded(ink, 0.82+0.1*hv), accent, lit)))
+					if n%12 == 0 {
+						run := audioui.Shaped(keyName(n), 9, true, false)
+						run.Paint(p, geom.Pt(r.Min.X+(r.Size().W-run.Advance)/2, r.Max.Y-run.Height()-4), audioui.Faded(ground, 0.6))
+					}
+					continue
+				}
+				p.ShadowRRect(r, 3, paint.Solid(audioui.Mix(audioui.Mix(ground, ink, 0.12*hv), accent, lit)),
+					paint.Shadow{Blur: 4, Offset: geom.Pt(0, 2), Color: audioui.Faded(ground, 0.6)})
+			}
+		}
+	}()
+	for c := range kids.All {
+		c.Paint(p)
+	}
+}
+
+// Step implements [gunim.Animator]: the keys light as the sound plays
+// them, and keep stepping while any sounds, to see it let go.
+func (k *keys) Step(dt time.Duration) bool {
+	k.listen()
+	moving := k.Group.Step(dt)
+	return moving || k.heard != plug.Keys{}
+}
 
 // Access implements [gunim.Accessible].
 func (k *keys) Access() access.Info {
-	return access.Info{Role: access.RoleGroup, Name: "Keys to hear the sound"}
+	return access.Info{Role: access.RoleGroup, Name: "Keys to hear the sound", Value: k.rangeText()}
 }
 
 // facts are short words on what patch p is made of, for chips under

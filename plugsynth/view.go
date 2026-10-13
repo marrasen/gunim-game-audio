@@ -317,7 +317,7 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 	if v.keys != nil {
 		top := v.factsY() + 34
 		h := min(secTop-14-top, keysMax)
-		w := min(d.Size().W-2*panelInset, 15*28)
+		w := min(d.Size().W-2*panelInset, 15*28+2*(shiftW+4))
 		v.shown = h >= keysMin
 		if !v.shown {
 			h, w = 0, 0
@@ -435,18 +435,29 @@ func (v *panel) FollowState(u *gunim.UI) {
 	u.Invalidate()
 }
 
+// Focusable implements [gunim.Focusable]: a press on the panel gives
+// it the keyboard, for its keys.
+func (v *panel) Focusable() bool { return true }
+
 // Handle implements [gunim.Handler]: Page Up and Page Down step
-// through the sounds of the group listed.
+// through the sounds of the group listed, and Z and X shift the keys
+// an octave down and up.
 func (v *panel) Handle(e input.Event, u *gunim.UI) bool {
 	k, ok := e.(input.KeyPress)
 	if !ok {
 		return false
 	}
-	switch k.Key {
-	case input.KeyPageUp:
+	switch {
+	case k.Key == input.KeyPageUp:
 		v.browser.step(-1, u)
-	case input.KeyPageDown:
+	case k.Key == input.KeyPageDown:
 		v.browser.step(1, u)
+	case (k.Key == input.KeyZ || k.Key == input.KeyX) && k.Mods == 0 && v.keys != nil && v.shown:
+		d := -1
+		if k.Key == input.KeyX {
+			d = 1
+		}
+		v.keys.shiftBy(d, u)
 	default:
 		return false
 	}
