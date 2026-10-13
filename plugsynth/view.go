@@ -181,6 +181,8 @@ type panel struct {
 	turn *anim.Float
 	was  string
 	st   State
+	// pages are the tabs, and the Patch and Controls pages.
+	pages *pages
 }
 
 func newPanel(p *plugin, h plug.Host, full bool) *panel {
@@ -204,6 +206,7 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 	}
 	_, out := h.Sound()
 	v.out = newMeter(out)
+	v.pages = newPages(v, h)
 	v.dim()
 	return v
 }
@@ -266,7 +269,7 @@ func (v *panel) Children() []gunim.Node {
 	if v.keys != nil {
 		kids = append(kids, v.keys)
 	}
-	return kids
+	return append(kids, v.pages.nodes()...)
 }
 
 // browserW is how wide the browser stands in a full view w wide: a
@@ -290,7 +293,9 @@ func (v *panel) browserW(w float32) float32 {
 func (v *panel) detail(size geom.Size) geom.Rect {
 	r := geom.Rect{Max: size.Point()}
 	if v.full {
-		r.Min.X = v.browserW(size.W) + panelInset
+		if v.page() == SoundPage {
+			r.Min.X = v.browserW(size.W) + panelInset
+		}
 		r.Max.X -= audioui.MeterW + panelInset
 	}
 	return r
@@ -303,6 +308,9 @@ func (v *panel) detail(size geom.Size) geom.Rect {
 // sound is gives way to them, then they give way to the sections.
 func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
 	size := c.Max
+	if v.page() != SoundPage {
+		return v.layoutPage(size, kids)
+	}
 	d := v.detail(size)
 	right := d.Max.X - panelInset
 	kids.At(0).Layout(gunim.Tight(geom.Sz(stepW, stepW)))
@@ -333,6 +341,7 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 		kids.At(next).Layout(gunim.Tight(geom.Sz(w, h)))
 		kids.At(next).Place(geom.Pt(d.Min.X+(d.Size().W-w)/2, top))
 	}
+	v.layoutPages(kids, right, geom.Rect{})
 	return size
 }
 
@@ -363,14 +372,30 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	if v.st.Group != "" {
 		crumb += "  ›  " + v.st.Group
 	}
+	if v.page() == ControlsPage {
+		crumb = "These turn the patch as it plays: right-click one to automate or modulate it"
+	}
+	wide := d.Max.X - panelInset - x - tabsW - 12
 	bankIcon(pt, f, v.st.Bank, geom.Rc(x, crumbY+1, 12, 12), audioui.Faded(accent, 0.9))
-	audioui.Shaped(crumb, 11, false, false).PaintFaded(pt, geom.Pt(x+18, crumbY), audioui.Faded(ink, 0.6), room-18, 20)
+	audioui.Shaped(crumb, 11, false, false).PaintFaded(pt, geom.Pt(x+18, crumbY), audioui.Faded(ink, 0.6), wide-18, 20)
+	if v.page() != SoundPage {
+		n := kids.Len()
+		for i := range n {
+			if v.shows(i, n) {
+				kids.At(i).Paint(pt)
+			}
+		}
+		return
+	}
 	if v.aboutShown {
 		paintWrapped(pt, v.about(), geom.Pt(x, aboutY), d.Max.X-panelInset-x, 2, audioui.Faded(ink, 0.55))
 	}
 	paintFacts(pt, f, facts(v.st.Patch), geom.Pt(x, v.factsY(v.aboutShown)), d.Max.X-panelInset-x)
-	for k := range kids.All {
-		k.Paint(pt)
+	n := kids.Len()
+	for i := range n {
+		if v.shows(i, n) {
+			kids.At(i).Paint(pt)
+		}
 	}
 }
 
@@ -416,7 +441,7 @@ func (v *panel) Step(dt time.Duration) bool {
 // Follow implements [plug.Follower]: the knobs glide to their
 // parameters set elsewhere, unless held.
 func (v *panel) Follow(id uint32, val float64, u *gunim.UI) {
-	for _, s := range v.sections {
+	for _, s := range append(v.sections, v.pages.sections...) {
 		s.Follow(id, val, u)
 	}
 	u.Invalidate()
@@ -437,6 +462,7 @@ func (v *panel) FollowState(u *gunim.UI) {
 		v.keys.follow(st.Patch.Kind)
 	}
 	v.browser.follow(u)
+	v.pages.editor.FollowState(u)
 	u.Invalidate()
 }
 
