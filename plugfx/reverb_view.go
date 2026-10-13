@@ -249,11 +249,11 @@ func (g *decayGraph) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 	fade, _ := g.sw.shown()
 	g.sw.paint(p, r, g.timeAt, g.xOf, ink, func(x float32, in, l, rt float64) {
 		if y := g.yOf(max(l, rt)); y < r.Max.Y {
-			p.RRect(geom.Rc(x, y, 2, r.Max.Y-y), 0, paint.Solid(audioui.Faded(bright, 0.22*fade)))
-			p.RRect(geom.Rc(x, y-1, 2, 2), 0, paint.Solid(audioui.Faded(bright, 0.85*fade)))
+			p.RRect(geom.Rc(x, y, 2, r.Max.Y-y), 0, paint.Solid(audioui.Faded(bright, 0.08*fade)))
+			p.RRect(geom.Rc(x, y-1, 2, 2), 0, paint.Solid(audioui.Faded(bright, 0.75*fade)))
 		}
 		if y := g.yOf(in); y < r.Max.Y {
-			p.RRect(geom.Rc(x, y-0.5, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.35*fade)))
+			p.RRect(geom.Rc(x, y-0.5, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.2*fade)))
 		}
 	})
 	// The -60 dB line, which the decay reaches.

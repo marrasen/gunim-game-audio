@@ -338,13 +338,16 @@ func (t *taps) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 		func(secs float64) float32 { return t.xOf(secs / beat) }, ink,
 		func(x float32, in, l, rt float64) {
 			if h := t.barOf(in); h > 0.5 {
-				p.RRect(geom.Rc(x, mid-h, 2, 2*h), 0, paint.Solid(audioui.Faded(ink, 0.12*fade)))
+				p.RRect(geom.Rc(x, mid-h, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.3*fade)))
+				p.RRect(geom.Rc(x, mid+h-1, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.3*fade)))
 			}
 			if h := t.barOf(l); h > 0.5 {
-				p.RRect(geom.Rc(x, mid-h, 2, h), 0, paint.Solid(audioui.Faded(accent, 0.6*fade)))
+				p.RRect(geom.Rc(x, mid-h, 2, h), 0, paint.Solid(audioui.Faded(accent, 0.14*fade)))
+				p.RRect(geom.Rc(x, mid-h-1, 2, 2), 0, paint.Solid(audioui.Faded(accent, 0.9*fade)))
 			}
 			if h := t.barOf(rt); h > 0.5 {
-				p.RRect(geom.Rc(x, mid, 2, h), 0, paint.Solid(audioui.Faded(right, 0.6*fade)))
+				p.RRect(geom.Rc(x, mid, 2, h), 0, paint.Solid(audioui.Faded(right, 0.14*fade)))
+				p.RRect(geom.Rc(x, mid+h-1, 2, 2), 0, paint.Solid(audioui.Faded(right, 0.9*fade)))
 			}
 		})
 	for k := 1; k <= 2; k++ {

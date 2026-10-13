@@ -43,8 +43,10 @@ type sweep struct {
 	steps []sweepLevels
 	n     int
 	rate  int
-	// top is the loudest level in the sweep so far, which the display
-	// draws at 0 dB.
+	// top is the loudest level going in over the sweep so far, which
+	// the display draws at 0 dB, so the sound coming out shows as loud
+	// as it is beside the hit; or coming out, where the host keeps
+	// nothing going in.
 	top float32
 	// quiet is how long the sound has been quiet, up to sweepRest, and
 	// fade how much the sweep shows.
@@ -188,7 +190,11 @@ func (s *sweep) take(k int64, lv sweepLevels, span float64) bool {
 	if s.start >= 0 && (!over || s.start == k) {
 		s.steps[s.n] = lv
 		s.n++
-		s.top = max(s.top, lv.in, lv.out, lv.out2)
+		if s.in.Sound != nil && s.in.At() != 0 {
+			s.top = max(s.top, lv.in)
+		} else {
+			s.top = max(s.top, lv.out, lv.out2)
+		}
 	}
 	return dB(max(lv.in, lv.out, lv.out2)) > sweepFloor
 }
@@ -214,7 +220,7 @@ func (s *sweep) levels(t0, t1 float64) (in, l, r float64, ok bool) {
 		x := s.steps[i]
 		lv.in, lv.out, lv.out2 = max(lv.in, x.in), max(lv.out, x.out), max(lv.out2, x.out2)
 	}
-	top := dB(s.top)
+	top := dB(max(s.top, 1e-6))
 	return dB(lv.in) - top, dB(lv.out) - top, dB(lv.out2) - top, true
 }
 
