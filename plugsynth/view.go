@@ -193,6 +193,7 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 		plugui.NewSection(h, &Descriptor, "FILTER", 0, CutoffID, ResID),
 		plugui.NewSection(h, &Descriptor, "ENVELOPE", 0, AttackID, ReleaseID),
 		plugui.NewSection(h, &Descriptor, "OUTPUT", 0, GainID),
+		plugui.NewSection(h, &Descriptor, "AHEAD", 0, SwellID, GhostID),
 	}
 	if a, ok := h.(plug.Auditioner); ok {
 		v.keys = newKeys(a)
@@ -205,7 +206,7 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 }
 
 // dim greys the knobs the sound has nothing for: the filter's, on a
-// sound with none, and the envelope's, on drums.
+// sound with none, and the envelope's and the swell, on drums.
 func (v *panel) dim() {
 	pt := v.st.Patch
 	drums := pt.Kind == "drums"
@@ -215,7 +216,7 @@ func (v *panel) dim() {
 			switch k.Param().ID {
 			case CutoffID, ResID:
 				k.Disabled = !filter
-			case AttackID, ReleaseID:
+			case AttackID, ReleaseID, SwellID:
 				k.Disabled = drums
 			}
 		}
@@ -234,7 +235,7 @@ const (
 	aboutY     = crumbY + 22
 	meterTop   = 36
 	// keysMin and keysMax bound how tall the keys stand.
-	keysMin = 40
+	keysMin = 32
 	keysMax = 110
 )
 

@@ -221,6 +221,23 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 	in.n++
 }
 
+// Fade moves note id's level, a factor on its sound from 1 as it starts,
+// to level in a straight line over frames of the engine's frames, or at
+// once for none: for a swell into a note, or a fade out of one. A drums
+// patch's notes ring at their own level.
+func (in *Instrument) Fade(id int32, level float64, frames int) {
+	i := in.find(id)
+	if i < 0 {
+		return
+	}
+	if h := &in.held[i]; h.v != nil && h.v.on && h.v.age == h.age {
+		h.v.fade(float32(level), frames)
+	}
+}
+
+// Drums reports whether the instrument plays a drums patch.
+func (in *Instrument) Drums() bool { return in.p.kind == kindDrums }
+
 // NoteOff lets note id go: it rings out through its release, or on
 // while its group's pedal is down, until the pedal lifts.
 func (in *Instrument) NoteOff(id int32) {

@@ -80,6 +80,10 @@ type voice struct {
 	// bend is how far the note is bent, in semitones, as a player bends
 	// a note held: it moves the pitch at once, past any glide.
 	bend float32
+	// level scales the note's sound, from 1 as it starts; it moves by
+	// levelStep a frame towards levelTo, levelLeft frames more.
+	level, levelTo, levelStep float32
+	levelLeft                 int
 	// accent is the charge of the voice's accents, which each accented
 	// note adds to and which drains, opening the filter as it stands.
 	accent float32
@@ -162,6 +166,7 @@ func (v *voice) start(p *patch, n note, age uint64) {
 		v.accent = min(v.accent+1, 2.5)
 	}
 	v.drift, v.bend, v.left = 0, 0, 0
+	v.level, v.levelLeft = 1, 0
 	if src.Drift > 0 {
 		v.drift = float32(src.Drift/100) * v.noise.bipolar()
 	}
@@ -223,6 +228,17 @@ func (v *voice) pluck() {
 	v.strAt, v.strZ = n&(pluckFrame-1), 0
 	v.body[0].set(280, 0.6)
 	v.body[1].set(1150, 0.55)
+}
+
+// fade moves the voice's level to level over frames, in a straight
+// line, or at once for none.
+func (v *voice) fade(level float32, frames int) {
+	if frames <= 0 {
+		v.level, v.levelLeft = level, 0
+		return
+	}
+	v.levelTo, v.levelLeft = level, frames
+	v.levelStep = (level - v.level) / float32(frames)
 }
 
 // release lets go of the note.
@@ -447,6 +463,16 @@ func (v *voice) render(outL, outR []float32, ctx *renderCtx) {
 				a = v.chipAmp
 			}
 			a *= gain
+			if v.levelLeft > 0 {
+				v.levelLeft--
+				v.level += v.levelStep
+				if v.levelLeft == 0 {
+					v.level = v.levelTo
+				}
+			}
+			if v.level != 1 {
+				a *= v.level
+			}
 			v.fenv.step()
 			outL[at+i] += bl[i] * a * pl
 			outR[at+i] += br[i] * a * pr

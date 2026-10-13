@@ -1,7 +1,8 @@
 // Package plugsynth is the engine's synth as a plugin in gunim's
 // [plug] format: an instrument that plays any patch, live, note by note,
-// with knobs for the filter, the envelope and the level. It offers
-// every sound the module has, in a browser: the patch library's
+// with knobs for the filter, the envelope and the level, and for a swell
+// and a ghost note ahead of the notes a host tells of before they land.
+// It offers every sound the module has, in a browser: the patch library's
 // presets, General MIDI's 128 instruments and its drum kits, and the
 // patches the songs play. Its state holds the whole patch, so a host
 // may hand it one of its own too. It registers itself as it starts;
@@ -19,6 +20,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim/audio/plug"
@@ -37,7 +39,17 @@ const (
 	ReleaseID
 	// GainID turns the sound up, in decibels.
 	GainID
+	// SwellID is how long, in milliseconds, a swell rises into each
+	// note before it lands, and GhostID how long before it a quiet
+	// grace note sounds: zero for none. They sound for the notes the
+	// host tells of ahead.
+	SwellID
+	GhostID
 )
+
+// lookAhead is how long before a note the synth asks to hear of it: the
+// longest swell.
+const lookAhead = time.Second
 
 // Descriptor is the plugin, as it is registered.
 var Descriptor = plug.Descriptor{
@@ -47,6 +59,8 @@ var Descriptor = plug.Descriptor{
 	Version: "0.2.0",
 	Kind:    "Instrument|Synth",
 	Notes:   true,
+	// The swell and the ghost sound ahead of the notes.
+	LookAhead: lookAhead,
 	Params: []plug.Param{
 		{
 			ID: CutoffID, Name: "Cutoff", Unit: "oct", Min: -4, Max: 4, Flags: plug.Automatable,
@@ -68,11 +82,24 @@ var Descriptor = plug.Descriptor{
 			ID: GainID, Name: "Gain", Unit: "dB", Min: -24, Max: 12, Flags: plug.Automatable,
 			Format: func(v float64) string { return fmt.Sprintf("%+.1f dB", v) },
 		},
+		{
+			ID: SwellID, Name: "Swell", Unit: "ms", Max: float64(lookAhead / time.Millisecond),
+			Flags: plug.Automatable, Format: millis,
+		},
+		{ID: GhostID, Name: "Ghost", Unit: "ms", Max: 500, Flags: plug.Automatable, Format: millis},
 	},
 	New: func(h plug.Host) plug.Plugin { return newPlugin(h) },
 }
 
 func init() { plug.Register(Descriptor) }
+
+// millis writes a time to show, as 250 ms, or Off for none.
+func millis(v float64) string {
+	if v <= 0 {
+		return "Off"
+	}
+	return fmt.Sprintf("%.0f ms", v)
+}
 
 // times writes a factor to show, as ×2.00.
 func times(v float64) string { return fmt.Sprintf("×%.2f", v) }
@@ -102,11 +129,11 @@ type plugin struct {
 
 func newPlugin(h plug.Host) *plugin {
 	st := defaultState()
-	in, err := synth.NewInstrument(st.Patch)
+	snd, err := newSound(st.Patch)
 	if err != nil {
 		panic("plugsynth: " + err.Error())
 	}
-	return &plugin{host: h, st: st, proc: newProcessor(in)}
+	return &plugin{host: h, st: st, proc: newProcessor(snd)}
 }
 
 // Processor implements [plug.Plugin].
@@ -134,7 +161,7 @@ func (p *plugin) SetState(b []byte) error {
 			return err
 		}
 	}
-	in, err := synth.NewInstrument(st.Patch)
+	snd, err := newSound(st.Patch)
 	if err != nil {
 		return fmt.Errorf("plugsynth: %s: %w", st.Name, err)
 	}
@@ -144,7 +171,7 @@ func (p *plugin) SetState(b []byte) error {
 		p.raw = st.Encode()
 	}
 	p.mu.Unlock()
-	p.proc.offer(in)
+	p.proc.offer(snd)
 	return nil
 }
 
@@ -179,20 +206,25 @@ const before = 4
 type processor struct {
 	// cur is the sound playing, and prev the one played before it,
 	// ringing out; next is a sound SetState made, for the next block to
-	// take.
-	cur, prev *synth.Instrument
-	next      atomic.Pointer[synth.Instrument]
-	knobs     synth.Knobs
+	// take. pre plays cur's sound ahead of the notes.
+	cur, prev, pre *synth.Instrument
+	next           atomic.Pointer[voicing]
+	knobs          synth.Knobs
+	// ahead are the notes told of, and swell and ghost the knobs'
+	// times, in the engine's frames.
+	ahead        aheadNotes
+	swell, ghost int64
 	// rate is the host's rate, and step how many of the engine's frames
 	// pass in one of the host's; delay is how many of the host's frames
 	// the sound comes late.
 	rate, step float64
 	delay      int
 	// bl and br hold the engine's sound, from its frame base on, have
-	// frames of it; tl and tr are room for the sound ringing out.
-	bl, br, tl, tr []float32
-	base           int64
-	have           int
+	// frames of it; tl and tr are room for the sound ringing out, and
+	// al and ar for the sound ahead of the notes.
+	bl, br, tl, tr, al, ar []float32
+	base                   int64
+	have                   int
 	// at counts the host's frames since the last Reset.
 	at int64
 	// latency and tail are what Latency and Tail report, which they read
@@ -200,8 +232,8 @@ type processor struct {
 	latency, tail atomic.Int64
 }
 
-func newProcessor(in *synth.Instrument) *processor {
-	p := &processor{cur: in}
+func newProcessor(snd *voicing) *processor {
+	p := &processor{cur: snd.in, pre: snd.pre}
 	p.Prepare(plug.Setup{Rate: synth.Rate, MaxBlock: 512, Channels: 2})
 	return p
 }
@@ -221,14 +253,18 @@ func (p *processor) Prepare(s plug.Setup) {
 	n := int(math.Ceil(float64(max(s.MaxBlock, 1))*p.step)) + before + 8
 	p.bl, p.br = make([]float32, n), make([]float32, n)
 	p.tl, p.tr = make([]float32, n), make([]float32, n)
+	p.al, p.ar = make([]float32, aheadStep), make([]float32, aheadStep)
 	p.Reset()
 }
 
 // Reset implements [plug.Processor]: every note ends at once, every
-// pedal lifts, and every bend goes back to none.
+// pedal lifts, every bend goes back to none, and the notes told of are
+// forgotten.
 func (p *processor) Reset() {
 	p.adopt()
 	p.cur.Silence()
+	p.pre.Silence()
+	p.ahead.n = 0
 	p.prev = nil
 	clear(p.bl[:before])
 	clear(p.br[:before])
@@ -256,6 +292,10 @@ func (p *processor) keepTail() {
 // effect from its frame on.
 func (p *processor) Process(b *plug.Block) {
 	swapped := p.adopt()
+	p.prune(int64(math.Ceil(p.engineAt(p.at))))
+	for _, u := range b.Upcoming {
+		p.hear(u)
+	}
 	ci, ei := 0, 0
 	for at := 0; at < b.Frames; {
 		for ci < len(b.Changes) && b.Changes[ci].Frame <= at {
@@ -288,21 +328,43 @@ func (p *processor) Process(b *plug.Block) {
 	}
 }
 
-// offer hands the processor sound in, made off the audio thread, for
+// voicing is a sound to play: in plays the notes, and pre the same sound
+// ahead of them.
+type voicing struct{ in, pre *synth.Instrument }
+
+// newSound returns the sound of patch pt.
+func newSound(pt *synth.Patch) (*voicing, error) {
+	in, err := synth.NewInstrument(pt)
+	if err != nil {
+		return nil, err
+	}
+	pre, err := synth.NewInstrument(pt)
+	if err != nil {
+		return nil, err
+	}
+	return &voicing{in: in, pre: pre}, nil
+}
+
+// offer hands the processor sound snd, made off the audio thread, for
 // its next block to take. A sound offered before it, still untaken,
 // is dropped.
-func (p *processor) offer(in *synth.Instrument) { p.next.Store(in) }
+func (p *processor) offer(snd *voicing) { p.next.Store(snd) }
 
 // adopt takes the sound offered, if any, and reports whether it did:
 // the notes held start again on it, at the knobs as they stand, and the
 // sound before rings out. A sound still ringing out from before that
 // stops at once.
 func (p *processor) adopt() bool {
-	in := p.next.Swap(nil)
-	if in == nil {
+	snd := p.next.Swap(nil)
+	if snd == nil {
 		return false
 	}
+	in := snd.in
 	in.SetKnobs(p.knobs)
+	snd.pre.SetKnobs(p.knobs)
+	p.pre.Silence()
+	p.pre = snd.pre
+	p.ahead.restart()
 	if p.prev != nil {
 		p.prev.Silence()
 	}
@@ -329,8 +391,15 @@ func (p *processor) take(c plug.Change) {
 		p.knobs.Release = math.Log2(v)
 	case GainID:
 		p.knobs.Gain = v
+	case SwellID:
+		p.swell = int64(math.Round(v * synth.Rate / 1000))
+		return
+	case GhostID:
+		p.ghost = int64(math.Round(v * synth.Rate / 1000))
+		return
 	}
 	p.cur.SetKnobs(p.knobs)
+	p.pre.SetKnobs(p.knobs)
 }
 
 // play plays a note's event on the sound playing. The synth takes a
@@ -338,6 +407,7 @@ func (p *processor) take(c plug.Change) {
 func (p *processor) play(e plug.Event) {
 	switch e.Kind {
 	case plug.NoteOn:
+		p.landed(e.Note)
 		p.cur.NoteOn(e.Note, e.Pitch, e.Velocity, e.Group)
 	case plug.NoteOff:
 		p.cur.NoteOff(e.Note)
@@ -415,6 +485,9 @@ func (p *processor) render(n int) {
 				r[i] += tr[i]
 			}
 		}
+	}
+	if p.aheadOn() {
+		p.renderAhead(l, r, p.base+int64(p.have))
 	}
 	p.have += n
 }
