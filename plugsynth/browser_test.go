@@ -305,8 +305,8 @@ func TestTheKeysHoldTheirNotesAndGlide(t *testing.T) {
 	for range 30 {
 		frame()
 	}
-	if !slices.Equal(hh.notes, []string{"hold 60 60"}) || k.lit[12].Value() < 0.99 {
-		t.Fatalf("C4 held for half a second plays %v, lit %.2f", hh.notes, k.lit[12].Value())
+	if !slices.Equal(hh.notes, []string{"hold 60 60"}) || k.lit[60].Value() < 0.99 {
+		t.Fatalf("C4 held for half a second plays %v, lit %.2f", hh.notes, k.lit[60].Value())
 	}
 	// Dragged to E4, it plays D4 and E4 on the way, each letting the
 	// one before go.
@@ -347,7 +347,7 @@ func TestTheKeysHoldTheirNotesAndGlide(t *testing.T) {
 	for range 60 {
 		frame()
 	}
-	if v := k.lit[0].Value(); v > 0.05 {
+	if v := k.lit[48].Value(); v > 0.05 {
 		t.Errorf("a key let go a second ago is lit at %.2f", v)
 	}
 }

@@ -90,7 +90,9 @@ type taps struct {
 	glow *anim.Float
 	lit  [2]*anim.Float
 	anim.Group
-	out  *meter
+	out *meter
+	// sw follows the sound from each hit, to draw it over the echoes.
+	sw   *sweep
 	grip grip
 	foot float32
 	size geom.Size
@@ -106,7 +108,7 @@ const (
 const tapsFloor = -48
 
 func newTaps(h plug.Host, v values) *taps {
-	t := &taps{h: h, v: v, out: newMeter(soundOut(h)), glow: anim.NewFloat(0)}
+	t := &taps{h: h, v: v, out: newMeter(soundOut(h)), sw: newSweep(h), glow: anim.NewFloat(0)}
 	t.span = anim.NewFloat(float32(t.spanFor()))
 	t.Add(t.span, t.glow)
 	for i := range t.lit {
@@ -226,9 +228,20 @@ func (t *taps) handleAt(k int) geom.Point {
 	return geom.Pt(t.xOf(e.at), mid-t.barOf(e.db))
 }
 
-// Step implements [gunim.Animator].
+// beatSecs is how long a beat lasts at the tempo the delay plays at,
+// in seconds, where it is synced, and 1 where not: the graph's unit.
+func (t *taps) beatSecs() float64 {
+	if t.v[SyncID] <= 0.5 {
+		return 1
+	}
+	return 60 / max(t.h.Param(DelayTempoID), 1)
+}
+
+// Step implements [gunim.Animator]: the sound swept from each hit, and
+// the echoes glowing as they sound.
 func (t *taps) Step(dt time.Duration) bool {
-	moving := t.out.step(dt)
+	moving := t.sw.step(dt, float64(t.span.Value())*t.beatSecs())
+	moving = t.out.step(dt) || moving
 	loud := max(t.out.levels.RMS[0], t.out.levels.RMS[1])
 	t.glow.Animate(min(max((loud+48)/36, 0), 1), anim.Snappy)
 	return t.Group.Step(dt) || moving
@@ -285,6 +298,7 @@ func (t *taps) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 	// round, and glowing as they sound.
 	narrow := min(max(math.Log2(s.lowCut/20)/6.6+math.Log2(20000/s.highCut)/5.3, 0), 1)
 	glow := t.glow.Value()
+	swept, _ := t.sw.shown()
 	w := min(max(r.Size().W/float32(span/t.gap())*0.22, 3), 14)
 	for _, e := range t.echoes() {
 		x := t.xOf(e.at)
@@ -298,7 +312,7 @@ func (t *taps) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 			if up {
 				y = mid - h
 			}
-			a := (0.35 + 0.45*fade) * (0.85 + 0.15*glow)
+			a := (0.35 + 0.45*fade) * (0.85 + 0.15*glow) * (1 - 0.45*swept)
 			if glow > 0.05 {
 				p.ShadowRRect(geom.Rc(x-w/2, y, w, h), w/2, paint.Solid(audioui.Faded(col, 0)),
 					paint.Shadow{Blur: 12 * glow, Color: audioui.Faded(col, 0.35*glow*fade)})
@@ -315,6 +329,27 @@ func (t *taps) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 			paintBar(true, accent)
 		}
 	}
+	// The sound from the last hit: going in, faint, around the middle,
+	// and coming out, the left up and the right down, so the echoes
+	// land on their bars as they sound.
+	fade, _ := t.sw.shown()
+	beat := t.beatSecs()
+	t.sw.paint(p, r, func(x float32) float64 { return t.timeAt(x) * beat },
+		func(secs float64) float32 { return t.xOf(secs / beat) }, ink,
+		func(x float32, in, l, rt float64) {
+			if h := t.barOf(in); h > 0.5 {
+				p.RRect(geom.Rc(x, mid-h, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.3*fade)))
+				p.RRect(geom.Rc(x, mid+h-1, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.3*fade)))
+			}
+			if h := t.barOf(l); h > 0.5 {
+				p.RRect(geom.Rc(x, mid-h, 2, h), 0, paint.Solid(audioui.Faded(accent, 0.14*fade)))
+				p.RRect(geom.Rc(x, mid-h-1, 2, 2), 0, paint.Solid(audioui.Faded(accent, 0.9*fade)))
+			}
+			if h := t.barOf(rt); h > 0.5 {
+				p.RRect(geom.Rc(x, mid, 2, h), 0, paint.Solid(audioui.Faded(right, 0.14*fade)))
+				p.RRect(geom.Rc(x, mid+h-1, 2, 2), 0, paint.Solid(audioui.Faded(right, 0.9*fade)))
+			}
+		})
 	for k := 1; k <= 2; k++ {
 		lit := t.lit[k-1].Value()
 		at := t.handleAt(k)
