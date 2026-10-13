@@ -65,7 +65,10 @@ const (
 	// where the song is, in a render as in playback. A new rate or note
 	// value takes the phase where it falls at that place in the song.
 	FromSong = iota
-	// FromPlay counts it from where the playing starts, or jumps to.
+	// FromPlay counts it from where the playing starts, or jumps to: as
+	// Position.Playing turns on, and at each Prepare and Reset. A render
+	// plays with Playing clear, so the host's Prepare or Reset as the
+	// render starts is what starts it there.
 	FromPlay
 	// FreeRunning counts it on from the first block, through stops and
 	// jumps.
@@ -228,7 +231,7 @@ func (s *settings) take(id uint32, v float64) {
 }
 
 // fallbackTempo is the tempo a synced LFO runs at where the host knows
-// none, in beats a minute.
+// none, in quarter notes a minute.
 const fallbackTempo = 120
 
 // processor makes the LFO's outputs, a value a frame.
@@ -304,7 +307,7 @@ func (p *processor) Process(b *plug.Block) {
 			p.s.take(b.Changes[ci].ID, b.Changes[ci].Value)
 			ci++
 		}
-		c := p.at(pos, f)
+		c := p.at(pos, f, b.Frames)
 		for i, out := range outs {
 			if out != nil {
 				out[f] = float32(p.s.wave(c + float64(i)/4))
@@ -314,43 +317,42 @@ func (p *processor) Process(b *plug.Block) {
 			p.value.Set(p.s.wave(c))
 			p.cycle.Set(c + p.s.phase - math.Floor(c+p.s.phase))
 		}
-		p.cycles += p.perFrame(pos)
+		p.cycles += p.perFrame(pos, f, b.Frames)
 	}
 	for ; ci < len(b.Changes); ci++ {
 		p.s.take(b.Changes[ci].ID, b.Changes[ci].Value)
 	}
 }
 
-// tempo returns the block's tempo, in beats a minute.
-func tempo(pos plug.Position) float64 {
+// beat returns where frame f of a block n frames long at pos falls, in
+// quarter notes: as the host's tempo map counts them, through any ramp,
+// or, where the host knows no tempo, at fallbackTempo from the start.
+func (p *processor) beat(pos plug.Position, f, n int) float64 {
 	if pos.Tempo > 0 {
-		return pos.Tempo
+		return pos.BeatAt(f, n, p.rate)
 	}
-	return fallbackTempo
+	return float64(pos.Frame+int64(f)) / p.rate * fallbackTempo / 60
 }
 
-// perFrame returns how many cycles pass in a frame.
-func (p *processor) perFrame(pos plug.Position) float64 {
+// perFrame returns how many cycles pass from frame f of a block n
+// frames long at pos to the next.
+func (p *processor) perFrame(pos plug.Position, f, n int) float64 {
 	if p.s.sync {
-		return tempo(pos) / 60 / p.rate / p.s.beats
+		return (p.beat(pos, f+1, n) - p.beat(pos, f, n)) / p.s.beats
 	}
 	return p.s.rate / p.rate
 }
 
-// at returns the phase at frame f of a block at pos, in cycles, before
-// the Phase setting turns it.
-func (p *processor) at(pos plug.Position, f int) float64 {
+// at returns the phase at frame f of a block n frames long at pos, in
+// cycles, before the Phase setting turns it.
+func (p *processor) at(pos plug.Position, f, n int) float64 {
 	if p.s.start != FromSong {
 		return p.cycles
 	}
 	if !p.s.sync {
 		return float64(pos.Frame+int64(f)) / p.rate * p.s.rate
 	}
-	beat := float64(pos.Frame) / p.rate * fallbackTempo / 60
-	if pos.Tempo > 0 {
-		beat = pos.Beat
-	}
-	return (beat + float64(f)*tempo(pos)/60/p.rate) / p.s.beats
+	return p.beat(pos, f, n) / p.s.beats
 }
 
 // wave returns the output at c cycles, turned by the Phase setting:

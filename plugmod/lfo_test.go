@@ -8,6 +8,7 @@ import (
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audio/plug"
 	"github.com/marrasen/gunim/audio/plug/plugtest"
+	"github.com/marrasen/gunim/audio/tempo"
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/gunimtest"
 )
@@ -390,5 +391,75 @@ func TestTheViewsShowAndTheScopeMoves(t *testing.T) {
 	pn.dim()
 	if knob(RateID) || !knob(NoteID) || knob(SeedID) {
 		t.Error("free, a sample and hold greys other knobs than the note")
+	}
+}
+
+// runMap runs pr over frames from 0 to end in blocks of size frames,
+// as a host fills each block's position from m, splitting the blocks at
+// each tempo change, and returns the main output.
+func runMap(pr *processor, m *tempo.Map, end int64, size int, ch []plug.Change) []float32 {
+	edges := make([]int64, 0, len(m.Tempos()))
+	for _, c := range m.Tempos() {
+		e := m.Frames(c.At, rate)
+		if m.QuartersAtFrame(e, rate) < float64(c.At)/tempo.PPQ {
+			e++
+		}
+		edges = append(edges, e)
+	}
+	out := make([]float32, 0, end)
+	for f := int64(0); f < end; {
+		n := min(int64(size), end-f)
+		for _, e := range edges {
+			if e > f && e < f+n {
+				n = e - f
+			}
+		}
+		bl := newBlock(int(n), plug.Position{Frame: f, Playing: true, Beat: m.QuartersAtFrame(f, rate),
+			Tempo: m.BPMAtFrame(f, rate), EndTempo: m.BPMReachingFrame(f+n, rate)})
+		if f == 0 {
+			bl.b.Changes = ch
+		}
+		pr.Process(&bl.b)
+		out = append(out, bl.outs[MainOut]...)
+		f += n
+	}
+	return out
+}
+
+func TestASyncedLFOIsExactAcrossARampInAnyBlocks(t *testing.T) {
+	// 60 to 180 over four quarter notes, two seconds, then steady.
+	m := tempo.New(60, 4, 4)
+	m.SetTempos([]tempo.Tempo{{At: 0, BPM: 60, Ramp: true}, {At: 4 * tempo.PPQ, BPM: 180}})
+	ch := changes(float64(ShapeID), Saw, float64(SyncID), 1, float64(NoteID), 14) // a 16th
+	const end = 3 * rate
+	outs := make([][]float32, 0, 2)
+	for _, size := range []int{37, 1024} {
+		pr := newLFO(t)
+		pr.Prepare(plug.Setup{Rate: rate, MaxBlock: size})
+		out := runMap(pr, m, end, size, ch)
+		for f, v := range out {
+			q := m.QuartersAtFrame(int64(f), rate) * 4
+			want := 2*(q-math.Floor(q)) - 1
+			if !near(float64(v), want, 1e-5) && !near(math.Abs(float64(v)-want), 2, 1e-5) {
+				t.Fatalf("blocks of %d: at frame %d the saw is %v, want %v", size, f, v, want)
+			}
+		}
+		outs = append(outs, out)
+	}
+	// The saw falls back, a 16th's edge, on the same frames in both,
+	// but where an edge falls on a frame to within rounding: there it
+	// may fall on that frame or the next.
+	tie := func(f int) bool {
+		q := m.QuartersAtFrame(int64(f), rate) * 4
+		return math.Abs(q-math.Round(q)) < 1e-9
+	}
+	for f := 1; f < end; f++ {
+		if tie(f) || tie(f-1) {
+			continue
+		}
+		a, b := outs[0][f] < outs[0][f-1], outs[1][f] < outs[1][f-1]
+		if a != b {
+			t.Fatalf("at frame %d the saw falls back in blocks of 37 %v, of 1024 %v", f, a, b)
+		}
 	}
 }
