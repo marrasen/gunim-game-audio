@@ -118,7 +118,7 @@ func TestSIDDrums(t *testing.T) {
 		l, r := make([]float32, rate), make([]float32, rate)
 		for at := 0; at < rate; at += maxBlock {
 			end := min(at+maxBlock, rate)
-			hs.render(l[at:end], r[at:end])
+			hs.render(l[at:end], r[at:end], false)
 		}
 		if rms(l[:rate/10]) < 0.01 {
 			t.Errorf("%s is silent", name)

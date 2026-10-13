@@ -58,7 +58,7 @@ func PreviewDrum(p *Patch, drum string, secs float64) ([]float32, error) {
 		if t.sf != nil {
 			t.sf.render(l[:m], r[:m], 0)
 		}
-		t.hs.render(l[:m], r[:m])
+		t.hs.render(l[:m], r[:m], false)
 		for i := range m {
 			out[at+i] = (l[i] + r[i]) / 2
 		}

@@ -1369,7 +1369,7 @@ func (p *Player) render(dst []float32, n int) {
 			sounding = t.vs.render(tl, tr, &p.ctx)
 		}
 		if t.hs != nil {
-			sounding = t.hs.render(tl, tr) || sounding
+			sounding = t.hs.render(tl, tr, false) || sounding
 		}
 		t.sounding = sounding
 		ct := t.c

@@ -174,8 +174,11 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 	}
 }
 
-// render adds the hit's sound to l and r.
-func (h *hit) render(l, r []float32) {
+// render adds the hit's sound to l and r. With carry it ends on the
+// first control step's edge past its end, wherever the call's edges
+// fall, so its sound is the same however finely it is rendered; else
+// it ends as the call ends, as a song's player renders up to each note.
+func (h *hit) render(l, r []float32, carry bool) {
 	d := &h.d
 	tune := exp2((float32(d.Tune) + h.tune) / 12)
 	tone := float32(d.Tone)
@@ -335,11 +338,19 @@ func (h *hit) render(l, r []float32) {
 		l[i] += s * pl
 		r[i] += s * pr
 		h.t++
+		if carry && h.t%control == 0 && h.done() {
+			h.on = false
+			return
+		}
 	}
-	if h.t > h.end || h.fade < 1e-4 || h.silent() {
+	if !carry && h.done() {
 		h.on = false
 	}
 }
+
+// done reports whether the hit has played to its end, faded out from a
+// choke, or fallen silent.
+func (h *hit) done() bool { return h.t > h.end || h.fade < 1e-4 || h.silent() }
 
 // silent reports whether every envelope of the hit has fallen past
 // hearing, -54 dB, so it can end before its time.
@@ -489,11 +500,13 @@ func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *
 	return &hh.hs[best]
 }
 
-func (hh *hits) render(l, r []float32) bool {
+// render adds the hits' sound to l and r, each ending as carry says,
+// as [hit.render] does, and reports whether any sounded.
+func (hh *hits) render(l, r []float32, carry bool) bool {
 	sounding := false
 	for i := range hh.hs {
 		if hh.hs[i].on {
-			hh.hs[i].render(l, r)
+			hh.hs[i].render(l, r, carry)
 			sounding = true
 		}
 	}
@@ -501,17 +514,18 @@ func (hh *hits) render(l, r []float32) bool {
 }
 
 // renderParts adds each hit to the part it plays into, as parts has
-// room for it, or else to l and r.
-func (hh *hits) renderParts(l, r []float32, parts *[DrumParts]Part) {
+// room for it, or else to l and r, each ending as carry says, as
+// [hit.render] does.
+func (hh *hits) renderParts(l, r []float32, parts *[DrumParts]Part, carry bool) {
 	for i := range hh.hs {
 		h := &hh.hs[i]
 		if !h.on {
 			continue
 		}
 		if p := &parts[h.part]; p.L != nil {
-			h.render(p.L, p.R)
+			h.render(p.L, p.R, carry)
 		} else {
-			h.render(l, r)
+			h.render(l, r, carry)
 		}
 	}
 }

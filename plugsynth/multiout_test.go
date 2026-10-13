@@ -38,8 +38,9 @@ type outs struct {
 	aux  [synth.DrumParts][][]float32
 }
 
-// drive plays pr as a host does, in blocks of size frames, with the
-// drum outputs connected in each block as connected says, and returns
+// drive plays pr as a host does, in blocks of size frames, events in
+// frame order, with the drum outputs connected in each block as
+// connected says, and returns
 // what came out. Each output connected is filled with NaN before the
 // block, so a frame left unwritten shows; one unconnected reads as
 // silence.
@@ -56,6 +57,7 @@ func drive(t *testing.T, pr plug.Processor, rate float64, size, frames int, even
 	auxOut := make([][][]float32, synth.DrumParts)
 	pr.Prepare(plug.Setup{Rate: rate, MaxBlock: size, Channels: 2})
 	nan := float32(math.NaN())
+	next := 0
 	for at, k := 0, 0; at < frames; at, k = at+size, k+1 {
 		n := min(size, frames-at)
 		b := plug.Block{Frames: n, Out: [][]float32{main[0][:n], main[1][:n]}, AuxOut: auxOut,
@@ -65,11 +67,10 @@ func drive(t *testing.T, pr plug.Processor, rate float64, size, frames int, even
 				b.Changes = append(b.Changes, plug.Change{ID: p.ID, Value: p.Default})
 			}
 		}
-		for _, e := range events {
-			if e.Frame >= at && e.Frame < at+n {
-				e.Frame -= at
-				b.Events = append(b.Events, e)
-			}
+		for ; next < len(events) && events[next].Frame < at+n; next++ {
+			e := events[next]
+			e.Frame -= at
+			b.Events = append(b.Events, e)
 		}
 		on := connected(k)
 		for i := range auxOut {

@@ -19,7 +19,7 @@ func renderHit(t *testing.T, name string, frames int) []float32 {
 	l, r := make([]float32, frames), make([]float32, frames)
 	for at := 0; at < frames; at += maxBlock {
 		end := min(at+maxBlock, frames)
-		hs.render(l[at:end], r[at:end])
+		hs.render(l[at:end], r[at:end], false)
 	}
 	return l
 }
