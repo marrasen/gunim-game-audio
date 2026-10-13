@@ -4,7 +4,9 @@
 // every sound the module has, in a browser: the patch library's
 // presets, General MIDI's 128 instruments and its drum kits, and the
 // patches the songs play. Its state holds the whole patch, so a host
-// may hand it one of its own too. It registers itself as it starts;
+// may hand it one of its own too. A drum kit plays each part of the kit,
+// as the kick or the hats, into an aux output of its own where the host
+// connects it. It registers itself as it starts;
 // import it for that:
 //
 //	import _ "github.com/marrasen/gunim-game-audio/plugsynth"
@@ -47,6 +49,7 @@ var Descriptor = plug.Descriptor{
 	Version: "0.2.0",
 	Kind:    "Instrument|Synth",
 	Notes:   true,
+	AuxOut:  drumOuts(),
 	Params: []plug.Param{
 		{
 			ID: CutoffID, Name: "Cutoff", Unit: "oct", Min: -4, Max: 4, Flags: plug.Automatable,
@@ -73,6 +76,29 @@ var Descriptor = plug.Descriptor{
 }
 
 func init() { plug.Register(Descriptor) }
+
+// The aux outputs' indexes, one for each of a drum kit's parts, as
+// [synth.DrumPart] sorts its drums: a drum plays into its part's output
+// where that is connected, and into the main output where it is not.
+// Any other patch plays into the main output alone, and leaves the aux
+// outputs silent.
+const (
+	KickOut   = synth.KickPart
+	SnareOut  = synth.SnarePart
+	HatsOut   = synth.HatPart
+	TomsOut   = synth.TomPart
+	CymbalOut = synth.CymbalPart
+	PercOut   = synth.PercPart
+)
+
+// drumOuts returns the aux outputs, one a part, named as the part is.
+func drumOuts() []plug.AudioPort {
+	out := make([]plug.AudioPort, synth.DrumParts)
+	for i, name := range synth.DrumPartNames {
+		out[i] = plug.AudioPort{Name: name}
+	}
+	return out
+}
 
 // times writes a factor to show, as ×2.00.
 func times(v float64) string { return fmt.Sprintf("×%.2f", v) }
@@ -193,6 +219,19 @@ type processor struct {
 	bl, br, tl, tr []float32
 	base           int64
 	have           int
+	// parts holds each drum part's sound, from frame base on, as bl and
+	// br hold the rest, while split is set: from the first block a part's
+	// output is connected in, until none is and the parts' sound is
+	// played out. tails is room for the parts ringing out, and room the
+	// parts of the frames being made. routed counts, for each part, the
+	// engine's frames up to which it played into its own room.
+	parts, tails [synth.DrumParts]synth.Part
+	room         [synth.DrumParts]synth.Part
+	split        bool
+	routed       [synth.DrumParts]int64
+	// outs are the parts' outputs in the block running, nil where one is
+	// unconnected.
+	outs [synth.DrumParts][][]float32
 	// at counts the host's frames since the last Reset.
 	at int64
 	// latency and tail are what Latency and Tail report, which they read
@@ -221,6 +260,10 @@ func (p *processor) Prepare(s plug.Setup) {
 	n := int(math.Ceil(float64(max(s.MaxBlock, 1))*p.step)) + before + 8
 	p.bl, p.br = make([]float32, n), make([]float32, n)
 	p.tl, p.tr = make([]float32, n), make([]float32, n)
+	for i := range p.parts {
+		p.parts[i] = synth.Part{L: make([]float32, n), R: make([]float32, n)}
+		p.tails[i] = synth.Part{L: make([]float32, n), R: make([]float32, n)}
+	}
 	p.Reset()
 }
 
@@ -233,6 +276,8 @@ func (p *processor) Reset() {
 	clear(p.bl[:before])
 	clear(p.br[:before])
 	p.base, p.have, p.at = -before, before, 0
+	p.split = false
+	p.routed = [synth.DrumParts]int64{}
 	p.keepTail()
 }
 
@@ -256,6 +301,7 @@ func (p *processor) keepTail() {
 // effect from its frame on.
 func (p *processor) Process(b *plug.Block) {
 	swapped := p.adopt()
+	p.connect(b)
 	ci, ei := 0, 0
 	for at := 0; at < b.Frames; {
 		for ci < len(b.Changes) && b.Changes[ci].Frame <= at {
@@ -285,6 +331,31 @@ func (p *processor) Process(b *plug.Block) {
 	p.at += int64(b.Frames)
 	if swapped || len(b.Changes) > 0 {
 		p.keepTail()
+	}
+}
+
+// connect takes the block's drum outputs, and splits the parts' sound
+// from the rest while any is connected or still holds sound.
+func (p *processor) connect(b *plug.Block) {
+	connected := false
+	for i := range p.outs {
+		p.outs[i] = b.AuxOutput(i)
+		connected = connected || p.outs[i] != nil
+	}
+	if connected && !p.split {
+		// The parts' room starts silent, in step with the rest.
+		for i := range p.parts {
+			clear(p.parts[i].L[:p.have])
+			clear(p.parts[i].R[:p.have])
+		}
+		p.split = true
+	}
+	if !connected && p.split {
+		held := false
+		for _, end := range p.routed {
+			held = held || end > p.base
+		}
+		p.split = held
 	}
 }
 
@@ -362,6 +433,12 @@ func (p *processor) fill(out [][]float32, from, to int) {
 	if drop := int(int64(math.Floor(p.engineAt(j0-int64(p.delay)))) - 1 - p.base); drop > 0 {
 		copy(p.bl, p.bl[drop:p.have])
 		copy(p.br, p.br[drop:p.have])
+		if p.split {
+			for i := range p.parts {
+				copy(p.parts[i].L, p.parts[i].L[drop:p.have])
+				copy(p.parts[i].R, p.parts[i].R[drop:p.have])
+			}
+		}
 		p.have -= drop
 		p.base += int64(drop)
 	}
@@ -376,15 +453,34 @@ func (p *processor) fill(out [][]float32, from, to int) {
 		f := float32(u - float64(i))
 		l := cubic(bl[i-1], bl[i], bl[i+1], bl[i+2], f)
 		r := cubic(br[i-1], br[i], br[i+1], br[i+2], f)
-		switch len(out) {
-		case 0:
-		case 1:
-			out[0][j] = (l + r) / 2
-		default:
-			out[0][j], out[1][j] = l, r
-			for _, ch := range out[2:] {
-				ch[j] = 0
+		if p.split {
+			for k := range p.parts {
+				pl, pr := p.parts[k].L, p.parts[k].R
+				dl := cubic(pl[i-1], pl[i], pl[i+1], pl[i+2], f)
+				dr := cubic(pr[i-1], pr[i], pr[i+1], pr[i+2], f)
+				if p.outs[k] != nil {
+					put(p.outs[k], j, dl, dr)
+				} else {
+					l += dl
+					r += dr
+				}
 			}
+		}
+		put(out, j, l, r)
+	}
+}
+
+// put writes frame j of out: l and r on a stereo one, their mean on a
+// mono one, and silence on the channels after the second.
+func put(out [][]float32, j int, l, r float32) {
+	switch len(out) {
+	case 0:
+	case 1:
+		out[0][j] = (l + r) / 2
+	default:
+		out[0][j], out[1][j] = l, r
+		for _, ch := range out[2:] {
+			ch[j] = 0
 		}
 	}
 }
@@ -400,23 +496,66 @@ func (p *processor) engineAt(j int64) float64 {
 	return u
 }
 
-// render makes n frames more of the engine's sound.
+// render makes n frames more of the engine's sound. While the parts
+// are split, a drum whose part's output is connected plays into the
+// part's room, and the rest into bl and br, as before.
 func (p *processor) render(n int) {
 	l, r := p.bl[p.have:p.have+n], p.br[p.have:p.have+n]
-	p.cur.Render(l, r)
+	if !p.split {
+		p.cur.Render(l, r)
+	} else {
+		p.cur.RenderParts(l, r, p.rooms(&p.parts, p.have, n))
+	}
 	if p.prev != nil {
 		if !p.prev.Sounding() {
 			p.prev = nil
 		} else {
 			tl, tr := p.tl[:n], p.tr[:n]
-			p.prev.Render(tl, tr)
-			for i := range l {
-				l[i] += tl[i]
-				r[i] += tr[i]
+			if !p.split {
+				p.prev.Render(tl, tr)
+			} else {
+				p.prev.RenderParts(tl, tr, p.rooms(&p.tails, 0, n))
+				for k := range p.parts {
+					add(p.parts[k].L[p.have:p.have+n], p.parts[k].R[p.have:p.have+n], p.tails[k].L[:n], p.tails[k].R[:n])
+				}
+			}
+			add(l, r, tl, tr)
+		}
+	}
+	if p.split {
+		for k := range p.outs {
+			if p.outs[k] != nil {
+				p.routed[k] = p.base + int64(p.have+n)
 			}
 		}
 	}
 	p.have += n
+}
+
+// rooms returns the room the parts of the n frames being made play
+// into, from frame at of parts: a part whose output is connected plays
+// into its own; the others play into the rest, and their own room,
+// cleared, stays silent.
+func (p *processor) rooms(parts *[synth.DrumParts]synth.Part, at, n int) *[synth.DrumParts]synth.Part {
+	for k := range parts {
+		pl, pr := parts[k].L[at:at+n], parts[k].R[at:at+n]
+		if p.outs[k] != nil {
+			p.room[k] = synth.Part{L: pl, R: pr}
+		} else {
+			clear(pl)
+			clear(pr)
+			p.room[k] = synth.Part{}
+		}
+	}
+	return &p.room
+}
+
+// add adds tl and tr to l and r, all as long as each other.
+func add(l, r, tl, tr []float32) {
+	for i := range l {
+		l[i] += tl[i]
+		r[i] += tr[i]
+	}
 }
 
 // cubic returns the curve through a, b, c and d, a frame apart, at f
