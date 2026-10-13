@@ -211,7 +211,8 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 		// A drum rings out by itself; the note is kept, voiceless, for
 		// Pass to hand on.
 		if key := int(math.Round(pitch)); key >= 0 && key <= 127 && in.kit[key] != nil {
-			in.hs.play(*in.kit[key], float32(vel), 0, float32(pitch), rate/2, 0)
+			h := in.hs.play(*in.kit[key], float32(vel), 0, float32(pitch), rate/2, 0)
+			h.part = drumParts[key]
 		}
 	} else {
 		v = in.vs.play(in.p, n)
@@ -373,22 +374,7 @@ func (in *Instrument) SetKnobs(k Knobs) {
 
 // Render fills l and r, as long as each other, with the instrument's
 // sound.
-func (in *Instrument) Render(l, r []float32) {
-	clear(l)
-	clear(r)
-	if in.vs != nil {
-		in.vs.render(l, r, &in.ctx)
-	}
-	if in.hs != nil {
-		in.hs.render(l, r)
-	}
-	if in.level != 1 {
-		for i := range l {
-			l[i] *= in.level
-			r[i] *= in.level
-		}
-	}
-}
+func (in *Instrument) Render(l, r []float32) { in.RenderParts(l, r, nil) }
 
 // Held returns how many notes the instrument holds: struck and not let
 // go, or let go while the pedal holds them.
