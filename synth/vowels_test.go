@@ -43,3 +43,36 @@ func TestAnInstrumentSingsItsVowelsInTurn(t *testing.T) {
 		t.Fatal("a patch singing x compiles")
 	}
 }
+
+// TestATurnPicksTheVowel strikes notes with turns the host counts: each
+// sings the vowel at its turn, whatever was struck before, and keeps it
+// as the notes pass to another instrument.
+func TestATurnPicksTheVowel(t *testing.T) {
+	p := &Patch{Noise: 1, Vocoder: true, Vowels: "a i o", Amp: Env{Sustain: 1, Release: 0.01}, Poly: 4}
+	in, err := NewInstrument(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		turn int64
+		want byte
+	}{{5, 'i'}, {1, 'a'}, {3, 'o'}, {7, 'a'}} {
+		in.NoteOnTurn(int32(c.turn), 60, 1, 0, c.turn)
+		if got := in.Vowel(int32(c.turn)); got != c.want {
+			t.Fatalf("turn %d sings %c, not %c", c.turn, got, c.want)
+		}
+	}
+	// Played live, with no turn, the count starts from the first.
+	in.NoteOn(99, 60, 1, 0)
+	if got := in.Vowel(99); got != 'a' {
+		t.Fatalf("a note with no turn sings %c", got)
+	}
+	to, err := NewInstrument(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.Pass(to)
+	if got := to.Vowel(5); got != 'i' {
+		t.Fatalf("passed on, turn 5 sings %c", got)
+	}
+}

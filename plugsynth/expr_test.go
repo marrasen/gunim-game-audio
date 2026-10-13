@@ -146,3 +146,35 @@ func TestWhisperSingsItsVowelsInTurn(t *testing.T) {
 		t.Fatalf("whisper sings %q in turn", got)
 	}
 }
+
+// TestTheHostsTurnPicksTheVowel plays whisper's notes with the turns a
+// host counts, after a Reset: each sings the vowel at its turn, as
+// from the song's start.
+func TestTheHostsTurnPicksTheVowel(t *testing.T) {
+	s, ok := Find(Songs, "Wire Cathedral", "whisper")
+	if !ok {
+		t.Fatal("no whisper")
+	}
+	p, _ := newSynth(t)
+	if err := p.SetState(s.State()); err != nil {
+		t.Fatal(err)
+	}
+	pr := p.Processor()
+	pr.Prepare(plug.Setup{Rate: 48000, MaxBlock: 128, Channels: 2})
+	l, r := make([]float32, 128), make([]float32, 128)
+	block := func(b plug.Block) {
+		b.Out, b.Frames = [][]float32{l, r}, 128
+		pr.Process(&b)
+	}
+	block(plug.Block{Events: []plug.Event{{Kind: plug.NoteOn, Note: 1, Pitch: 64, Velocity: 1, Turn: 1}}})
+	pr.Reset()
+	// "a i o u e a o i": turn 4 is u, turn 10 is i.
+	block(plug.Block{Events: []plug.Event{{Kind: plug.NoteOn, Note: 2, Pitch: 64, Velocity: 1, Turn: 4}}})
+	if got := p.proc.cur.Vowel(2); got != 'u' {
+		t.Fatalf("turn 4 sings %c, not u", got)
+	}
+	block(plug.Block{Events: []plug.Event{{Kind: plug.NoteOn, Note: 3, Pitch: 64, Velocity: 1, Turn: 10}}})
+	if got := p.proc.cur.Vowel(3); got != 'i' {
+		t.Fatalf("turn 10 sings %c, not i", got)
+	}
+}

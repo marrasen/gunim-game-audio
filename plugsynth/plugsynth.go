@@ -621,7 +621,7 @@ func (p *processor) play(e plug.Event) {
 	switch e.Kind {
 	case plug.NoteOn:
 		p.landed(e.Note)
-		p.cur.NoteOn(e.Note, e.Pitch, e.Velocity, e.Group)
+		p.cur.NoteOnTurn(e.Note, e.Pitch, e.Velocity, e.Group, e.Turn)
 	case plug.NoteOff:
 		p.cur.NoteOff(e.Note)
 	case plug.Expression:

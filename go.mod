@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/jfreymuth/oggvorbis v1.0.5
-	github.com/marrasen/gunim v0.0.0-20261013213223-de907eb0b08c
+	github.com/marrasen/gunim v0.0.0-20261013225650-d8c03c6050e4
 )
 
 require (

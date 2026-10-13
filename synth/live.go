@@ -35,8 +35,8 @@ type Instrument struct {
 	// set.
 	level float32
 	k     Knobs
-	// vowels counts the notes struck, for a patch's Vowels to sing in
-	// turn.
+	// vowels counts the notes struck with no turn of their own, for a
+	// patch's Vowels to sing in turn.
 	vowels int
 	vs     *voices
 	hs     *hits
@@ -68,6 +68,8 @@ type liveNote struct {
 	// press its controllers, for a mono patch to go back to it.
 	n                note
 	bend, mod, press float32
+	// turn is the note's turn, as NoteOnTurn took it.
+	turn int64
 	// sustained says its NoteOff came while the pedal held it.
 	sustained bool
 }
@@ -221,8 +223,19 @@ func hasDrum(kit map[string]Drum, name string) bool {
 
 // NoteOn starts note id at pitch, a MIDI note number, fractional where
 // it falls between two, at velocity vel, from 0 to 1, in group. An id
-// still held is let go first.
+// still held is let go first. It counts the note's turn itself, as
+// NoteOnTurn does for a turn of 0.
 func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
+	in.NoteOnTurn(id, pitch, vel, group, 0)
+}
+
+// NoteOnTurn is NoteOn for a note whose turn the host counts: its place
+// among the notes of its lane, from 1 at the start of the music, as
+// [plug.Event]'s Turn. A patch's Vowels sing by it, the vowel at turn
+// less 1, round, so a note sings the same vowel however playing
+// reaches it. A turn of 0 counts the notes struck since the last
+// Silence instead, as for notes played live.
+func (in *Instrument) NoteOnTurn(id int32, pitch, vel float64, group int32, turn int64) {
 	vel = min(max(vel, 0), 1)
 	if i := in.find(id); i >= 0 {
 		in.let(i)
@@ -232,8 +245,13 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 	}
 	n := note{pitch: float32(pitch), vel: float32(vel), res: -1}
 	if vs := in.p.vowels; len(vs) > 0 {
-		n.vowel = vs[in.vowels%len(vs)]
-		in.vowels++
+		i := in.vowels
+		if turn > 0 {
+			i = int((turn - 1) % int64(len(vs)))
+		} else {
+			in.vowels++
+		}
+		n.vowel = vs[i%len(vs)]
 	}
 	var v *voice
 	age := uint64(0)
@@ -248,7 +266,7 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 		v = in.vs.play(in.p, n)
 		age = v.age
 	}
-	in.held[in.n] = liveNote{id: id, group: group, v: v, age: age, n: n}
+	in.held[in.n] = liveNote{id: id, group: group, v: v, age: age, n: n, turn: turn}
 	in.n++
 }
 
@@ -530,7 +548,7 @@ func (in *Instrument) Pass(to *Instrument) {
 			}
 			continue
 		}
-		to.NoteOn(h.id, float64(h.n.pitch), float64(h.n.vel), h.group)
+		to.NoteOnTurn(h.id, float64(h.n.pitch), float64(h.n.vel), h.group, h.turn)
 		if h.bend != 0 {
 			to.Bend(h.id, float64(h.bend))
 		}
@@ -615,4 +633,13 @@ func (p *patch) sameShape(q *patch) bool {
 		}
 	}
 	return true
+}
+
+// Vowel returns the vowel note id sings, as a, or 0 where it sings
+// none or is not held.
+func (in *Instrument) Vowel(id int32) byte {
+	if h := in.control(id); h != nil {
+		return h.n.vowel
+	}
+	return 0
 }
