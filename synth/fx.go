@@ -26,6 +26,8 @@ type reverb struct {
 	decay  float64
 	tone   float64
 	preSec float64
+	// sr is the rate it runs at, in frames a second.
+	sr float64
 }
 
 // lineMs are the lengths of the network's lines at size 1, in
@@ -49,15 +51,23 @@ func (a *allpass) step(x float32) float32 {
 	return y
 }
 
-func newReverb() *reverb {
-	r := &reverb{pre: make([]float32, rate/4)}
+func newReverb() *reverb { return newReverbAt(rate) }
+
+// newReverbAt returns a reverb for sound at sr frames a second.
+func newReverbAt(sr float64) *reverb {
+	r := &reverb{pre: make([]float32, int(sr/4)), sr: sr}
 	for i, ms := range []float64{4.7, 3.6, 12.7, 9.3} {
-		r.ap[i] = allpass{buf: make([]float32, int(ms*rate/1000)), g: 0.62}
+		r.ap[i] = allpass{buf: make([]float32, int(ms*sr/1000)), g: 0.62}
+	}
+	// Each line holds its longest at size 1.5.
+	n := 8192
+	for float64(n) < lineMs[len(lineMs)-1]*1.5*sr/1000+2 {
+		n *= 2
 	}
 	for i := range r.line {
-		r.line[i] = make([]float32, 8192)
+		r.line[i] = make([]float32, n)
 	}
-	r.in.set(160)
+	r.in.setAt(160, sr)
 	r.set(0.8, 2.2, 0.5, 0.02)
 	return r
 }
@@ -84,14 +94,15 @@ func (r *reverb) set(size, decay, tone, pre float64) {
 	r.size, r.decay, r.tone, r.preSec = size, decay, tone, pre
 	size = min(max(size, 0.3), 1.5)
 	decay = max(decay, 0.1)
+	sr := r.sr
 	for i, ms := range lineMs {
-		r.lens[i] = min(int(ms*size*rate/1000), len(r.line[i])-1)
-		r.g[i] = float32(math.Pow(10, -3*float64(r.lens[i])/(decay*rate)))
+		r.lens[i] = min(int(ms*size*sr/1000), len(r.line[i])-1)
+		r.g[i] = float32(math.Pow(10, -3*float64(r.lens[i])/(decay*sr)))
 	}
-	r.dampA = 1 - float32(math.Exp(-2*math.Pi*(1500+tone*9000)/rate))
-	r.preLen = min(max(int(pre*rate), 1), len(r.pre)-1)
-	r.out[0].set(9000)
-	r.out[1].set(9000)
+	r.dampA = 1 - float32(math.Exp(-2*math.Pi*(1500+tone*9000)/sr))
+	r.preLen = min(max(int(pre*sr), 1), len(r.pre)-1)
+	r.out[0].setAt(9000, sr)
+	r.out[1].setAt(9000, sr)
 }
 
 // process takes the sound sent to the reverb from l and r, and leaves
@@ -154,42 +165,110 @@ func (r *reverb) process(l, rr []float32) {
 }
 
 // delay is a stereo delay whose echoes cross from side to side, in time
-// with the song, each echo darker and thinner than the one before.
+// with the song, each echo darker and thinner than the one before: the
+// sound goes in on the left, its echo crosses to the right, and comes
+// back to the left through the feedback. Made stereo, each side echoes
+// on its own side instead, through feedback of its own.
 type delay struct {
 	l, r     []float32
 	at       int
 	frames   int
 	feedback float32
-	tone     onePole
-	low      onePole
+	// tone and low filter the feedback, the right side's, or the one
+	// side's in ping-pong; toneL and lowL the left side's, made stereo.
+	tone, low   onePole
+	toneL, lowL onePole
+	stereo      bool
+	// A change of time crossfades from the echoes from frames back,
+	// from, over fadeLen frames, of which fade are left. A fadeLen of 0
+	// jumps, as a song's delay does. A change during a crossfade waits
+	// in next, the newest only, until the crossfade ends.
+	from, fade, fadeLen int
+	next                int
+	sr                  float64
 }
 
-func newDelay() *delay {
-	d := &delay{l: make([]float32, 2*rate), r: make([]float32, 2*rate)}
-	d.tone.set(3500)
-	d.low.set(250)
+func newDelay() *delay { return newDelayAt(rate, 2) }
+
+// newDelayAt returns a delay for sound at sr frames a second, its
+// echoes up to longest seconds apart.
+func newDelayAt(sr, longest float64) *delay {
+	n := int(longest*sr) + 1
+	d := &delay{l: make([]float32, n), r: make([]float32, n), sr: sr}
+	d.tone.setAt(3500, sr)
+	d.low.setAt(250, sr)
+	d.toneL, d.lowL = d.tone, d.low
 	return d
 }
 
 // set times the echoes beats apart at bpm, each feedback as loud as the
 // one before.
 func (d *delay) set(beats, bpm, feedback, tone float64) {
-	d.frames = min(max(int(beats*60/bpm*rate), 1), len(d.l)-1)
+	d.setFrames(int(beats * 60 / bpm * d.sr))
 	d.feedback = float32(min(max(feedback, 0), 0.95))
-	d.tone.set(float32(1200 + tone*8000))
+	d.tone.setAt(float32(1200+tone*8000), d.sr)
+	d.toneL.a = d.tone.a
+}
+
+// setFrames times the echoes n frames apart, crossfading to them where
+// fadeLen says.
+func (d *delay) setFrames(n int) {
+	n = min(max(n, 1), len(d.l)-1)
+	if d.fade > 0 {
+		d.next = n
+		return
+	}
+	if n != d.frames && d.fadeLen > 0 && d.frames > 0 {
+		d.from, d.fade = d.frames, d.fadeLen
+	}
+	d.frames = n
+}
+
+// clear silences the delay's echoes.
+func (d *delay) clear() {
+	clear(d.l)
+	clear(d.r)
+	d.tone.z, d.low.z, d.toneL.z, d.lowL.z = 0, 0, 0, 0
+	d.fade = 0
+	if d.next > 0 {
+		d.frames, d.next = d.next, 0
+	}
+}
+
+// tap returns the echoes n frames back.
+func (d *delay) tap(n int) (l, r float32) {
+	j := d.at - n
+	if j < 0 {
+		j += len(d.l)
+	}
+	return d.l[j], d.r[j]
 }
 
 func (d *delay) process(l, r []float32) {
 	for i := range l {
-		j := d.at - d.frames
-		if j < 0 {
-			j += len(d.l)
+		dl, dr := d.tap(d.frames)
+		if d.fade > 0 {
+			ol, or := d.tap(d.from)
+			t := float32(d.fade) / float32(d.fadeLen)
+			dl += (ol - dl) * t
+			dr += (or - dr) * t
+			d.fade--
+			if d.fade == 0 && d.next > 0 {
+				// The change that waited fades in now.
+				n := d.next
+				d.next = 0
+				d.setFrames(n)
+			}
 		}
-		dl, dr := d.l[j], d.r[j]
-		in := (l[i] + r[i]) * 0.5
-		fb := d.low.hp(d.tone.lp(dr)) * d.feedback
-		d.l[d.at] = in + fb + 1e-18
-		d.r[d.at] = dl
+		if d.stereo {
+			d.l[d.at] = l[i] + d.lowL.hp(d.toneL.lp(dl))*d.feedback + 1e-18
+			d.r[d.at] = r[i] + d.low.hp(d.tone.lp(dr))*d.feedback + 1e-18
+		} else {
+			in := (l[i] + r[i]) * 0.5
+			fb := d.low.hp(d.tone.lp(dr)) * d.feedback
+			d.l[d.at] = in + fb + 1e-18
+			d.r[d.at] = dl
+		}
 		d.at++
 		if d.at == len(d.l) {
 			d.at = 0
@@ -221,6 +300,10 @@ type chorus struct {
 	// delays are each copy's delay as the last block ended, in frames.
 	delays [3]float32
 	dark   [2]onePole
+	// sr is the rate it runs at, in frames a second, and mask one less
+	// than its buffers' length.
+	sr   float32
+	mask int
 }
 
 // The kinds of chorus.
@@ -237,23 +320,41 @@ var chorusKinds = map[string]int{
 	"ensemble": chorusEnsemble,
 }
 
+// chorusSize is the length of a chorus's buffers at the engine's rate:
+// a power of two, longer than its longest delay.
 const chorusSize = 2048
 
-func newChorus(kind int) *chorus {
-	c := &chorus{buf: [2][]float32{make([]float32, chorusSize), make([]float32, chorusSize)}, kind: kind}
+func newChorus(kind int) *chorus { return newChorusAt(kind, rate) }
+
+// newChorusAt returns a chorus of kind for sound at sr frames a second.
+func newChorusAt(kind int, sr float64) *chorus {
+	n := chorusSize
+	for float64(n) < sr*0.03 {
+		n *= 2
+	}
+	c := &chorus{buf: [2][]float32{make([]float32, n), make([]float32, n)}, kind: kind, sr: float32(sr), mask: n - 1}
 	for i := range c.dark {
-		c.dark[i].set(7500)
+		c.dark[i].setAt(7500, sr)
 	}
 	c.delays = c.targets()
 	return c
 }
 
+// setKind makes the chorus one of kind, its sweeps from their start.
+func (c *chorus) setKind(kind int) {
+	if kind == c.kind {
+		return
+	}
+	c.kind, c.phase = kind, [2]float32{}
+	c.delays = c.targets()
+}
+
 // targets returns where each copy's delay is bound now, in frames, and
 // moves the sweeps on a control block.
 func (c *chorus) targets() (d [3]float32) {
-	const ms = rate / 1000
+	ms := c.sr / 1000
 	step := func(i int, hz float32) {
-		c.phase[i] += hz * control / rate
+		c.phase[i] += hz * control / c.sr
 		if c.phase[i] >= 1 {
 			c.phase[i]--
 		}
@@ -294,12 +395,12 @@ func (c *chorus) targets() (d [3]float32) {
 func (c *chorus) read(ch int, d float32) float32 {
 	pos := float32(c.at) - d
 	if pos < 0 {
-		pos += chorusSize
+		pos += float32(c.mask + 1)
 	}
 	j := int(pos)
 	f := pos - float32(j)
-	a := c.buf[ch][j&(chorusSize-1)]
-	b := c.buf[ch][(j+1)&(chorusSize-1)]
+	a := c.buf[ch][j&c.mask]
+	b := c.buf[ch][(j+1)&c.mask]
 	return a + (b-a)*f
 }
 
@@ -335,7 +436,7 @@ func (c *chorus) process(l, r []float32) {
 			}
 			l[i] = l[i]*dry + wl*c.mix
 			r[i] = r[i]*dry + wr*c.mix
-			c.at = (c.at + 1) & (chorusSize - 1)
+			c.at = (c.at + 1) & c.mask
 			for k := range d {
 				d[k] += dd[k]
 			}
@@ -734,6 +835,9 @@ type distortion struct {
 	tight, dc  [2]onePole
 	cabLP      [2][2]svf
 	cabHP, mid [2]svf
+	// sr is the rate it runs at, in frames a second: the engine's
+	// where 0.
+	sr float64
 }
 
 func (d *distortion) set(amount float64, kind string) {
@@ -744,14 +848,18 @@ func (d *distortion) set(amount float64, kind string) {
 	}
 	k := distortKinds[kind]
 	if k != d.kind || d.gain == 0 {
-		*d = distortion{kind: k}
+		sr := d.sr
+		if sr == 0 {
+			sr = rate
+		}
+		*d = distortion{kind: k, sr: d.sr}
 		for ch := range 2 {
-			d.tight[ch].set(320)
-			d.dc[ch].set(18)
-			d.cabLP[ch][0].set(4500, 0.2)
-			d.cabLP[ch][1].set(4500, 0.2)
-			d.cabHP[ch].set(85, 0.1)
-			d.mid[ch].set(1600, 0.5)
+			d.tight[ch].setAt(320, sr)
+			d.dc[ch].setAt(18, sr)
+			d.cabLP[ch][0].setAt(4500, 0.2, sr)
+			d.cabLP[ch][1].setAt(4500, 0.2, sr)
+			d.cabHP[ch].setAt(85, 0.1, sr)
+			d.mid[ch].setAt(1600, 0.5, sr)
 		}
 	}
 	d.on = true
@@ -945,5 +1053,77 @@ func (w *wash) process(l, r []float32) {
 		}
 		l[i] = l[i]*dry + wl*w.mix
 		r[i] = r[i]*dry + wr*w.mix
+	}
+}
+
+// phaserStages is how many allpass stages a phaser's side runs through:
+// three notches.
+const phaserStages = 6
+
+// phaser sweeps notches through a sound: each side runs through six
+// allpass stages, whose corner a sine sweeps up and down round 800 Hz,
+// the right side's a quarter of a cycle on from the left's, with
+// feedback round them that sharpens the notches; mixed back with the
+// sound, the stages' phase cancels it at the notches.
+type phaser struct {
+	stages [2][phaserStages]disperse
+	// fb is each side's last sound out of its stages, for the feedback.
+	fb [2]float32
+	// a is each side's stages' coefficient as the last block ended.
+	a     [2]float32
+	phase float32
+	// hz is the sweep's rate, depth how far it sweeps, from 0 to 1,
+	// feedback how much goes round, and mix how much of the stages'
+	// sound is heard, from 0 to 1, where 1 is the deepest notches.
+	hz, depth, feedback, mix float32
+	sr                       float64
+}
+
+func newPhaserAt(sr float64) *phaser {
+	ph := &phaser{sr: sr, hz: 0.5, depth: 0.7, feedback: 0.4, mix: 1}
+	ph.a = ph.targets()
+	return ph
+}
+
+// targets returns where each side's coefficient is bound at the sweep's
+// phase now.
+func (ph *phaser) targets() (a [2]float32) {
+	for ch := range a {
+		x := sin1(wrap(ph.phase + 0.25*float32(ch)))
+		hz := 800 * math.Exp2(float64(2.5*ph.depth*x))
+		t := math.Tan(math.Pi * min(hz, ph.sr*0.45) / ph.sr)
+		a[ch] = float32((1 - t) / (1 + t))
+	}
+	return a
+}
+
+func (ph *phaser) clear() {
+	ph.stages = [2][phaserStages]disperse{}
+	ph.fb = [2]float32{}
+}
+
+func (ph *phaser) process(l, r []float32) {
+	dry, wet := 1-ph.mix*0.5, ph.mix*0.5
+	for at := 0; at < len(l); at += control {
+		end := min(at+control, len(l))
+		ph.phase = wrap(ph.phase + ph.hz*float32(end-at)/float32(ph.sr))
+		from, to := ph.a, ph.targets()
+		n := float32(end - at)
+		for ch, x := range [2][]float32{l, r} {
+			a, da := from[ch], (to[ch]-from[ch])/n
+			st := &ph.stages[ch]
+			fb := ph.fb[ch]
+			for i := at; i < end; i++ {
+				a += da
+				y := x[i] + fb*ph.feedback
+				for k := range st {
+					y = st[k].step(y, a)
+				}
+				fb = y + 1e-18
+				x[i] = x[i]*dry + y*wet
+			}
+			ph.fb[ch] = fb
+		}
+		ph.a = to
 	}
 }

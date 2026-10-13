@@ -80,9 +80,12 @@ type svf struct {
 }
 
 // set tunes the filter to cutoff hz with resonance res, from 0 to 1.
-func (f *svf) set(hz, res float32) {
-	hz = min(max(hz, 16), rate*0.45)
-	g := float32(math.Tan(math.Pi * float64(hz) / rate))
+func (f *svf) set(hz, res float32) { f.setAt(hz, res, rate) }
+
+// setAt tunes the filter as set does, for sound at sr frames a second.
+func (f *svf) setAt(hz, res float32, sr float64) {
+	hz = min(max(hz, 16), float32(sr*45/100))
+	g := float32(math.Tan(math.Pi * float64(hz) / sr))
 	f.k = 2 - 1.96*min(max(res, 0), 1)
 	f.a1 = 1 / (1 + g*(g+f.k))
 	f.a2 = g * f.a1
@@ -110,8 +113,11 @@ type onePole struct {
 }
 
 // set tunes the filter to cutoff hz.
-func (f *onePole) set(hz float32) {
-	f.a = 1 - float32(math.Exp(-2*math.Pi*float64(min(max(hz, 1), rate*0.49))/rate))
+func (f *onePole) set(hz float32) { f.setAt(hz, rate) }
+
+// setAt tunes the filter to cutoff hz, for sound at sr frames a second.
+func (f *onePole) setAt(hz float32, sr float64) {
+	f.a = 1 - float32(math.Exp(-2*math.Pi*float64(min(max(hz, 1), float32(sr*49/100)))/sr))
 }
 
 // lp filters x and returns its lowpass.
