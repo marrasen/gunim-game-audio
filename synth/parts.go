@@ -75,9 +75,9 @@ func (in *Instrument) RenderParts(l, r []float32, parts *[DrumParts]Part) {
 	}
 	if in.hs != nil {
 		if parts != nil {
-			in.hs.renderParts(l, r, parts)
+			in.hs.renderParts(l, r, parts, in.ctx.carry)
 		} else {
-			in.hs.render(l, r)
+			in.hs.render(l, r, in.ctx.carry)
 		}
 	}
 	if in.level != 1 {

@@ -519,7 +519,7 @@ func (g *GM) render(dst []float32, n int) {
 		clear(tl)
 		clear(tr)
 		sounding := c.vs.render(tl, tr, &g.ctx)
-		if c.hs.render(tl, tr) {
+		if c.hs.render(tl, tr, false) {
 			sounding = true
 		}
 		if c.sf.render(tl, tr, float64(c.shift)) {

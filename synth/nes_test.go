@@ -75,7 +75,7 @@ func TestNESDrums(t *testing.T) {
 		l, r := make([]float32, rate), make([]float32, rate)
 		for at := 0; at < rate; at += maxBlock {
 			end := min(at+maxBlock, rate)
-			hs.render(l[at:end], r[at:end])
+			hs.render(l[at:end], r[at:end], false)
 		}
 		if rms(l[:rate/20]) < 0.01 || rms(l[rate/2:]) > 1e-4 {
 			t.Errorf("%s sounds at %.4f, then %.5f", name, rms(l[:rate/20]), rms(l[rate/2:]))
