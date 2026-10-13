@@ -168,6 +168,9 @@ type panel struct {
 	prev     *widget.IconButton
 	next     *widget.IconButton
 	sections []*plugui.Section
+	// aheadShown says the last section, the swell's and the ghost's,
+	// shows: it gives way to the keys where both lack room.
+	aheadShown bool
 	// keys play notes of the sound, where the host lets them, and
 	// shown says they have room.
 	keys  *keys
@@ -235,7 +238,7 @@ const (
 	aboutY     = crumbY + 22
 	meterTop   = 36
 	// keysMin and keysMax bound how tall the keys stand.
-	keysMin = 32
+	keysMin = 40
 	keysMax = 110
 )
 
@@ -286,7 +289,21 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 	kids.At(0).Place(geom.Pt(right-2*stepW-4, nameY-2))
 	kids.At(1).Layout(gunim.Tight(geom.Sz(stepW, stepW)))
 	kids.At(1).Place(geom.Pt(right-stepW, nameY-2))
-	secTop := plugui.PlaceSections(d.Size(), panelInset, v.sections, func(i int, r geom.Rect) {
+	placed := v.sections
+	v.aheadShown = true
+	if v.keys != nil {
+		keysAt := v.factsY() + 34
+		roomy := func(secs []*plugui.Section) bool {
+			return plugui.PlaceSections(d.Size(), panelInset, secs, func(int, geom.Rect) {})-14-keysAt >= keysMin
+		}
+		if less := v.sections[:len(v.sections)-1]; !roomy(v.sections) && roomy(less) {
+			placed, v.aheadShown = less, false
+			ahead := kids.At(2 + len(less))
+			ahead.Layout(gunim.Tight(geom.Size{}))
+			ahead.Place(geom.Point{})
+		}
+	}
+	secTop := plugui.PlaceSections(d.Size(), panelInset, placed, func(i int, r geom.Rect) {
 		kids.At(2 + i).Layout(gunim.Tight(r.Size()))
 		kids.At(2 + i).Place(r.Min.Add(d.Min))
 	})
@@ -345,6 +362,9 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	}
 	paintFacts(pt, f, facts(v.st.Patch), geom.Pt(x, v.factsY()), d.Max.X-panelInset-x)
 	for i := range kids.Len() {
+		if i == 1+len(v.sections) && !v.aheadShown {
+			continue
+		}
 		kids.At(i).Paint(pt)
 	}
 }
