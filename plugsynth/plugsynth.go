@@ -64,6 +64,7 @@ var Descriptor = plug.Descriptor{
 	// The swell and the ghost sound ahead of the notes.
 	LookAhead: lookAhead,
 	AuxOut:    drumOuts(),
+	Ports:     ports,
 	Params: []plug.Param{
 		{
 			ID: CutoffID, Name: "Cutoff", Unit: "oct", Min: -4, Max: 4, Flags: plug.Automatable,
@@ -107,8 +108,8 @@ func millis(v float64) string {
 // The aux outputs' indexes, one for each of a drum kit's parts, as
 // [synth.DrumPart] sorts its drums: a drum plays into its part's output
 // where that is connected, and into the main output where it is not.
-// Any other patch plays into the main output alone, and leaves the aux
-// outputs silent.
+// Any other patch plays into the main output alone, and the
+// descriptor's Ports leaves its aux outputs out.
 const (
 	KickOut   = synth.KickPart
 	SnareOut  = synth.SnarePart
@@ -125,6 +126,21 @@ func drumOuts() []plug.AudioPort {
 		out[i] = plug.AudioPort{Name: name}
 	}
 	return out
+}
+
+// ports says which outputs the synth has in a state: an aux output for
+// each part its drum kit plays into, or none beside the main output for
+// any other sound. A state it cannot read stands for the default sound,
+// as the plugin plays that where its first state fails.
+func ports(state []byte) plug.Ports {
+	st := defaultState()
+	if len(state) > 0 {
+		if s, err := DecodeState(state); err == nil {
+			st = s
+		}
+	}
+	parts := synth.KitParts(st.Patch)
+	return plug.Ports{AuxOut: parts[:]}
 }
 
 // times writes a factor to show, as ×2.00.

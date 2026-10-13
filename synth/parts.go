@@ -97,3 +97,19 @@ func scale(l, r []float32, level float32) {
 		r[i] *= level
 	}
 }
+
+// KitParts reports which parts p plays into: for a drums patch, each
+// part a drum of its kit plays into on one of General MIDI's notes, as
+// the kit falls back to the built-in drums for the notes it leaves out;
+// for any other patch, none, as its sound is all one.
+func KitParts(p *Patch) (parts [DrumParts]bool) {
+	if p == nil || p.Kind != "drums" {
+		return parts
+	}
+	for key := range 128 {
+		if kitDrum(p.Kit, key) != "" {
+			parts[drumParts[key]] = true
+		}
+	}
+	return parts
+}
