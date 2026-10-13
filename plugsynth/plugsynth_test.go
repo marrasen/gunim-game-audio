@@ -580,10 +580,6 @@ func TestTheViewsShowAndFollow(t *testing.T) {
 			t.Fatalf("view %d shows another sound than the TR-808", size)
 		}
 		for i, r := range boundsOf(t, pn, geom.Sz(900, 420), pn.sections) {
-			if i == len(pn.sections)-1 && !pn.aheadShown {
-				// The swell's and the ghost's give way to the keys.
-				continue
-			}
 			if r.Empty() || r.Min.X < 0 || r.Min.Y < 0 || r.Max.X > 900 || r.Max.Y > 420 {
 				t.Errorf("view %d: section %s is at %v, outside the view", size, pn.sections[i].Name, r)
 			}
@@ -591,32 +587,84 @@ func TestTheViewsShowAndFollow(t *testing.T) {
 	}
 }
 
-func TestTheKnobsAheadGiveWayToTheKeys(t *testing.T) {
+func TestEverySectionShowsAndTheKeysGiveWay(t *testing.T) {
 	p, h := newSynth(t)
 	for _, c := range []struct {
-		size  plug.Size
-		room  geom.Size
-		shown bool
+		size plug.Size
+		room geom.Size
+		// keys and about say the keys show, and what the sound is.
+		keys, about bool
 	}{
-		{plug.Panel, geom.Sz(900, 420), true},
-		{plug.Full, geom.Sz(1200, 420), true},
-		{plug.Full, geom.Sz(900, 420), false},
-		{plug.Full, geom.Sz(900, 560), true},
+		// Marrdaw's lane panel opens about this big.
+		{plug.Full, geom.Sz(900, 420), true, true},
+		{plug.Full, geom.Sz(1200, 420), true, true},
+		{plug.Full, geom.Sz(900, 560), true, true},
+		{plug.Panel, geom.Sz(900, 420), true, false},
+		// Narrow: the sections stand in two rows, and what the sound
+		// is gives way to the keys.
+		{plug.Full, geom.Sz(700, 420), true, false},
+		// Shorter still: the keys give way, and what the sound is
+		// comes back.
+		{plug.Full, geom.Sz(700, 360), false, true},
+		{plug.Full, geom.Sz(600, 300), false, true},
+		{plug.Panel, geom.Sz(280, 180), false, false},
 	} {
 		pn, ok := p.View(c.size, h).(*panel)
 		if !ok {
 			t.Fatal("the view is of another type")
 		}
 		r := boundsOf(t, pn, c.room, pn.sections)
-		if pn.aheadShown != c.shown || pn.aheadShown && r[len(r)-1].Empty() || !pn.shown {
-			t.Errorf("view %d at %v: the knobs ahead show %v, the keys %v", c.size, c.room, pn.aheadShown, pn.shown)
+		if pn.shown != c.keys || pn.aboutShown != c.about {
+			t.Errorf("view %d at %v: the keys show %v, what the sound is %v", c.size, c.room, pn.shown, pn.aboutShown)
+		}
+		if ahead := r[len(r)-1]; ahead.Empty() {
+			t.Errorf("view %d at %v: the knobs ahead take no room", c.size, c.room)
+		}
+	}
+}
+
+func TestTheSectionsAndKeysShareTheRoomAtEverySize(t *testing.T) {
+	p, h := newSynth(t)
+	for _, size := range []plug.Size{plug.Panel, plug.Full} {
+		for w := float32(280); w <= 1300; w += 70 {
+			for ht := float32(180); ht <= 640; ht += 23 {
+				if size == plug.Full && (w < 600 || ht < 300) {
+					// Marrdaw shows the panel view under this.
+					continue
+				}
+				pn, ok := p.View(size, h).(*panel)
+				if !ok {
+					t.Fatal("the view is of another type")
+				}
+				room := geom.Sz(w, ht)
+				nodes := []gunim.Node{pn.keys}
+				for _, s := range pn.sections {
+					nodes = append(nodes, s)
+				}
+				r := boundsOf(t, pn, room, nodes)
+				keys, secs := r[0], r[1:]
+				for i, sr := range secs {
+					if sr.Empty() {
+						t.Errorf("view %d at %v: section %s takes no room", size, room, pn.sections[i].Name)
+					}
+					if pn.shown && sr.Min.Y < keys.Max.Y && keys.Min.Y < sr.Max.Y && sr.Min.X < keys.Max.X && keys.Min.X < sr.Max.X {
+						t.Errorf("view %d at %v: section %s at %v lies over the keys at %v", size, room, pn.sections[i].Name, sr, keys)
+					}
+				}
+				if pn.shown && (keys.Size().H < keysMin || keys.Size().H > keysMax) {
+					t.Errorf("view %d at %v: the keys stand %v tall", size, room, keys.Size().H)
+				}
+				if !pn.shown && !keys.Empty() {
+					t.Errorf("view %d at %v: the keys hide yet take %v", size, room, keys)
+				}
+			}
 		}
 	}
 }
 
 // boundsOf lays pn out at size, paints it, and returns where each of
-// sections is.
-func boundsOf(t *testing.T, pn *panel, size geom.Size, sections []*plugui.Section) []geom.Rect {
+// nodes is.
+func boundsOf[N gunim.Node](t *testing.T, pn *panel, size geom.Size, nodes []N) []geom.Rect {
 	t.Helper()
 	w := gunimtest.New(t, size, nil)
 	gunim.RegisterView(w, "synth", func(struct{}) gunim.Node { return pn }, nil)
@@ -624,10 +672,10 @@ func boundsOf(t *testing.T, pn *panel, size geom.Size, sections []*plugui.Sectio
 		t.Fatal(err)
 	}
 	w.Frame(time.Second / 60)
-	out := make([]geom.Rect, len(sections))
+	out := make([]geom.Rect, len(nodes))
 	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, _ struct{}, u *gunim.UI) {
-		for i, s := range sections {
-			out[i], _ = u.Bounds(s)
+		for i, n := range nodes {
+			out[i], _ = u.Bounds(n)
 		}
 	})
 	if err := w.Client().Patch("synth", struct{}{}); err != nil {
