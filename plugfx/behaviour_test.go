@@ -235,3 +235,40 @@ func TestAMonoSoundRunsThroughEach(t *testing.T) {
 		}
 	}
 }
+
+func TestTheDelaysTimeChangesQuicklyWithoutAClick(t *testing.T) {
+	// A held sine through the delay: the time changed twice within one
+	// crossfade, and the tempo ramping, slowly and fast. No frame steps
+	// much further from the one before than the sound held does.
+	in := sine(5*synth.Rate, 220, 0.4)
+	steady := rig{pr: DelayDescriptor.New(nil).Processor(), d: &DelayDescriptor, s: setup,
+		tempo: func(int) float64 { return 96 }}.run(t, in)
+	held := max(biggestStep(steady[0][48000:]), biggestStep(steady[1][48000:]))
+	cases := []struct {
+		name    string
+		tempo   func(int) float64
+		changes []plug.Change
+	}{
+		{"two notes 600 frames apart", func(int) float64 { return 96 },
+			[]plug.Change{{Frame: 60000, ID: NoteID, Value: 3}, {Frame: 60600, ID: NoteID, Value: 1}}},
+		{"a ramp from 96 to 104 BPM", ramp(96, 104), nil},
+		{"a ramp from 96 to 200 BPM", ramp(96, 200), nil},
+	}
+	for _, c := range cases {
+		out := rig{pr: DelayDescriptor.New(nil).Processor(), d: &DelayDescriptor, s: setup, tempo: c.tempo}.run(t, in,
+			c.changes...)
+		for ch := range out {
+			if got := biggestStep(out[ch][48000:]); got > held*1.5 {
+				t.Errorf("%s: channel %d steps %g in a frame, where the sound held steps %g", c.name, ch, got, held)
+			}
+		}
+	}
+}
+
+// ramp is a tempo from a to b over the four seconds from frame 24000.
+func ramp(a, b float64) func(int) float64 {
+	return func(f int) float64 {
+		x := min(max(float64(f-24000)/(4*synth.Rate), 0), 1)
+		return a + (b-a)*x
+	}
+}

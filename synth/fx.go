@@ -181,8 +181,10 @@ type delay struct {
 	stereo      bool
 	// A change of time crossfades from the echoes from frames back,
 	// from, over fadeLen frames, of which fade are left. A fadeLen of 0
-	// jumps, as a song's delay does.
+	// jumps, as a song's delay does. A change during a crossfade waits
+	// in next, the newest only, until the crossfade ends.
 	from, fade, fadeLen int
+	next                int
 	sr                  float64
 }
 
@@ -212,6 +214,10 @@ func (d *delay) set(beats, bpm, feedback, tone float64) {
 // fadeLen says.
 func (d *delay) setFrames(n int) {
 	n = min(max(n, 1), len(d.l)-1)
+	if d.fade > 0 {
+		d.next = n
+		return
+	}
 	if n != d.frames && d.fadeLen > 0 && d.frames > 0 {
 		d.from, d.fade = d.frames, d.fadeLen
 	}
@@ -224,6 +230,9 @@ func (d *delay) clear() {
 	clear(d.r)
 	d.tone.z, d.low.z, d.toneL.z, d.lowL.z = 0, 0, 0, 0
 	d.fade = 0
+	if d.next > 0 {
+		d.frames, d.next = d.next, 0
+	}
 }
 
 // tap returns the echoes n frames back.
@@ -244,6 +253,12 @@ func (d *delay) process(l, r []float32) {
 			dl += (ol - dl) * t
 			dr += (or - dr) * t
 			d.fade--
+			if d.fade == 0 && d.next > 0 {
+				// The change that waited fades in now.
+				n := d.next
+				d.next = 0
+				d.setFrames(n)
+			}
 		}
 		if d.stereo {
 			d.l[d.at] = l[i] + d.lowL.hp(d.toneL.lp(dl))*d.feedback + 1e-18

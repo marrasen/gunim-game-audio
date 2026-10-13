@@ -74,8 +74,14 @@ func (d *DelayUnit) SetFilters(lowHz, highHz float64) {
 // on its own side.
 func (d *DelayUnit) SetPingPong(on bool) { d.d.stereo = !on }
 
-// Frames returns how many frames apart the echoes are.
-func (d *DelayUnit) Frames() int { return d.d.frames }
+// Frames returns how many frames apart the echoes are bound to be,
+// once a crossfade under way ends.
+func (d *DelayUnit) Frames() int {
+	if d.d.next > 0 {
+		return d.d.next
+	}
+	return d.d.frames
+}
 
 // Process takes the sound sent to the delay from l and r, and leaves the
 // echoes in them.
