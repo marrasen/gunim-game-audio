@@ -38,6 +38,10 @@ const (
 	// DelayMixID is how much of the echoes is heard, in percent: 100,
 	// the echoes alone, for a send, as it starts.
 	DelayMixID
+	// DelayTempoID is the tempo the delay times its echoes by, as it
+	// plays, in beats a minute: ReadOnly, for its view to draw the
+	// sound it hears in beats.
+	DelayTempoID
 )
 
 // NoteNames are the notes NoteID picks, by its value, and noteBeats
@@ -87,6 +91,8 @@ var DelayDescriptor = plug.Descriptor{
 		{ID: HighCutID, Name: "High cut", Unit: "Hz", Min: 500, Max: 20000, Default: 4400, Log: true,
 			Flags: plug.Automatable, Format: hertz},
 		{ID: DelayMixID, Name: "Mix", Unit: "%", Max: 100, Default: 100, Flags: plug.Automatable, Format: percent},
+		{ID: DelayTempoID, Name: "Tempo", Unit: "bpm", Min: 1, Max: 999, Default: defaultTempo,
+			Flags: plug.ReadOnly | plug.Hidden},
 	},
 	Patches: []plug.Patch{
 		{Name: "Default", Category: "Send"},
@@ -197,8 +203,10 @@ type delayProc struct {
 	wl, wr []float32
 	blend  blend
 	set    delaySettings
-	// tempo is the host's tempo, the last it knew.
+	// tempo is the host's tempo, the last it knew, and shown the same
+	// for the views.
 	tempo float64
+	shown plug.Meter
 	tail  atomic.Int64
 }
 
@@ -217,6 +225,7 @@ func (p *delayProc) Prepare(s plug.Setup) {
 	if p.tempo == 0 {
 		p.tempo = defaultTempo
 	}
+	p.shown.Set(p.tempo)
 	for _, prm := range DelayDescriptor.Params {
 		p.take(plug.Change{ID: prm.ID, Value: prm.Default})
 	}
@@ -230,7 +239,10 @@ func (p *delayProc) take(c plug.Change) {
 		return
 	}
 	v := prm.Clamp(c.Value)
-	if c.ID == DelayMixID {
+	switch c.ID {
+	case DelayTempoID:
+		return
+	case DelayMixID:
 		p.blend.mixTo = float32(v / 100)
 		return
 	}
@@ -259,6 +271,7 @@ func (p *delayProc) Process(b *plug.Block) {
 	}
 	if t := b.Position.Tempo; t > 0 && t != p.tempo {
 		p.tempo = t
+		p.shown.Set(t)
 		p.apply()
 	}
 	runSegments(b, p)
@@ -269,6 +282,14 @@ func (p *delayProc) segment(b *plug.Block, from, to int) {
 	feed(b.In, p.wl, p.wr, from, to)
 	p.dly.Process(p.wl[from:to], p.wr[from:to])
 	p.blend.run(b.In, b.Out, p.wl, p.wr, from, to)
+}
+
+// Report implements [plug.Reporter]: the tempo the echoes keep.
+func (p *delayProc) Report(id uint32) float64 {
+	if id == DelayTempoID {
+		return p.shown.Get()
+	}
+	return 0
 }
 
 // Latency implements [plug.Processor]: the delay sounds on time, 0.

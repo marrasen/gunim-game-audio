@@ -76,10 +76,12 @@ type decayGraph struct {
 	lit   [handles]*anim.Float
 	group anim.Group
 	out   *meter
-	grip  grip
-	hot   int
-	foot  float32
-	size  geom.Size
+	// sw follows the sound from each hit, to draw it over the decay.
+	sw   *sweep
+	grip grip
+	hot  int
+	foot float32
+	size geom.Size
 }
 
 // The graph's handles, from 1, as grip holds them.
@@ -92,7 +94,7 @@ const (
 )
 
 func newDecayGraph(h plug.Host, v values) *decayGraph {
-	g := &decayGraph{h: h, v: v, out: newMeter(soundOut(h)), glow: anim.NewFloat(0)}
+	g := &decayGraph{h: h, v: v, out: newMeter(soundOut(h)), sw: newSweep(h), glow: anim.NewFloat(0)}
 	g.span = anim.NewFloat(float32(g.spanFor()))
 	g.group.Add(g.span, g.glow)
 	for i := range g.lit {
@@ -166,7 +168,8 @@ func (g *decayGraph) handleAt(k int) geom.Point {
 // Step implements [gunim.Animator]: the span glides, and the curves
 // glow as the reverb sounds.
 func (g *decayGraph) Step(dt time.Duration) bool {
-	moving := g.out.step(dt)
+	moving := g.sw.step(dt, float64(g.span.Value()))
+	moving = g.out.step(dt) || moving
 	loud := max(g.out.levels.RMS[0], g.out.levels.RMS[1])
 	g.glow.Animate(min(max((loud+48)/36, 0), 1), anim.Snappy)
 	return g.group.Step(dt) || moving
@@ -241,6 +244,18 @@ func (g *decayGraph) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 		y := g.yOf(-4 - 2*float64(i))
 		p.RRect(geom.Rc(x-1, y, 2, r.Max.Y-y), 1, paint.Solid(audioui.Faded(ink, 0.25+0.2*g.lit[handleSize-1].Value())))
 	}
+	// The sound from the last hit: going in, a faint line, and coming
+	// out, filled, so the tail falls along the decay as it sounds.
+	fade, _ := g.sw.shown()
+	g.sw.paint(p, r, g.timeAt, g.xOf, ink, func(x float32, in, l, rt float64) {
+		if y := g.yOf(max(l, rt)); y < r.Max.Y {
+			p.RRect(geom.Rc(x, y, 2, r.Max.Y-y), 0, paint.Solid(audioui.Faded(bright, 0.08*fade)))
+			p.RRect(geom.Rc(x, y-1, 2, 2), 0, paint.Solid(audioui.Faded(bright, 0.75*fade)))
+		}
+		if y := g.yOf(in); y < r.Max.Y {
+			p.RRect(geom.Rc(x, y-0.5, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.2*fade)))
+		}
+	})
 	// The -60 dB line, which the decay reaches.
 	y60 := g.yOf(-60)
 	for x := r.Min.X; x < r.Max.X; x += 8 {
