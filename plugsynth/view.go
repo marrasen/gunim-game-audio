@@ -168,14 +168,14 @@ type panel struct {
 	prev     *widget.IconButton
 	next     *widget.IconButton
 	sections []*plugui.Section
-	// aheadShown says the last section, the swell's and the ghost's,
-	// shows: it gives way to the keys where both lack room.
-	aheadShown bool
 	// keys play notes of the sound, where the host lets them, and
 	// shown says they have room.
 	keys  *keys
 	shown bool
-	out   *meter
+	// aboutShown says what the sound is shows under its name: in full,
+	// where the keys have room with it, or lack it without it too.
+	aboutShown bool
+	out        *meter
 	// turn runs from 0 to 1 as the name turns over to a new sound, and
 	// was is the name it turns from.
 	turn *anim.Float
@@ -242,13 +242,17 @@ const (
 	keysMax = 110
 )
 
-// factsY is where the facts stand, under what the sound is in full.
-func (v *panel) factsY() float32 {
-	if v.full {
+// factsY is where the facts stand: under what the sound is, where that
+// shows, or else under where it comes from.
+func (v *panel) factsY(about bool) float32 {
+	if about {
 		return aboutY + 44
 	}
 	return crumbY + 26
 }
+
+// keysTop is where the keys stand, under the facts.
+func (v *panel) keysTop(about bool) float32 { return v.factsY(about) + 34 }
 
 // Children implements [gunim.Composite].
 func (v *panel) Children() []gunim.Node {
@@ -265,22 +269,38 @@ func (v *panel) Children() []gunim.Node {
 	return kids
 }
 
-// browserW is how wide the browser stands in a full view w wide.
-func browserW(w float32) float32 { return min(max(w*0.48, browserMin), browserMax) }
+// browserW is how wide the browser stands in a full view w wide: a
+// little under half of it, and narrower down to browserMin where that
+// lets the sections stand in one row.
+func (v *panel) browserW(w float32) float32 {
+	row := float32(0)
+	for i, s := range v.sections {
+		if i > 0 {
+			row += plugui.SectionGap
+		}
+		row += s.Width()
+	}
+	// The detail is w less the browser, the meter and three insets; its
+	// sections' row stands in it less an inset.
+	oneRow := w - row - 3*panelInset - audioui.MeterW
+	return max(min(w*0.48, browserMax, oneRow), browserMin)
+}
 
 // detail is the part right of the browser, in full, or the whole panel.
 func (v *panel) detail(size geom.Size) geom.Rect {
 	r := geom.Rect{Max: size.Point()}
 	if v.full {
-		r.Min.X = browserW(size.W) + panelInset
+		r.Min.X = v.browserW(size.W) + panelInset
 		r.Max.X -= audioui.MeterW + panelInset
 	}
 	return r
 }
 
-// Layout implements [gunim.Node]: the steps beside the name, the
-// sections along the foot, in rows as many as fit, each row centred;
-// in full, the browser at the left.
+// Layout implements [gunim.Node]: the steps beside the name, every
+// section along the foot, in rows as many as fit, each row centred;
+// the keys between, as tall as the room lets; in full, the browser at
+// the left. Where room is short, the keys grow shorter, then what the
+// sound is gives way to them, then they give way to the sections.
 func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
 	size := c.Max
 	d := v.detail(size)
@@ -289,34 +309,22 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 	kids.At(0).Place(geom.Pt(right-2*stepW-4, nameY-2))
 	kids.At(1).Layout(gunim.Tight(geom.Sz(stepW, stepW)))
 	kids.At(1).Place(geom.Pt(right-stepW, nameY-2))
-	placed := v.sections
-	v.aheadShown = true
-	if v.keys != nil {
-		keysAt := v.factsY() + 34
-		roomy := func(secs []*plugui.Section) bool {
-			return plugui.PlaceSections(d.Size(), panelInset, secs, func(int, geom.Rect) {})-14-keysAt >= keysMin
-		}
-		if less := v.sections[:len(v.sections)-1]; !roomy(v.sections) && roomy(less) {
-			placed, v.aheadShown = less, false
-			ahead := kids.At(2 + len(less))
-			ahead.Layout(gunim.Tight(geom.Size{}))
-			ahead.Place(geom.Point{})
-		}
-	}
-	secTop := plugui.PlaceSections(d.Size(), panelInset, placed, func(i int, r geom.Rect) {
+	secTop := plugui.PlaceSections(d.Size(), panelInset, v.sections, func(i int, r geom.Rect) {
 		kids.At(2 + i).Layout(gunim.Tight(r.Size()))
 		kids.At(2 + i).Place(r.Min.Add(d.Min))
 	})
+	keysRoom := func(about bool) float32 { return secTop - 14 - v.keysTop(about) }
+	v.aboutShown = v.full && (v.keys == nil || keysRoom(true) >= keysMin || keysRoom(false) < keysMin)
 	next := 2 + len(v.sections)
 	if v.full {
 		b := kids.At(next)
-		b.Layout(gunim.Tight(geom.Sz(browserW(size.W)-panelInset, max(size.H-2*panelInset, 0))))
+		b.Layout(gunim.Tight(geom.Sz(v.browserW(size.W)-panelInset, max(size.H-2*panelInset, 0))))
 		b.Place(geom.Pt(panelInset, panelInset))
 		next++
 	}
 	if v.keys != nil {
-		top := v.factsY() + 34
-		h := min(secTop-14-top, keysMax)
+		top := v.keysTop(v.aboutShown)
+		h := min(keysRoom(v.aboutShown), keysMax)
 		w := min(d.Size().W-2*panelInset, 15*28+2*(shiftW+4))
 		v.shown = h >= keysMin
 		if !v.shown {
@@ -357,15 +365,12 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	}
 	bankIcon(pt, f, v.st.Bank, geom.Rc(x, crumbY+1, 12, 12), audioui.Faded(accent, 0.9))
 	audioui.Shaped(crumb, 11, false, false).PaintFaded(pt, geom.Pt(x+18, crumbY), audioui.Faded(ink, 0.6), room-18, 20)
-	if v.full {
+	if v.aboutShown {
 		paintWrapped(pt, v.about(), geom.Pt(x, aboutY), d.Max.X-panelInset-x, 2, audioui.Faded(ink, 0.55))
 	}
-	paintFacts(pt, f, facts(v.st.Patch), geom.Pt(x, v.factsY()), d.Max.X-panelInset-x)
-	for i := range kids.Len() {
-		if i == 1+len(v.sections) && !v.aheadShown {
-			continue
-		}
-		kids.At(i).Paint(pt)
+	paintFacts(pt, f, facts(v.st.Patch), geom.Pt(x, v.factsY(v.aboutShown)), d.Max.X-panelInset-x)
+	for k := range kids.All {
+		k.Paint(pt)
 	}
 }
 
