@@ -31,11 +31,16 @@ type Instrument struct {
 	orig *Patch
 	src  Patch
 	p    *patch
-	// level is the Gain knob's, as a factor.
+	// level is the Gain knob's, as a factor, and k the knobs as last
+	// set.
 	level float32
-	vs    *voices
-	hs    *hits
-	ctx   renderCtx
+	k     Knobs
+	// vowels counts the notes struck, for a patch's Vowels to sing in
+	// turn.
+	vowels int
+	vs     *voices
+	hs     *hits
+	ctx    renderCtx
 	// kit is a drums patch's drums, by note.
 	kit [128]*drum
 	// held are the notes sounding by their IDs, the oldest first, n of
@@ -59,10 +64,10 @@ type liveNote struct {
 	id, group int32
 	v         *voice
 	age       uint64
-	// n is the note as struck, and bend how far it is bent, for a mono
-	// patch to go back to it.
-	n    note
-	bend float32
+	// n is the note as struck, bend how far it is bent, and mod and
+	// press its controllers, for a mono patch to go back to it.
+	n                note
+	bend, mod, press float32
 	// sustained says its NoteOff came while the pedal held it.
 	sustained bool
 }
@@ -79,13 +84,32 @@ type pedal struct {
 // Gain.
 type Knobs struct {
 	// Cutoff moves the filter's cutoff, in octaves, and Res adds to its
-	// resonance, from -1 to 1.
-	Cutoff, Res float64
-	// Attack and Release stretch the envelope's attack and release by
-	// that many octaves: 1 doubles them.
-	Attack, Release float64
-	// Gain turns the sound up, in decibels.
-	Gain float64
+	// resonance, from -1 to 1. Env adds to how many octaves the filter's
+	// envelope opens it by.
+	Cutoff, Res, Env float64
+	// Attack, Decay and Release stretch the envelope's attack, decay
+	// and release by that many octaves: 1 doubles them. Sustain adds to
+	// its sustain, from -1 to 1.
+	Attack, Decay, Sustain, Release float64
+	// Gain turns the sound up, in decibels, and Pan moves it between
+	// the speakers, from -1 to 1.
+	Gain, Pan float64
+	// Drive and Noise add to the patch's drive and noise, from -1 to 1.
+	Drive, Noise float64
+	// Tune moves every note by semitones; Width adds to a pulse's
+	// width, from -0.5 to 0.5; and FM turns an fm wave's index up by
+	// octaves, or down below 0.
+	Tune, Width, FM float64
+	// LFORate speeds the LFOs up by octaves, or slows them below 0, and
+	// LFODepth adds to their depth, by a part of it: -1 stills them, 1
+	// doubles them.
+	LFORate, LFODepth float64
+	// Vowel, where set, is the vowel every note sings, a, e, i, o or u,
+	// in place of the patch's.
+	Vowel byte
+	// Mod and Pressure stand for a mod wheel and a key's pressure on
+	// every note, from 0 to 1, on top of each note's own.
+	Mod, Pressure float64
 }
 
 // NewInstrument returns an instrument that plays p. It plays a patch of
@@ -107,6 +131,8 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 		return nil, err
 	}
 	in.p = c
+	mod, press := in.src.Responses()
+	c.live = &liveCtl{lfoRate: 1, lfoDepth: 1, modR: mod, pressR: press}
 	in.ctx = renderCtx{beatHz: 2, carry: true, l: make([]float32, control), r: make([]float32, control)}
 	if c.kind == kindDrums {
 		in.hs = newHits(c.poly)
@@ -205,6 +231,10 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 		in.let(0)
 	}
 	n := note{pitch: float32(pitch), vel: float32(vel), res: -1}
+	if vs := in.p.vowels; len(vs) > 0 {
+		n.vowel = vs[in.vowels%len(vs)]
+		in.vowels++
+	}
 	var v *voice
 	age := uint64(0)
 	if in.p.kind == kindDrums {
@@ -272,7 +302,7 @@ func (in *Instrument) back(i int) bool {
 	}
 	to := &in.held[j]
 	v := in.vs.play(in.p, to.n)
-	v.bend = to.bend
+	v.bend, v.mod, v.press = to.bend, to.mod, to.press
 	to.v, to.age = v, v.age
 	copy(in.held[i:in.n], in.held[i+1:in.n])
 	in.n--
@@ -283,6 +313,41 @@ func (in *Instrument) back(i int) bool {
 // below 0, from now on: the note held, or else the last of that ID the
 // pedal holds after its NoteOff.
 func (in *Instrument) Bend(id int32, semis float64) {
+	if h := in.control(id); h != nil {
+		h.bend = float32(semis)
+		if h.v != nil && h.v.on && h.v.age == h.age {
+			h.v.bend = h.bend
+		}
+	}
+}
+
+// Mod moves note id's mod wheel to value, from 0 to 1, from now on, as
+// Bend finds the note; the patch answers it as its Mod says.
+func (in *Instrument) Mod(id int32, value float64) {
+	if h := in.control(id); h != nil {
+		h.mod = float32(min(max(value, 0), 1))
+		if h.v != nil && h.v.on && h.v.age == h.age {
+			h.v.mod = h.mod
+		}
+	}
+}
+
+// Pressure moves note id's pressure, how hard its key is pressed, to
+// value, from 0 to 1, from now on, as Bend finds the note; the patch
+// answers it as its Pressure says.
+func (in *Instrument) Pressure(id int32, value float64) {
+	if h := in.control(id); h != nil {
+		h.press = float32(min(max(value, 0), 1))
+		if h.v != nil && h.v.on && h.v.age == h.age {
+			h.v.press = h.press
+		}
+	}
+}
+
+// control returns note id, for its controllers to move: the note held,
+// or else the last of that ID the pedal holds after its NoteOff; nil
+// for none.
+func (in *Instrument) control(id int32) *liveNote {
 	i := in.find(id)
 	for j := in.n - 1; i < 0 && j >= 0; j-- {
 		if in.held[j].id == id {
@@ -290,13 +355,9 @@ func (in *Instrument) Bend(id int32, semis float64) {
 		}
 	}
 	if i < 0 {
-		return
+		return nil
 	}
-	h := &in.held[i]
-	h.bend = float32(semis)
-	if h.v != nil && h.v.on && h.v.age == h.age {
-		h.v.bend = h.bend
-	}
+	return &in.held[i]
 }
 
 // Pedal moves group's sustain pedal to value, from 0, up, to 1, down; it
@@ -367,6 +428,7 @@ func (in *Instrument) let(i int) {
 // SetKnobs turns the patch by k, the notes sounding as well as those to
 // come.
 func (in *Instrument) SetKnobs(k Knobs) {
+	in.k = k
 	o := in.orig
 	cut := o.Filter.Cutoff
 	if cut <= 0 {
@@ -374,8 +436,21 @@ func (in *Instrument) SetKnobs(k Knobs) {
 	}
 	in.src.Filter.Cutoff = min(max(cut*math.Exp2(k.Cutoff), 20), 20000)
 	in.src.Filter.Res = min(max(o.Filter.Res+k.Res, 0), 0.98)
+	in.src.Filter.Env = o.Filter.Env + k.Env
 	in.src.Amp.Attack = o.Amp.Attack * math.Exp2(k.Attack)
+	in.src.Amp.Decay = o.Amp.Decay * math.Exp2(k.Decay)
+	in.src.Amp.Sustain = min(max(o.Amp.Sustain+k.Sustain, 0), 1)
 	in.src.Amp.Release = o.Amp.Release * math.Exp2(k.Release)
+	in.src.Drive = min(max(o.Drive+k.Drive, 0), 2)
+	in.src.Noise = min(max(o.Noise+k.Noise, 0), 1)
+	lc := in.p.live
+	lc.tune, lc.width, lc.fm, lc.pan = float32(k.Tune), float32(k.Width), float32(k.FM), float32(k.Pan)
+	lc.lfoRate, lc.lfoDepth = float32(math.Exp2(k.LFORate)), float32(max(1+k.LFODepth, 0))
+	lc.vowel = 0
+	if _, ok := formants[k.Vowel]; ok {
+		lc.vowel = k.Vowel
+	}
+	lc.mod, lc.press = float32(min(max(k.Mod, 0), 1)), float32(min(max(k.Pressure, 0), 1))
 	in.level = float32(math.Pow(10, k.Gain/20))
 	if in.vs != nil {
 		for _, v := range in.vs.vs {
@@ -459,6 +534,12 @@ func (in *Instrument) Pass(to *Instrument) {
 		if h.bend != 0 {
 			to.Bend(h.id, float64(h.bend))
 		}
+		if h.mod != 0 {
+			to.Mod(h.id, float64(h.mod))
+		}
+		if h.press != 0 {
+			to.Pressure(h.id, float64(h.press))
+		}
 		if h.sustained {
 			to.NoteOff(h.id)
 		}
@@ -474,9 +555,11 @@ func (in *Instrument) Release() {
 	in.pedals = [maxPedals]pedal{}
 }
 
-// Silence stops every note at once, and lifts every pedal.
+// Silence stops every note at once, and lifts every pedal; a patch's
+// Vowels start again from the first.
 func (in *Instrument) Silence() {
 	in.Release()
+	in.vowels = 0
 	if in.vs != nil {
 		for _, v := range in.vs.vs {
 			v.on = false
@@ -487,4 +570,49 @@ func (in *Instrument) Silence() {
 			in.hs.hs[i].on = false
 		}
 	}
+}
+
+// Retune plays next's patch in place of its own, the notes sounding as
+// well as those to come, where the two patches are alike in shape, as a
+// patch edited is to itself before: of one kind, other than drums, with
+// as many voices, the same waves and as many copies of each, the same
+// filter, as many LFOs, and the same vowel bank. The notes sounding
+// play on, through their envelopes, at the knobs as last set. It reports
+// whether it did; where it did not, the caller hands the notes on with
+// Pass. It allocates nothing, so it runs on the audio thread, and next
+// is used up: play it no more.
+func (in *Instrument) Retune(next *Instrument) bool {
+	if !in.p.sameShape(next.p) {
+		return false
+	}
+	live := in.p.live
+	live.modR, live.pressR = next.p.live.modR, next.p.live.pressR
+	in.orig, in.src = next.orig, next.src
+	*in.p = *next.p
+	in.p.src, in.p.live = &in.src, live
+	in.SetKnobs(in.k)
+	if in.vs != nil {
+		for _, v := range in.vs.vs {
+			if v.on {
+				v.fenv.set(in.src.FilterEnv)
+			}
+		}
+	}
+	return true
+}
+
+// sameShape reports whether p and q are alike enough in shape for a
+// voice playing one to play on with the other, as Retune says.
+func (p *patch) sameShape(q *patch) bool {
+	if p.kind != q.kind || p.kind == kindDrums || p.poly != q.poly || len(p.osc) != len(q.osc) ||
+		p.filter != q.filter || len(p.lfo) != len(q.lfo) || p.vocoder != q.vocoder || p.singer != q.singer {
+		return false
+	}
+	for i := range p.osc {
+		a, b := &p.osc[i], &q.osc[i]
+		if a.wave != b.wave || a.unison != b.unison || a.Sync != b.Sync || a.Ring != b.Ring {
+			return false
+		}
+	}
+	return true
 }

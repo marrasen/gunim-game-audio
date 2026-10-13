@@ -122,8 +122,15 @@ func readSounds() ([]Sound, error) {
 		}
 		slices.Sort(names)
 		for _, n := range names {
-			out = append(out, Sound{Bank: Songs, Group: s.Title, Name: n,
-				About: fmt.Sprintf("The %s %s plays.", n, s.Title), patch: s.Patches[n]})
+			pt, about := s.Patches[n], fmt.Sprintf("The %s %s plays.", n, s.Title)
+			// A track that changes its vowel note by note sings its
+			// vowels in turn here, as in the song.
+			if v := s.Vowels(n); v != "" && pt.Vowels == "" {
+				pt = clonePatch(pt)
+				pt.Vowels = v
+				about += fmt.Sprintf(" Its notes sing %s in turn, as the song's do.", v)
+			}
+			out = append(out, Sound{Bank: Songs, Group: s.Title, Name: n, About: about, patch: pt})
 		}
 	}
 	return out, nil

@@ -84,6 +84,9 @@ type voice struct {
 	// levelStep a frame towards levelTo, levelLeft frames more.
 	level, levelTo, levelStep float32
 	levelLeft                 int
+	// mod and press are the note's mod wheel and pressure, from 0 to 1,
+	// and vibP where the vibrato they bring in stands in its cycle.
+	mod, press, vibP float32
 	// accent is the charge of the voice's accents, which each accented
 	// note adds to and which drains, opening the filter as it stands.
 	accent float32
@@ -166,6 +169,7 @@ func (v *voice) start(p *patch, n note, age uint64) {
 		v.accent = min(v.accent+1, 2.5)
 	}
 	v.drift, v.bend, v.left = 0, 0, 0
+	v.mod, v.press = 0, 0
 	v.level, v.levelLeft = 1, 0
 	if src.Drift > 0 {
 		v.drift = float32(src.Drift/100) * v.noise.bipolar()
@@ -269,17 +273,34 @@ func (v *voice) modulate(ctx *renderCtx) {
 	p := v.p
 	src := p.src
 	var lPitch, lCut, lAmp, lWidth, lPan float32
+	// What an Instrument's knobs and the note's controllers add.
+	lc := p.live
+	rateK, depthK := float32(1), float32(1)
+	var xPitch, xBright, xVowel, xFM float32
+	xLevel := float32(1)
+	if lc != nil {
+		rateK, depthK = lc.lfoRate, lc.lfoDepth
+		var vib float32
+		vib, xBright, xLevel, xVowel = v.express(lc)
+		xPitch = vib + lc.tune
+		lPitch += xPitch
+		lCut += xBright
+		lWidth += lc.width
+		lPan += lc.pan
+		xFM = lc.fm + xBright
+	}
 	for i, l := range p.lfo {
 		hz := l.Hz
 		if l.Beats > 0 {
 			hz = ctx.beatHz / l.Beats
 		}
+		hz *= float64(rateK)
 		v.lfoP[i] += float32(hz * control / rate)
 		if v.lfoP[i] >= 1 {
 			v.lfoP[i] -= float32(math.Floor(float64(v.lfoP[i])))
 			v.lfoR[i] = v.noise.bipolar()
 		}
-		x := lfoAt(l.wave, v.lfoP[i], v.lfoR[i]) * float32(l.Depth)
+		x := lfoAt(l.wave, v.lfoP[i], v.lfoR[i]) * float32(l.Depth) * depthK
 		if l.Delay > 0 {
 			t := float64(v.frames)/rate/l.Delay - 1
 			x *= float32(min(max(t, 0), 1))
@@ -349,6 +370,10 @@ func (v *voice) modulate(ctx *renderCtx) {
 	if vowel == 0 {
 		vowel = p.vowel
 	}
+	if lc != nil && lc.vowel != 0 {
+		vowel = lc.vowel
+	}
+	vowel = shiftVowel(vowel, xVowel)
 	sing := vowel != 0
 	if sing {
 		if vowel != v.vowel {
@@ -365,12 +390,15 @@ func (v *voice) modulate(ctx *renderCtx) {
 	}
 	v.pan = min(max(v.n.pan+lPan, -1), 1)
 	v.stepL, v.stepR = panGains(v.pan)
-	v.stepGain = v.n.vel * p.gain * (1 + lAmp)
+	v.stepGain = v.n.vel * p.gain * (1 + lAmp) * xLevel
 	v.stepHz, v.stepWidth, v.stepSing = hz, lWidth, sing
-	if p.kind == kindPluck && v.bend != v.strBend {
+	// A string takes its bend, and what the knobs and the controllers
+	// move its pitch by.
+	bend := v.bend + xPitch
+	if p.kind == kindPluck && bend != v.strBend {
 		// A bent string is a shorter one, or a longer.
-		v.strBend = v.bend
-		v.strLen = min(max(v.strBase/exp2(v.bend/12), 2), pluckFrame-2)
+		v.strBend = bend
+		v.strLen = min(max(v.strBase/exp2(bend/12), 2), pluckFrame-2)
 	}
 	for oi := range p.osc {
 		if o := &p.osc[oi]; o.wave == oscFM {
@@ -381,6 +409,9 @@ func (v *voice) modulate(ctx *renderCtx) {
 				d = 1e9
 			}
 			v.fmIndex[oi] = float32(o.Index * (o.Sustain + (1-o.Sustain)*math.Exp(-t/d)))
+			if xFM != 0 {
+				v.fmIndex[oi] *= exp2(xFM)
+			}
 		}
 	}
 }

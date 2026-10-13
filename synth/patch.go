@@ -54,6 +54,11 @@ type Patch struct {
 	// Vowel makes the patch sing a vowel, a, e, i, o or u, as a voice
 	// does; a track's vowel parameter changes it note by note.
 	Vowel string
+	// Vowels are vowels an [Instrument] sings in turn, a note each,
+	// written apart by spaces, as "a i o u e": the way a song's track
+	// changes its vowel note by note, for a sound played live. A song's
+	// track sings its own vowel parameter, and leaves Vowels be.
+	Vowels string `json:",omitempty"`
 	// Vocoder sings the vowel through a vocoder's ten bands, as a
 	// Roland VP-330's, in place of a voice's three resonances: the
 	// robot's voice of electronic pop, which a track's vowels make speak.
@@ -87,6 +92,63 @@ type Patch struct {
 	// instruments, so a song sounds without the bank, only less real.
 	SoundFont     string `json:",omitempty"`
 	Bank, Program int    `json:",omitempty"`
+	// Mod and Pressure are how an [Instrument]'s notes answer the mod
+	// wheel and the key's pressure. Nil answers as [Patch.Responses]
+	// says a patch of its kind does.
+	Mod, Pressure *Response `json:",omitempty"`
+}
+
+// Response is how a patch answers a controller a player moves as a note
+// sounds, the mod wheel or the key's pressure, with the controller at
+// its top: half as far at half way.
+type Response struct {
+	// Vibrato swings the pitch by up to that many semitones either way,
+	// five and a half times a second.
+	Vibrato float64
+	// Bright opens the filter by that many octaves, and turns an fm
+	// wave's index up by as many, brightening the sound.
+	Bright float64
+	// Level turns the note up by that many decibels, or down below 0.
+	Level float64
+	// Vowel moves the vowel sung along a, e, i, o and u by that many,
+	// for a patch that sings one.
+	Vowel float64
+}
+
+// Responses returns how the patch answers the mod wheel and the key's
+// pressure: its own Mod and Pressure where set, or else as a patch of
+// its kind does. The mod wheel brings in a vibrato. Pressure opens the
+// filter, or turns up an fm wave's index, and turns the note up; a patch
+// that sings opens its vowel a step too. A drum kit answers neither.
+func (p *Patch) Responses() (mod, pressure Response) {
+	if p.Kind == "drums" {
+		return Response{}, Response{}
+	}
+	mod = Response{Vibrato: 0.4}
+	pressure = Response{Level: 3}
+	bright := false
+	switch p.Filter.Type {
+	case "lp", "lp24", "sidlp", "bp", "sidbp":
+		bright = true
+	}
+	for _, o := range p.Osc {
+		bright = bright || o.Wave == "fm"
+	}
+	if bright {
+		pressure.Bright = 1.5
+	} else {
+		pressure.Level = 5
+	}
+	if p.Vowel != "" || p.Vowels != "" {
+		pressure.Vowel = 1
+	}
+	if p.Mod != nil {
+		mod = *p.Mod
+	}
+	if p.Pressure != nil {
+		pressure = *p.Pressure
+	}
+	return mod, pressure
 }
 
 // Osc is one of a synth patch's oscillators.
@@ -328,13 +390,18 @@ type patch struct {
 	filter     int
 	lfo        []lfo
 	vowel      byte
-	vocoder    bool
-	singer     string
-	poly       int
-	kit        map[string]drum
-	gain       float32
+	// vowels are the vowels an Instrument's notes sing in turn.
+	vowels  []byte
+	vocoder bool
+	singer  string
+	poly    int
+	kit     map[string]drum
+	gain    float32
 	// font is the bank a SoundFont patch plays.
 	font *soundfont.Font
+	// live is how an Instrument's knobs and its notes' controllers move
+	// the patch as it plays; nil for a song's.
+	live *liveCtl
 }
 
 type osc struct {
@@ -613,6 +680,12 @@ func (p *Patch) compile(name string) (*patch, error) {
 			return nil, fmt.Errorf("synth: patch %s sings vowel %q, not a, e, i, o or u", name, p.Vowel)
 		}
 		c.vowel = p.Vowel[0]
+	}
+	for _, w := range strings.Fields(p.Vowels) {
+		if _, ok := formants[w[0]]; !ok || len(w) != 1 {
+			return nil, fmt.Errorf("synth: patch %s sings vowels %q, which holds %q, not a, e, i, o or u", name, p.Vowels, w)
+		}
+		c.vowels = append(c.vowels, w[0])
 	}
 	c.vocoder = p.Vocoder
 	if p.Singer != "" {
