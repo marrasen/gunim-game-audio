@@ -190,8 +190,9 @@ func (g *decayGraph) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 	if r.Size().H < 20 || r.Size().W < 40 {
 		return
 	}
-	// The grid: a line each 12 dB, and each step of time across.
-	for db := decayTop; db >= decayBottom; db -= 12 {
+	// The grid: a line each 12 dB above the foot, and each step of
+	// time across.
+	for db := decayTop; db > decayBottom; db -= 12 {
 		y := g.yOf(float64(db))
 		p.RRect(geom.Rc(r.Min.X, y, r.Size().W, 1), 0, paint.Solid(audioui.Faded(ink, 0.06)))
 		label := audioui.Shaped(strconv.Itoa(db), 9, false, true)
