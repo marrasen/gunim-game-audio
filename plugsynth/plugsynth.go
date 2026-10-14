@@ -2,6 +2,12 @@
 // [plug] format: an instrument that plays any patch, live, note by note,
 // with knobs for the filter, the envelope and the level, and for a swell
 // and a ghost note ahead of the notes a host tells of before they land.
+// Its parameters turn the patch as it plays, so a host's automation and
+// control wires drive the filter, the envelope, the tone, the pitch,
+// the LFOs, the vowel and a mod wheel and pressure for every note; each
+// note's own mod wheel and pressure, as [plug.Expression] events, move
+// it as its patch answers them. Its views hold a patch editor, whose
+// edits are edits of the state.
 // It offers every sound the module has, in a browser: the patch library's
 // presets, General MIDI's 128 instruments and its drum kits, and the
 // patches the songs play. Its state holds the whole patch, so a host
@@ -47,7 +53,37 @@ const (
 	// host tells of ahead.
 	SwellID
 	GhostID
+	// DecayID stretches the envelope's decay, as a factor, and
+	// SustainID adds to its sustain.
+	DecayID
+	SustainID
+	// EnvID adds to how many octaves the filter's envelope opens it by.
+	EnvID
+	// DriveID and NoiseID add to the patch's drive and noise.
+	DriveID
+	NoiseID
+	// TuneID moves every note, in semitones; WidthID adds to a pulse's
+	// width; FMID turns an fm wave's index up, in octaves.
+	TuneID
+	WidthID
+	FMID
+	// PanID moves the sound between the speakers.
+	PanID
+	// LFORateID and LFODepthID scale the LFOs' speed and depth, as
+	// factors.
+	LFORateID
+	LFODepthID
+	// VowelID is the vowel every note sings: 0 for the patch's own, or
+	// 1 to 5 for a, e, i, o or u.
+	VowelID
+	// ModID and PressureID are a mod wheel and a key's pressure on every
+	// note, from 0 to 1, on top of each note's own.
+	ModID
+	PressureID
 )
+
+// Vowels are the vowels VowelID picks from 1 on.
+const Vowels = "aeiou"
 
 // lookAhead is how long before a note the synth asks to hear of it: the
 // longest swell.
@@ -58,7 +94,7 @@ var Descriptor = plug.Descriptor{
 	ID:      "marrasen.gamesynth",
 	Name:    "Game Synth",
 	Vendor:  "Marras",
-	Version: "0.2.0",
+	Version: "0.3.0",
 	Kind:    "Instrument|Synth",
 	Notes:   true,
 	// The swell and the ghost sound ahead of the notes.
@@ -91,6 +127,29 @@ var Descriptor = plug.Descriptor{
 			Flags: plug.Automatable, Format: millis,
 		},
 		{ID: GhostID, Name: "Ghost", Unit: "ms", Max: 500, Flags: plug.Automatable, Format: millis},
+		{ID: DecayID, Name: "Decay", Min: 0.125, Max: 8, Default: 1, Log: true, Flags: plug.Automatable, Format: times},
+		{ID: SustainID, Name: "Sustain", Min: -1, Max: 1, Flags: plug.Automatable, Format: signed},
+		{
+			ID: EnvID, Name: "Filter env", Unit: "oct", Min: -6, Max: 6, Flags: plug.Automatable,
+			Format: func(v float64) string { return fmt.Sprintf("%+.1f oct", v) },
+		},
+		{ID: DriveID, Name: "Drive", Min: -1, Max: 1, Flags: plug.Automatable, Format: signed},
+		{ID: NoiseID, Name: "Noise", Min: -1, Max: 1, Flags: plug.Automatable, Format: signed},
+		{
+			ID: TuneID, Name: "Tune", Unit: "st", Min: -24, Max: 24, Flags: plug.Automatable,
+			Format: func(v float64) string { return fmt.Sprintf("%+.2f st", v) },
+		},
+		{ID: WidthID, Name: "Width", Min: -0.5, Max: 0.5, Flags: plug.Automatable, Format: signed},
+		{
+			ID: FMID, Name: "FM", Unit: "oct", Min: -4, Max: 4, Flags: plug.Automatable,
+			Format: func(v float64) string { return fmt.Sprintf("%+.1f oct", v) },
+		},
+		{ID: PanID, Name: "Pan", Min: -1, Max: 1, Flags: plug.Automatable, Format: pan},
+		{ID: LFORateID, Name: "LFO rate", Min: 0.125, Max: 8, Default: 1, Log: true, Flags: plug.Automatable, Format: times},
+		{ID: LFODepthID, Name: "LFO depth", Max: 2, Default: 1, Flags: plug.Automatable, Format: times},
+		{ID: VowelID, Name: "Vowel", Max: 5, Steps: 5, Flags: plug.Automatable, Format: vowel},
+		{ID: ModID, Name: "Mod wheel", Max: 1, Flags: plug.Automatable, Format: percent},
+		{ID: PressureID, Name: "Pressure", Max: 1, Flags: plug.Automatable, Format: percent},
 	},
 	New: func(h plug.Host) plug.Plugin { return newPlugin(h) },
 }
@@ -145,6 +204,31 @@ func ports(state []byte) plug.Ports {
 
 // times writes a factor to show, as ×2.00.
 func times(v float64) string { return fmt.Sprintf("×%.2f", v) }
+
+// signed writes a value either side of zero to show, as +0.25.
+func signed(v float64) string { return fmt.Sprintf("%+.2f", v) }
+
+// percent writes a value from 0 to 1 to show, as 40%.
+func percent(v float64) string { return fmt.Sprintf("%.0f%%", v*100) }
+
+// pan writes a place between the speakers to show, as L 40, C or R 40.
+func pan(v float64) string {
+	switch n := math.Round(v * 100); {
+	case n < 0:
+		return fmt.Sprintf("L %.0f", -n)
+	case n > 0:
+		return fmt.Sprintf("R %.0f", n)
+	}
+	return "C"
+}
+
+// vowel writes the vowel VowelID picks to show: the patch's own at 0.
+func vowel(v float64) string {
+	if i := int(math.Round(v)); i >= 1 && i <= len(Vowels) {
+		return Vowels[i-1 : i]
+	}
+	return "Patch"
+}
 
 // DefaultSound is the sound the plugin plays with an empty state.
 const DefaultSound = "Juno pad"
@@ -437,10 +521,12 @@ func (p *processor) connect(b *plug.Block) {
 // is dropped.
 func (p *processor) offer(snd *voicing) { p.next.Store(snd) }
 
-// adopt takes the sound offered, if any, and reports whether it did:
-// the notes held start again on it, at the knobs as they stand, and the
-// sound before rings out. A sound still ringing out from before that
-// stops at once.
+// adopt takes the sound offered, if any, and reports whether it did. A
+// sound of the same shape as the one playing, as a patch edited is,
+// plays on in its place, the notes held playing on, unbroken, as
+// [synth.Instrument.Retune] says; for any other, the notes held start
+// again on it, at the knobs as they stand, and the sound before rings
+// out. A sound still ringing out from before that stops at once.
 func (p *processor) adopt() bool {
 	snd := p.next.Swap(nil)
 	if snd == nil {
@@ -449,6 +535,14 @@ func (p *processor) adopt() bool {
 	in := snd.in
 	in.SetKnobs(p.knobs)
 	snd.pre.SetKnobs(p.knobs)
+	if p.cur.Retune(in) {
+		// The sound ahead plays the same patch, so it retunes too.
+		if !p.pre.Retune(snd.pre) {
+			p.pre.Silence()
+			p.pre = snd.pre
+		}
+		return true
+	}
 	p.pre.Silence()
 	p.pre = snd.pre
 	p.ahead.restart()
@@ -478,6 +572,37 @@ func (p *processor) take(c plug.Change) {
 		p.knobs.Release = math.Log2(v)
 	case GainID:
 		p.knobs.Gain = v
+	case DecayID:
+		p.knobs.Decay = math.Log2(v)
+	case SustainID:
+		p.knobs.Sustain = v
+	case EnvID:
+		p.knobs.Env = v
+	case DriveID:
+		p.knobs.Drive = v
+	case NoiseID:
+		p.knobs.Noise = v
+	case TuneID:
+		p.knobs.Tune = v
+	case WidthID:
+		p.knobs.Width = v
+	case FMID:
+		p.knobs.FM = v
+	case PanID:
+		p.knobs.Pan = v
+	case LFORateID:
+		p.knobs.LFORate = math.Log2(v)
+	case LFODepthID:
+		p.knobs.LFODepth = v - 1
+	case VowelID:
+		p.knobs.Vowel = 0
+		if i := int(math.Round(v)); i >= 1 && i <= len(Vowels) {
+			p.knobs.Vowel = Vowels[i-1]
+		}
+	case ModID:
+		p.knobs.Mod = v
+	case PressureID:
+		p.knobs.Pressure = v
 	case SwellID:
 		p.swell = int64(math.Round(v * synth.Rate / 1000))
 		return
@@ -489,18 +614,24 @@ func (p *processor) take(c plug.Change) {
 	p.pre.SetKnobs(p.knobs)
 }
 
-// play plays a note's event on the sound playing. The synth takes a
-// note's bend; it leaves its pressure and modulation be.
+// play plays a note's event on the sound playing: its bend, and its
+// mod wheel and pressure, which the patch answers as its
+// [synth.Patch.Responses] say.
 func (p *processor) play(e plug.Event) {
 	switch e.Kind {
 	case plug.NoteOn:
 		p.landed(e.Note)
-		p.cur.NoteOn(e.Note, e.Pitch, e.Velocity, e.Group)
+		p.cur.NoteOnTurn(e.Note, e.Pitch, e.Velocity, e.Group, e.Turn)
 	case plug.NoteOff:
 		p.cur.NoteOff(e.Note)
 	case plug.Expression:
-		if e.Expr == plug.Bend {
+		switch e.Expr {
+		case plug.Bend:
 			p.cur.Bend(e.Note, e.Value)
+		case plug.Mod:
+			p.cur.Mod(e.Note, e.Value)
+		case plug.Pressure:
+			p.cur.Pressure(e.Note, e.Value)
 		}
 	case plug.Pedal:
 		p.cur.Pedal(e.Group, e.Value)

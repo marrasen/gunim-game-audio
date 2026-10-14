@@ -489,14 +489,13 @@ func TestASoundChangedMidPlayKeepsTheNotesHeld(t *testing.T) {
 	}
 	states := swapStates(t)
 	for i, st := range states {
-		was := p.proc.cur
 		if err := p.SetState(st); err != nil {
 			t.Fatal(err)
 		}
 		// The next block takes the sound, with no Reset between.
 		block()
-		if p.proc.cur == was {
-			t.Fatalf("the block after the change to sound %d plays the sound before", i)
+		if p.proc.next.Load() != nil {
+			t.Fatalf("the block after the change to sound %d leaves it untaken", i)
 		}
 		// Each frame of each block after the change, for a fifth of a
 		// second.
@@ -801,18 +800,6 @@ func TestTheKnobsTurnTheSoundAndTheNextOne(t *testing.T) {
 	}
 	if r := level(true) / level(false); math.Abs(r-0.1) > 0.01 {
 		t.Errorf("-20 dB of gain turned before the sound changed turns the lead by %.3f, not 0.1", r)
-	}
-}
-
-func TestPressureAndModLeaveThePitchBe(t *testing.T) {
-	for _, e := range []plug.ExprKind{plug.Pressure, plug.Mod} {
-		p := synthOf(t, "Jupiter brass lead")
-		setup := plug.Setup{Rate: 48000, MaxBlock: 512, Channels: 2}
-		events := append(note(1, 57, 0, 47999), plug.Event{Frame: 100, Kind: plug.Expression, Note: 1, Expr: e, Value: 1})
-		out := plugtest.Play(t, p.Processor(), setup, 48000, params(), events...)
-		if got := hz(out[0][24000:], 48000); math.Abs(got-110) > 2 {
-			t.Errorf("expression %d moves the lead to %.1f Hz", e, got)
-		}
 	}
 }
 
