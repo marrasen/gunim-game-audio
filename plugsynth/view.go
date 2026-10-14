@@ -66,7 +66,9 @@ func (m *meter) step(dt time.Duration) bool {
 
 // chip shows the sound, in a plugin's chip in a chain, and, beside it,
 // the level that comes out, left over right. The name turns over as the
-// sound changes.
+// sound changes. Where the host gives it no sound to hear, the host
+// meters the sound itself, if at all: the chip has no meter, and the
+// name has all its room.
 type chip struct {
 	anim.Group
 	p        *plugin
@@ -79,7 +81,10 @@ type chip struct {
 
 func newChip(p *plugin, h plug.Host) *chip {
 	_, out := h.Sound()
-	c := &chip{p: p, name: p.sound().Name, turn: anim.NewFloat(1), out: newMeter(out)}
+	c := &chip{p: p, name: p.sound().Name, turn: anim.NewFloat(1)}
+	if out != nil {
+		c.out = newMeter(out)
+	}
 	c.Add(c.turn)
 	return c
 }
@@ -103,7 +108,10 @@ func (c *chip) Layout(cs gunim.Constraints, _ gunim.Frame, _ gunim.Children) geo
 // peak, fainter.
 func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
 	ink, ground, over := widget.Ink.Get(f.Theme), audioui.Ground.Get(f.Theme), audioui.Over.Get(f.Theme)
-	room := box.W - chipBars - 8
+	room := box.W
+	if c.out != nil {
+		room -= chipBars + 8
+	}
 	t := c.turn.Value()
 	func() {
 		defer p.Layer(paint.LayerOpts{Bounds: geom.Rc(0, 0, room+2, box.H), Clip: true, Opacity: 1})()
@@ -114,6 +122,9 @@ func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 		run := audioui.Shaped(c.name, chipText, false, false)
 		run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2+box.H*0.6*(1-t)), audioui.Faded(ink, 0.9*t), room, 18)
 	}()
+	if c.out == nil {
+		return
+	}
 	x, h := box.W-chipBars, float32(3)
 	top := (box.H - 2*h - 2) / 2
 	lv := c.out.levels
@@ -136,6 +147,9 @@ func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 // Step implements [gunim.Animator]: the name turning, and the bars.
 func (c *chip) Step(dt time.Duration) bool {
 	moving := c.Group.Step(dt)
+	if c.out == nil {
+		return moving
+	}
 	return c.out.step(dt) || moving
 }
 

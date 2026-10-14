@@ -560,6 +560,9 @@ func TestTheViewsShowAndFollow(t *testing.T) {
 	if !ok || c.name != "Moog bass" {
 		t.Fatal("the chip shows another sound than the Moog bass")
 	}
+	if c.out != nil {
+		t.Error("the chip meters, though its host gives it no sound to hear")
+	}
 	play(t, p, "TR-808")
 	w := gunimtest.New(t, geom.Sz(200, 30), nil)
 	gunim.RegisterView(w, "chip", func(struct{}) gunim.Node { return c }, nil)
