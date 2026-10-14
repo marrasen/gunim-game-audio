@@ -64,7 +64,7 @@ func TestTheStepsWalkTheGroupRound(t *testing.T) {
 	p, h := newSynth(t)
 	play(t, p, "Aah choir")
 	w, pn, run := stage(t, p, h)
-	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, by int, u *gunim.UI) { pn.step(by, u) })
+	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, by int, u *gunim.UI) { pn.skip(by, u) })
 	for _, c := range []struct {
 		by   int
 		want string

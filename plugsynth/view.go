@@ -189,8 +189,8 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 	v.Add(v.turn)
 	v.prev = widget.NewIconButton(icon.ChevronLeft, "The sound before")
 	v.next = widget.NewIconButton(icon.ChevronRight, "The next sound")
-	v.prev.OnClick = func(u *gunim.UI) gunim.Intent { v.step(-1, u); return nil }
-	v.next.OnClick = func(u *gunim.UI) gunim.Intent { v.step(1, u); return nil }
+	v.prev.OnClick = func(u *gunim.UI) gunim.Intent { v.skip(-1, u); return nil }
+	v.next.OnClick = func(u *gunim.UI) gunim.Intent { v.skip(1, u); return nil }
 	v.sections = []*plugui.Section{
 		plugui.NewSection(h, &Descriptor, "FILTER", 0, CutoffID, ResID),
 		plugui.NewSection(h, &Descriptor, "ENVELOPE", 0, AttackID, ReleaseID),
@@ -445,9 +445,9 @@ func (v *panel) Handle(e input.Event, u *gunim.UI) bool {
 	}
 	switch {
 	case k.Key == input.KeyPageUp:
-		v.step(-1, u)
+		v.skip(-1, u)
 	case k.Key == input.KeyPageDown:
-		v.step(1, u)
+		v.skip(1, u)
 	case (k.Key == input.KeyZ || k.Key == input.KeyX) && k.Mods == 0 && v.keys != nil && v.shown:
 		d := -1
 		if k.Key == input.KeyX {

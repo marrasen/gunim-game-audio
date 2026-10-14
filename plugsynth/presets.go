@@ -60,10 +60,10 @@ func previewPitch(s Sound) float64 {
 	return 60
 }
 
-// step plays the sound by from the one playing, in its group, round
+// skip plays the sound by from the one playing, in its group, round
 // from the last to the first, as one edit for the host, and plays a
-// note of it. A sound of its own, in no group, steps to nothing.
-func (v *panel) step(by int, u *gunim.UI) {
+// note of it. A sound of its own, in no group, skips to nothing.
+func (v *panel) skip(by int, u *gunim.UI) {
 	cur := v.p.sound()
 	var list []Sound
 	at := -1
