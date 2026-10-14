@@ -216,6 +216,7 @@ func newPanel(h plug.Host, full bool) *panel {
 		plugui.NewSection(h, &Descriptor, "WAVE", 0, ShapeID, PhaseID, SeedID),
 		plugui.NewSection(h, &Descriptor, "RATE", 0, SyncID, RateID, NoteID, StartID),
 		plugui.NewSection(h, &Descriptor, "OUTPUT", 0, DepthID, OffsetID, UnipolarID),
+		plugui.NewSection(h, &Descriptor, "MOD", 0, ModToID, ModAmountID),
 	}
 	v.dim()
 	return v

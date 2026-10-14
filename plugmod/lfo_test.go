@@ -318,12 +318,18 @@ func TestProcessAllocatesNothing(t *testing.T) {
 	pr := newLFO(t)
 	pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 256})
 	bl := newBlock(256, plug.Position{})
-	bl.b.Changes = make([]plug.Change, 2)
+	bl.b.Changes = make([]plug.Change, 3)
+	mod := make([]float32, 256)
+	for i := range mod {
+		mod[i] = float32(math.Sin(float64(i) / 40))
+	}
+	bl.b.ControlIn = [][]float32{mod}
 	n := plugtest.AllocsUnder(t, "plugmod.(*processor).Process", func() {
 		for i := range 400 {
 			bl.b.Position = plug.Position{Frame: int64(i) * 256, Playing: i%50 > 3, Tempo: 120, Beat: float64(i) * 256 / 24000}
 			bl.b.Changes[0] = plug.Change{Frame: 10, ID: ShapeID, Value: float64(i % len(Shapes))}
 			bl.b.Changes[1] = plug.Change{Frame: 100, ID: StartID, Value: float64(i % 3)}
+			bl.b.Changes[2] = plug.Change{Frame: 200, ID: ModToID, Value: float64(i % len(ModTargets))}
 			pr.Process(&bl.b)
 		}
 	})
@@ -460,6 +466,154 @@ func TestASyncedLFOIsExactAcrossARampInAnyBlocks(t *testing.T) {
 		a, b := outs[0][f] < outs[0][f-1], outs[1][f] < outs[1][f-1]
 		if a != b {
 			t.Fatalf("at frame %d the saw falls back in blocks of 37 %v, of 1024 %v", f, a, b)
+		}
+	}
+}
+
+// modded runs the LFO over frames in blocks of 64 at 120 beats a
+// minute, with the changes and the Mod input at mod, or unconnected
+// where mod is nil, and returns its outputs.
+func modded(t *testing.T, frames int, mod []float32, kv ...float64) [][]float32 {
+	t.Helper()
+	ports := plugtest.Ports{Changes: changes(kv...), Tempo: 120}
+	if mod != nil {
+		ports.ControlIn = [][]float32{mod}
+	}
+	return plugtest.Drive(t, &Descriptor, newLFO(t), plug.Setup{Rate: rate, MaxBlock: 64}, frames, ports).ControlOut
+}
+
+// steady returns n frames of the Mod input at v.
+func steady(n int, v float32) []float32 {
+	m := make([]float32, n)
+	for i := range m {
+		m[i] = v
+	}
+	return m
+}
+
+func TestTheModInputMovesTheRate(t *testing.T) {
+	const frames = 6000
+	// A third of the way, at full, is an octave up: twice as fast.
+	for _, start := range []float64{FromSong, FromPlay, FreeRunning} {
+		for _, c := range []struct {
+			sync float64
+			hz   float64
+		}{{0, 7.5}, {1, 2}} { // synced, a quarter note at 120 is 2 Hz
+			out := modded(t, frames, steady(frames, 1), float64(ShapeID), Saw, float64(SyncID), c.sync,
+				float64(RateID), 7.5, float64(NoteID), 8, float64(StartID), start,
+				float64(ModToID), ModRate, float64(ModAmountID), 1.0/3)
+			for f := range frames {
+				x := float64(f) * 2 * c.hz / rate
+				want := 2*(x-math.Floor(x)) - 1
+				got := float64(out[MainOut][f])
+				if !near(got, want, 1e-5) && !near(math.Abs(got-want), 2, 1e-5) {
+					t.Fatalf("%s, sync %v: at frame %d the saw is %v, want %v at %v Hz", Starts[int(start)], c.sync, f, got, want, 2*c.hz)
+				}
+			}
+		}
+	}
+	// The input stepping from 0 to full turns the rate eight times
+	// over, and the sine moves on from where it was, with no jump.
+	mod := make([]float32, frames)
+	for f := frames / 2; f < frames; f++ {
+		mod[f] = 1
+	}
+	out := modded(t, frames, mod, float64(SyncID), 0, float64(RateID), 5,
+		float64(ModToID), ModRate, float64(ModAmountID), 1)
+	most := 2 * math.Pi * 40 / rate // the sine's steepest step at 40 Hz
+	for f := 1; f < frames; f++ {
+		if d := math.Abs(float64(out[MainOut][f] - out[MainOut][f-1])); d > most*1.001 {
+			t.Fatalf("from frame %d to %d the sine jumps %v, more than %v", f-1, f, d, most)
+		}
+	}
+}
+
+func TestAModdedLFOFromTheSongStartsInStepAgain(t *testing.T) {
+	pr := newLFO(t)
+	pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 100})
+	mod := [][]float32{steady(100, 1)}
+	ch := changes(float64(ShapeID), Saw, float64(SyncID), 0, float64(RateID), 10,
+		float64(ModToID), ModRate, float64(ModAmountID), 1)
+	at := int64(0)
+	block := func(c []plug.Change, in [][]float32) []float32 {
+		bl := newBlock(100, plug.Position{Frame: at, Playing: true})
+		bl.b.Changes, bl.b.ControlIn = c, in
+		pr.Process(&bl.b)
+		at += 100
+		return bl.outs[MainOut]
+	}
+	block(ch, mod)
+	// Unplugged, it keeps its lead on the song.
+	song := func() float64 { x := float64(at) * 10 / rate; return 2*(x-math.Floor(x)) - 1 }
+	if want := song(); near(float64(block(nil, nil)[0]), want, 1e-3) {
+		t.Error("the LFO is back with the song as soon as the Mod input stops")
+	}
+	pr.Reset()
+	if want := song(); !near(float64(block(nil, nil)[0]), want, 1e-6) {
+		t.Errorf("after a Reset, the LFO is not where the song is, at %v", want)
+	}
+}
+
+func TestTheModInputMovesTheDepth(t *testing.T) {
+	const frames = 200
+	for _, c := range []struct {
+		m, hi, low    float32
+		amount, depth float64
+	}{
+		{-1, 0.5, -0.5, 0.5, 1},
+		{1, 1, -1, 0.5, 0.8}, // 0.8 + 0.5, held at 1
+		{1, 0, 0, -1, 0.5},   // 0.5 - 1, held at 0
+	} {
+		out := modded(t, frames, steady(frames, c.m), float64(ShapeID), Square, float64(SyncID), 0, float64(RateID), 1,
+			float64(DepthID), c.depth, float64(ModToID), ModDepth, float64(ModAmountID), c.amount)
+		// At 1 Hz, the square is high for the first half second.
+		if got := out[MainOut][0]; got != c.hi {
+			t.Errorf("depth %v, moved %v by %v: the square is at %v, want %v", c.depth, c.amount, c.m, got, c.hi)
+		}
+		if got := out[Out180][0]; got != c.low {
+			t.Errorf("depth %v, moved %v by %v: its other half is at %v, want %v", c.depth, c.amount, c.m, got, c.low)
+		}
+	}
+}
+
+func TestTheModInputMovesThePhase(t *testing.T) {
+	const frames = 3000
+	// Half way, at full, is a quarter cycle on.
+	out := modded(t, frames, steady(frames, 1), float64(SyncID), 0, float64(RateID), 7.5,
+		float64(ModToID), ModPhase, float64(ModAmountID), 0.5)
+	for f := range frames {
+		for o := range 4 {
+			want := math.Sin(2 * math.Pi * (float64(f)*7.5/rate + 0.25 + float64(o)/4))
+			if got := float64(out[o][f]); !near(got, want, 1e-6) {
+				t.Fatalf("output %d at frame %d is %v, want %v", o, f, got, want)
+			}
+		}
+	}
+}
+
+func TestAnUnconnectedModInputMovesNothing(t *testing.T) {
+	const frames = 4000
+	for _, target := range []float64{ModRate, ModDepth, ModPhase} {
+		plain := modded(t, frames, nil, float64(ShapeID), SmoothRandom, float64(SyncID), 1, float64(NoteID), 12)
+		for _, mod := range [][]float32{nil, steady(frames, 0)} {
+			out := modded(t, frames, mod, float64(ShapeID), SmoothRandom, float64(SyncID), 1, float64(NoteID), 12,
+				float64(ModToID), target, float64(ModAmountID), 1)
+			for o := range out {
+				for f := range frames {
+					if out[o][f] != plain[o][f] {
+						t.Fatalf("%s, input %v: output %d at frame %d is %v, want %v", ModTargets[int(target)], mod != nil,
+							o, f, out[o][f], plain[o][f])
+					}
+				}
+			}
+		}
+	}
+	// Nor does one at an amount of 0.
+	plain := modded(t, frames, nil)
+	out := modded(t, frames, steady(frames, 1), float64(ModAmountID), 0)
+	for f := range frames {
+		if out[MainOut][f] != plain[MainOut][f] {
+			t.Fatalf("at an amount of 0, frame %d is %v, want %v", f, out[MainOut][f], plain[MainOut][f])
 		}
 	}
 }
