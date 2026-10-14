@@ -73,25 +73,10 @@ func (m *meter) step(dt time.Duration) bool {
 	return m.levels.Peak[0] > -89 || m.levels.Peak[1] > -89 || m.levels.RMS[0] > -89 || m.levels.RMS[1] > -89
 }
 
-// paintBars paints the levels as two bars, left over right, across r.
+// paintBars paints the levels as two rows of lights, left over right,
+// across r.
 func paintBars(p *paint.Painter, th *theme.Live, r geom.Rect, lv *audioui.Levels) {
-	ink, ground, over := widget.Ink.Get(th), audioui.Ground.Get(th), audioui.Over.Get(th)
-	h := (r.Size().H - 2) / 2
-	for ch := range 2 {
-		y := r.Min.Y + float32(ch)*(h+2)
-		w := r.Size().W
-		p.RRect(geom.Rc(r.Min.X, y, w, h), h/2, paint.Solid(audioui.Faded(ground, 0.5)))
-		if lv.Peak[ch] > -59 {
-			p.RRect(geom.Rc(r.Min.X, y, w*audioui.MeterAt(lv.Peak[ch]), h), h/2, paint.Solid(audioui.Faded(ink, 0.3)))
-		}
-		if lv.RMS[ch] > -59 {
-			col := ink
-			if lv.Peak[ch] > -0.1 {
-				col = over
-			}
-			p.RRect(geom.Rc(r.Min.X, y, w*audioui.MeterAt(lv.RMS[ch]), h), h/2, paint.Solid(audioui.Faded(col, 0.85)))
-		}
-	}
+	audioui.ChipLEDs.Paint(p, th, r, lv)
 }
 
 // display is a panel's picture over its controls: told where the
