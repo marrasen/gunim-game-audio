@@ -2,6 +2,7 @@ package plugfx
 
 import (
 	"bytes"
+	"math"
 	"slices"
 	"sync"
 	"testing"
@@ -187,4 +188,129 @@ func TestTheChainsUnitsEditInPlace(t *testing.T) {
 		t.Errorf("the chain grows to %d units, past %d", len(units), MaxUnits)
 	}
 	_ = synth.Rate
+}
+
+// rms returns the root mean square of x, in decibels.
+func rms(x ...[]float32) float64 {
+	var sum float64
+	n := 0
+	for _, ch := range x {
+		for _, v := range ch {
+			sum += float64(v) * float64(v)
+		}
+		n += len(ch)
+	}
+	return 10 * math.Log10(sum/float64(n)+1e-30)
+}
+
+// distorted runs in through a lone distortion of kind at drive, with
+// more changes after, and returns what comes out.
+func distorted(t *testing.T, in [][]float32, kind int, drive float64, more ...plug.Change) [][]float32 {
+	t.Helper()
+	changes := append([]plug.Change{{ID: UnitParamID(0, DistortTypeParam), Value: float64(kind)},
+		{ID: UnitParamID(0, DistortDriveParam), Value: drive}}, more...)
+	return rig{pr: colourWith(t, []Unit{{Kind: Distortion}}).Processor(), d: &ColourDescriptor, s: setup}.run(t, in,
+		changes...)
+}
+
+func TestAutoGainKeepsTheDistortionAsLoudAsItsInput(t *testing.T) {
+	// A second of each, measured past the first half second. Lower, the
+	// amp's cabinet cuts more of a sine than Auto gain makes up at
+	// most, at a low drive.
+	const settle = 24000
+	for _, hz := range []float64{220, 440} {
+		for _, level := range []float64{0.25, 0.05} {
+			in := sine(48000, hz, level)
+			want := rms(in[0][settle:], in[1][settle:])
+			for kind, name := range DistortTypeNames {
+				for _, drive := range []float64{10, 40, 70, 100} {
+					out := distorted(t, in, kind, drive)
+					if got := rms(out[0][settle:], out[1][settle:]); math.Abs(got-want) > 2 {
+						t.Errorf("%s at %g%%, a sine of %g Hz at %.1f dB RMS comes out at %.1f dB", name, drive, hz, want,
+							got)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestAutoGainBringsTheFirstNoteInQuietly(t *testing.T) {
+	// A note out of silence comes in no louder than it settles, give
+	// or take a little, though the gain has had nothing to measure.
+	in := sine(48000, 110, 0.25)
+	for i := range 4800 {
+		in[0][i], in[1][i] = 0, 0
+	}
+	for kind, name := range DistortTypeNames {
+		out := distorted(t, in, kind, 100)
+		settled := peak(out[0][24000:], out[1][24000:])
+		if got := peak(out[0][:7200], out[1][:7200]); got > settled*1.5 {
+			t.Errorf("%s: the note comes in at %g, and settles at %g", name, got, settled)
+		}
+	}
+}
+
+func TestAutoGainKeepsSilenceSilent(t *testing.T) {
+	// Silence, and then a whisper at -90 dBFS after a note, stay as
+	// quiet as they come in.
+	in := sine(48000, 110, 0.25)
+	for i := 12000; i < len(in[0]); i++ {
+		v := float32(0)
+		if i >= 36000 {
+			v = in[0][i] * 1.3e-4
+		}
+		in[0][i], in[1][i] = v, v
+	}
+	for kind, name := range DistortTypeNames {
+		silent := distorted(t, [][]float32{make([]float32, 24000), make([]float32, 24000)}, kind, 100)
+		if p := peak(silent...); p != 0 {
+			t.Errorf("%s: silence comes out at %g", name, p)
+		}
+		out := distorted(t, in, kind, 100)
+		if got, settled := peak(out[0][36000:], out[1][36000:]), peak(out[0][6000:12000]); got > settled*0.01 {
+			t.Errorf("%s: a whisper after a note comes out at %g, where the note was %g", name, got, settled)
+		}
+	}
+}
+
+func TestOutputTurnsTheDistortionUpAndDown(t *testing.T) {
+	in := sine(48000, 110, 0.25)
+	base := distorted(t, in, 0, 40)
+	want := rms(base[0][24000:], base[1][24000:])
+	for _, db := range []float64{-24, -6, 6, 12} {
+		out := distorted(t, in, 0, 40, plug.Change{ID: UnitParamID(0, DistortOutputParam), Value: db})
+		if got := rms(out[0][24000:], out[1][24000:]) - want; math.Abs(got-db) > 0.1 {
+			t.Errorf("Output at %+g dB turns the sound by %+.2f dB", db, got)
+		}
+	}
+}
+
+func TestAutoGainRendersTheSameEachTime(t *testing.T) {
+	in := noise(48000, 30000)
+	changes := []plug.Change{{ID: UnitParamID(0, DistortDriveParam), Value: 30},
+		{Frame: 9000, ID: UnitParamID(0, DistortDriveParam), Value: 90},
+		{Frame: 20000, ID: UnitParamID(0, DistortAutoParam), Value: 0},
+		{Frame: 26000, ID: UnitParamID(0, DistortAutoParam), Value: 1}}
+	first := distorted(t, in, 1, 50, changes...)
+	for range 3 {
+		again := distorted(t, in, 1, 50, changes...)
+		for ch := range again {
+			if !slices.Equal(first[ch], again[ch]) {
+				t.Fatalf("channel %d renders differently the second time", ch)
+			}
+		}
+	}
+}
+
+func TestAutoGainTurnsOnAndOffWithoutAClick(t *testing.T) {
+	in := sine(48000, 110, 0.25)
+	held := distorted(t, in, 0, 70)
+	off := distorted(t, in, 0, 70, plug.Change{ID: UnitParamID(0, DistortAutoParam), Value: 0})
+	step := max(biggestStep(held[0][4800:]), biggestStep(off[0][4800:]))
+	out := distorted(t, in, 0, 70, plug.Change{Frame: 12000, ID: UnitParamID(0, DistortAutoParam), Value: 0},
+		plug.Change{Frame: 30000, ID: UnitParamID(0, DistortAutoParam), Value: 1})
+	if got := biggestStep(out[0][4800:]); got > step*1.2 {
+		t.Errorf("turning Auto gain off and on steps %g in a frame, where it steps %g at most held", got, step)
+	}
 }

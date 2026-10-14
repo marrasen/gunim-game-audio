@@ -59,9 +59,14 @@ const (
 	// DistortTypeParam is the distortion's kind, one of
 	// DistortTypeNames, DistortDriveParam how hard it drives, and
 	// DistortMixParam how much of it is heard, each in percent.
-	DistortTypeParam  uint32 = 21
-	DistortDriveParam uint32 = 22
-	DistortMixParam   uint32 = 23
+	// DistortAutoParam, on at 1, keeps the distortion as loud as the
+	// sound fed to it, and DistortOutputParam turns the unit's sound up
+	// or down after, in decibels.
+	DistortTypeParam   uint32 = 21
+	DistortDriveParam  uint32 = 22
+	DistortMixParam    uint32 = 23
+	DistortAutoParam   uint32 = 24
+	DistortOutputParam uint32 = 25
 )
 
 // UnitParamID returns the ID of the parameter of the unit in slot, from
@@ -89,6 +94,9 @@ var unitParams = map[string][]plug.Param{
 			Flags: plug.Automatable, Format: func(v float64) string { return DistortTypeNames[stepOf(v, len(DistortTypeNames))] }},
 		{ID: DistortDriveParam, Name: "Drive", Unit: "%", Max: 100, Default: 40, Flags: plug.Automatable, Format: percent},
 		{ID: DistortMixParam, Name: "Mix", Unit: "%", Max: 100, Default: 100, Flags: plug.Automatable, Format: percent},
+		{ID: DistortAutoParam, Name: "Auto gain", Max: 1, Default: 1, Steps: 1, Flags: plug.Automatable, Format: onOff},
+		{ID: DistortOutputParam, Name: "Output", Unit: "dB", Min: -24, Max: 12, Flags: plug.Automatable,
+			Format: decibels},
 	},
 }
 
@@ -244,20 +252,26 @@ func (u *phaserUnit) carry(o colourUnit) {
 }
 func (u *phaserUnit) clear() { u.p.Clear() }
 
-// distortUnit is a distortion, blended with the sound it is fed: dl and
-// dr keep that sound while it runs.
+// distortUnit is a distortion, its loudness matched to the sound it is
+// fed, blended with that sound, and turned up or down: dl and dr keep
+// that sound while it runs.
 type distortUnit struct {
 	d      *synth.DistortionUnit
+	auto   autoGain
 	mix    blend
 	dl, dr []float32
 	// dry and wet are the block's sound fed in and out, as blend takes
 	// them.
 	dry, wet [2][]float32
+	// out is the gain after the blend, gliding to outTo.
+	out, outTo float32
 }
 
 func (u *distortUnit) apply(v *slotValues) {
 	u.d.Set(v[DistortDriveParam]/100, synth.DistortKinds[stepOf(v[DistortTypeParam], len(synth.DistortKinds))])
 	u.mix.mixTo = float32(v[DistortMixParam] / 100)
+	u.auto.on = v[DistortAutoParam] > 0.5
+	u.outTo = float32(math.Pow(10, v[DistortOutputParam]/20))
 }
 
 func (u *distortUnit) process(l, r []float32) {
@@ -265,20 +279,126 @@ func (u *distortUnit) process(l, r []float32) {
 	copy(u.dl, l)
 	copy(u.dr, r)
 	u.d.Process(l, r)
+	u.auto.run(u.dl[:n], u.dr[:n], l, r)
 	u.dry, u.wet = [2][]float32{u.dl[:n], u.dr[:n]}, [2][]float32{l, r}
 	u.mix.run(u.dry[:], u.wet[:], l, r, 0, n)
+	for i := range l {
+		u.out += (u.outTo - u.out) * u.mix.glide
+		l[i] *= u.out
+		r[i] *= u.out
+	}
 }
 
 func (u *distortUnit) carry(o colourUnit) {
 	if d, ok := o.(*distortUnit); ok {
 		u.d.CopyFrom(d.d)
 		u.mix.mix = d.mix.mix
+		u.auto.carry(&d.auto)
+		u.out = d.out
 	}
 }
 
 func (u *distortUnit) clear() {
 	u.d.Clear()
 	u.mix.jump()
+	u.auto.clear()
+	u.out = u.outTo
+}
+
+// Auto gain's timing and its bounds. autoGainEnv is how long, in
+// seconds, its measures of the sound in and out take to follow them,
+// and autoGainGlide how long its gain takes to follow the measures.
+// autoGainWarm is how long the sound in must be measured after a clear
+// before the gain glides: till then it drops at once and rises over
+// autoGainRise, from silence, so a first note does not come out loud.
+// autoGainFloor is the mean square, -80 dBFS, under which
+// the sound in is too quiet to measure, and the gain holds where it is.
+// autoGainMax and autoGainMin are the most it turns the distortion up,
+// +6 dB, and down, -48 dB.
+const (
+	autoGainEnv   = 0.12
+	autoGainGlide = 0.04
+	autoGainWarm  = 0.02
+	autoGainRise  = 0.01
+	autoGainFloor = 1e-8
+	autoGainMax   = 2
+	autoGainMin   = 1.0 / 256
+)
+
+// autoGain keeps a distortion as loud as the sound fed to it: it
+// follows the mean square of each and turns the distortion by the root
+// of their ratio. Off, its gain glides to 1, and the distortion passes
+// as it is. On, its gain is 0 till it has measured anything, so a
+// distortion of what is too quiet to measure stays silent.
+type autoGain struct {
+	on bool
+	// dry and wet are the mean squares of the sound in and out, and
+	// gain the gain on the sound out.
+	dry, wet, gain float32
+	// warm is how many frames more of measured sound the gain warms up
+	// over, not glides, and warmLen how many it does after a clear.
+	warm, warmLen int
+	// env, glide and rise are how far the measures and the gain move
+	// toward where they are going each frame.
+	env, glide, rise float32
+}
+
+// prepare readies the gain for sound at rate frames a second.
+func (a *autoGain) prepare(rate float64) {
+	a.env = float32(1 - math.Exp(-1/(autoGainEnv*rate)))
+	a.glide = float32(1 - math.Exp(-1/(autoGainGlide*rate)))
+	a.warmLen = max(int(autoGainWarm*rate), 1)
+	a.rise = float32(1 - math.Exp(-1/(autoGainRise*rate)))
+	a.clear()
+}
+
+// clear forgets the sound measured.
+func (a *autoGain) clear() { a.dry, a.wet, a.gain, a.warm = 0, 0, 0, a.warmLen }
+
+// carry makes a measure as o's, from where o is.
+func (a *autoGain) carry(o *autoGain) { a.dry, a.wet, a.gain, a.warm = o.dry, o.wet, o.gain, o.warm }
+
+// run turns the distortion in wl and wr to the loudness of the sound
+// fed to it in dl and dr.
+func (a *autoGain) run(dl, dr, wl, wr []float32) {
+	for i := range wl {
+		a.dry += ((dl[i]*dl[i]+dr[i]*dr[i])*0.5 - a.dry) * a.env
+		a.wet += ((wl[i]*wl[i]+wr[i]*wr[i])*0.5 - a.wet) * a.env
+		measured := a.dry >= autoGainFloor
+		switch {
+		case !a.on && a.warm > 0:
+			a.gain = 1
+		case !a.on:
+			a.gain += (1 - a.gain) * a.glide
+		case !measured:
+			// Too quiet to tell: the gain holds.
+		default:
+			to := float32(autoGainMax)
+			if a.wet > 0 {
+				to = min(max(float32(math.Sqrt(float64(a.dry/a.wet))), autoGainMin), autoGainMax)
+			}
+			if a.warm > 0 {
+				// Down at once, and up quickly, as the measures may lag
+				// what a cabinet holds back.
+				a.gain = min(to, a.gain+(to-a.gain)*a.rise)
+			} else {
+				a.gain += (to - a.gain) * a.glide
+			}
+		}
+		if measured && a.warm > 0 {
+			a.warm--
+		}
+		wl[i] *= a.gain
+		wr[i] *= a.gain
+	}
+	// What silence leaves of the measures is let go of before it is
+	// too small for a float to hold quickly.
+	if a.dry < 1e-20 {
+		a.dry = 0
+	}
+	if a.wet < 1e-20 {
+		a.wet = 0
+	}
 }
 
 // chain is the units at work, in their order, each in its slot.
@@ -301,6 +421,8 @@ func newChain(plan []Unit, rate float64, block int) *chain {
 			d := &distortUnit{d: synth.NewDistortionUnit(rate), dl: make([]float32, block), dr: make([]float32, block)}
 			d.mix.prepare(rate)
 			d.mix.widthTo = 1
+			d.auto.prepare(rate)
+			d.out, d.outTo = 1, 1
 			c.units = append(c.units, d)
 		}
 	}
