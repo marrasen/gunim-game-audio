@@ -18,9 +18,9 @@ import (
 	"github.com/marrasen/gunim/audio"
 	"github.com/marrasen/gunim/driver"
 
-	"github.com/marrasen/gunim-game-audio/internal/fontcache"
 	"github.com/marrasen/gunim-game-audio/midi"
 	"github.com/marrasen/gunim-game-audio/soundfont"
+	"github.com/marrasen/gunim-game-audio/soundfont/fontcache"
 	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim-game-audio/tracker"
 )

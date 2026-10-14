@@ -47,7 +47,7 @@ import (
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/widget"
 
-	"github.com/marrasen/gunim-game-audio/internal/fontcache"
+	"github.com/marrasen/gunim-game-audio/soundfont/fontcache"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 

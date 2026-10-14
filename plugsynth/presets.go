@@ -43,7 +43,7 @@ func asPreset(s Sound) plug.Preset {
 	return plug.Preset{
 		Bank: s.Bank, Group: s.Group, Name: s.Name, About: s.About,
 		Pitch: previewPitch(s),
-		Drums: s.patch.Kind == "drums",
+		Drums: s.kit(),
 		State: func() ([]byte, error) { return s.State(), nil },
 	}
 }
@@ -52,7 +52,9 @@ func asPreset(s Sound) plug.Preset {
 // a low A of a bass, and middle C of the rest.
 func previewPitch(s Sound) float64 {
 	switch {
-	case s.patch.Kind == "drums":
+	case s.pitch != 0:
+		return s.pitch
+	case s.kit():
 		return 36
 	case strings.Contains(strings.ToLower(s.Group), "bass"):
 		return 45
@@ -94,3 +96,6 @@ func (v *panel) audition(s Sound, u *gunim.UI) {
 		a.Audition(previewPitch(s), 0.8, 700*time.Millisecond, u)
 	}
 }
+
+// kit reports whether s is a drum kit.
+func (s Sound) kit() bool { return s.drums || s.patch.Kind == "drums" }

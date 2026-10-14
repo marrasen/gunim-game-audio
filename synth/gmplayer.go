@@ -228,7 +228,7 @@ func (g *GM) release(h gmHeld) {
 func (g *GM) fontNote(c *gmChannel, key int, vel byte) bool {
 	bank, program, k := int(c.bank), c.program, key
 	if c.drums {
-		bank = 128
+		bank = DrumBank
 	} else {
 		k = min(max(key+g.transpose, 0), 127)
 	}
