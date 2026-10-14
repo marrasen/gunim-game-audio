@@ -848,21 +848,36 @@ func (f *flow) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) g
 	// Placed at the foot of a view of no height, the rows' top tells how
 	// tall they stand.
 	h := panelInset - plugui.PlaceSections(geom.Sz(w, 0), panelInset, f.cards, func(int, geom.Rect) {})
-	plugui.PlaceSections(geom.Sz(w, h), panelInset, f.cards, func(i int, r geom.Rect) {
-		// Cards built again since the frame took the children wait for
-		// the next frame, which Invalidate asked for.
-		if i >= kids.Len() {
-			return
+	// The tree holds the cards as they were when it took the children:
+	// cards built again since come in, and the old ones go out.
+	have := make(map[gunim.Node]gunim.Child, kids.Len())
+	for k := range kids.All {
+		if k.Presence() != gunim.Exiting {
+			have[k.Node()] = k
 		}
-		kids.At(i).Layout(gunim.Tight(r.Size()))
-		kids.At(i).Place(r.Min)
+	}
+	for n := range have {
+		if !slices.ContainsFunc(f.cards, func(c *plugui.Section) bool { return gunim.Node(c) == n }) {
+			kids.Drop(n)
+		}
+	}
+	plugui.PlaceSections(geom.Sz(w, h), panelInset, f.cards, func(i int, r geom.Rect) {
+		k, ok := have[f.cards[i]]
+		if !ok {
+			k = kids.Build(f.cards[i])
+		}
+		k.Layout(gunim.Tight(r.Size()))
+		k.Place(r.Min)
 	})
 	return geom.Sz(w, h)
 }
 
-// Paint implements [gunim.Node].
+// Paint implements [gunim.Node]: the cards it holds, not the old ones
+// going out.
 func (f *flow) Paint(p *paint.Painter, _ gunim.Frame, _ geom.Size, kids gunim.Children) {
 	for k := range kids.All {
-		k.Paint(p)
+		if k.Presence() != gunim.Exiting {
+			k.Paint(p)
+		}
 	}
 }
