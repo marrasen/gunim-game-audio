@@ -89,9 +89,13 @@ type Patch struct {
 	// Bank, sampled. Where no bank of the name is registered, as in a
 	// game that ships none, the patch plays as its other fields say, or,
 	// with none, as General MIDI's Program does on the engine's own
-	// instruments, so a song sounds without the bank, only less real.
+	// instruments, or its kit for a kit, so a song sounds without the
+	// bank, only less real.
 	SoundFont     string `json:",omitempty"`
 	Bank, Program int    `json:",omitempty"`
+	// FontKit says the bank's program is a drum kit, a drum to a key,
+	// though not in DrumBank, as a bank of one kit keeps it in bank 0.
+	FontKit bool `json:",omitempty"`
 	// Mod and Pressure are how an [Instrument]'s notes answer the mod
 	// wheel and the key's pressure. Nil answers as [Patch.Responses]
 	// says a patch of its kind does.
@@ -494,6 +498,10 @@ func (p *Patch) compile(name string) (*patch, error) {
 		fb.SoundFont = ""
 		if fb.Kind == "" && len(fb.Osc) == 0 && fb.Noise == 0 {
 			gm := GMPatch(p.Program & 127)
+			if p.Bank == DrumBank || p.FontKit {
+				// A bank's kit: General MIDI's kit of its program.
+				gm = GMKit(p.Program & 127)
+			}
 			if p.Gain != 0 {
 				gm.Gain *= p.Gain
 			}
@@ -746,6 +754,9 @@ func sortedKeys[V any](m map[string]V) []string {
 	sortStrings(keys)
 	return keys
 }
+
+// DrumBank is the bank a SoundFont bank keeps its drum kits in.
+const DrumBank = 128
 
 // soundFonts are the banks registered, by name.
 var soundFonts sync.Map

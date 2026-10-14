@@ -1,0 +1,136 @@
+package plugsynth
+
+import (
+	"bytes"
+	"math"
+	"testing"
+
+	"github.com/marrasen/gunim-game-audio/internal/sftest"
+	"github.com/marrasen/gunim-game-audio/soundfont"
+	"github.com/marrasen/gunim-game-audio/synth"
+	"github.com/marrasen/gunim/audio/plug"
+	"github.com/marrasen/gunim/audio/plug/plugtest"
+)
+
+// useTestFont hands the synth the test bank as f says, for the test's
+// run.
+func useTestFont(t *testing.T, f Font) {
+	t.Helper()
+	b, err := soundfont.Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Font = b
+	UseFont(f)
+	t.Cleanup(func() { DropFont(f.Name) })
+}
+
+// heardHz plays key 72 on p for half a second, and returns how high
+// its right side, where the test bank's square is panned, sounds.
+func heardHz(t *testing.T, p *plugin) float64 {
+	t.Helper()
+	setup := plug.Setup{Rate: 48000, MaxBlock: 512, Channels: 2}
+	out := plugtest.Play(t, p.Processor(), setup, 24000, params(), note(1, 72, 0, 20000)...)
+	return hz(out[1][4800:19200], 48000)
+}
+
+func TestAGeneralMIDIBanksInstrumentsAreSounds(t *testing.T) {
+	useTestFont(t, Font{Name: "test-gm", Title: "Test GM"})
+	square, ok := Find("Test GM", "Piano", "Square")
+	if !ok {
+		t.Fatalf("the bank's program 0 is not filed as a piano: %v", Groups("Test GM"))
+	}
+	kit, ok := Find("Test GM", GMDrums, "Kit")
+	if !ok || !kit.kit() || previewPitch(kit) != 36 {
+		t.Errorf("the bank's kit is not a kit, previewed on its kick: %+v", kit)
+	}
+	if previewPitch(square) != 60 {
+		t.Errorf("the square is previewed on %v, not middle C", previewPitch(square))
+	}
+	p, _ := newSynth(t)
+	if err := p.SetState(square.State()); err != nil {
+		t.Fatal(err)
+	}
+	// The square of 100 frames at 44100 Hz is 441 Hz at its root, 60:
+	// key 72 plays it an octave up.
+	if got := heardHz(t, p); math.Abs(got-882) > 10 {
+		t.Errorf("the bank's square plays key 72 at %.0f Hz, not 882", got)
+	}
+	// Its state is a state the synth reads, as one of its own.
+	if _, err := DecodeState(square.State()); err != nil {
+		t.Error(err)
+	}
+	var banks []string
+	for _, s := range Sounds() {
+		if len(banks) == 0 || banks[len(banks)-1] != s.Bank {
+			banks = append(banks, s.Bank)
+		}
+	}
+	want := []string{Library, GeneralMIDI, "Test GM", Songs}
+	if len(banks) != len(want) {
+		t.Fatalf("the banks are %v, want %v", banks, want)
+	}
+	for i := range want {
+		if banks[i] != want[i] {
+			t.Fatalf("the banks are %v, want %v", banks, want)
+		}
+	}
+}
+
+func TestABankOfOneInstrumentIsARecordedSound(t *testing.T) {
+	useTestFont(t, Font{Name: "test-one", Title: "Test Square", Group: "Synth", About: "A square.", Credit: "By the test."})
+	s, ok := Find(Recorded, "Synth", "Test Square")
+	if !ok {
+		t.Fatalf("the bank is not among the recorded instruments: %v", Groups(Recorded))
+	}
+	if s.About != "A square. By the test." {
+		t.Errorf("its sound says %q", s.About)
+	}
+	if f := facts(s.patch); len(f) != 2 || f[1] != "Test Square" {
+		t.Errorf("its chips say %v", f)
+	}
+	DropFont("test-one")
+	if _, ok := Find(Recorded, "Synth", "Test Square"); ok {
+		t.Error("a bank let go still offers its sounds")
+	}
+}
+
+func TestASynthPlaysItsBankOnceTheBankComes(t *testing.T) {
+	p, _ := newSynth(t)
+	st := State{Bank: Recorded, Group: "Synth", Name: "Late", Patch: &synth.Patch{SoundFont: "test-late"}}
+	if err := p.SetState(st.Encode()); err != nil {
+		t.Fatal(err)
+	}
+	// With no bank, General MIDI's piano plays key 72: 523 Hz.
+	if got := heardHz(t, p); math.Abs(got-523) > 10 {
+		t.Errorf("with its bank missing, key 72 plays %.0f Hz, not General MIDI's piano's 523", got)
+	}
+	useTestFont(t, Font{Name: "test-late", Title: "Late", Group: "Synth"})
+	if got := heardHz(t, p); math.Abs(got-882) > 10 {
+		t.Errorf("once its bank came, key 72 plays %.0f Hz, not the bank's 882", got)
+	}
+	DropFont("test-late")
+	if got := heardHz(t, p); math.Abs(got-523) > 10 {
+		t.Errorf("once its bank went, key 72 plays %.0f Hz, not General MIDI's piano's 523", got)
+	}
+}
+
+func TestARecordedSoundsPatchPageShowsItsLevelAndVoices(t *testing.T) {
+	useTestFont(t, Font{Name: "test-page", Title: "Test Square", Group: "Synth"})
+	p, h := newSynth(t)
+	s, ok := Find(Recorded, "Synth", "Test Square")
+	if !ok {
+		t.Fatal("no recorded square")
+	}
+	if err := p.SetState(s.State()); err != nil {
+		t.Fatal(err)
+	}
+	pn, ok := p.View(plug.Full, h).(*panel)
+	if !ok {
+		t.Fatal("the synth's full view is not its panel")
+	}
+	cards := pn.pages.editor.flow.cards
+	if len(cards) != 1 || cards[0].Name != "RECORDED" {
+		t.Fatalf("a recorded sound's patch page shows %d cards", len(cards))
+	}
+}

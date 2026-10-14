@@ -10,7 +10,9 @@
 // edits are edits of the state.
 // It offers every sound the module has to the host's browser, as
 // presets: the patch library's presets, General MIDI's 128 instruments
-// and its drum kits, and the patches the songs play. Its state holds the
+// and its drum kits, the patches the songs play, and the instruments of
+// the SoundFont banks a program hands it with [UseFont], played on the
+// banks' samples. Its state holds the
 // whole patch, so a host may hand it one of its own too. A drum kit
 // plays each part of the kit, as the kick or the hats, into an aux
 // output of its own where the host connects it. It registers itself as
@@ -259,7 +261,9 @@ func newPlugin(h plug.Host) *plugin {
 	if err != nil {
 		panic("plugsynth: " + err.Error())
 	}
-	return &plugin{host: h, st: st, proc: newProcessor(snd)}
+	p := &plugin{host: h, st: st, proc: newProcessor(snd)}
+	synths.Store(p, struct{}{})
+	return p
 }
 
 // Processor implements [plug.Plugin].
@@ -315,7 +319,7 @@ func (p *plugin) pick(s Sound) {
 }
 
 // Close implements [plug.Plugin].
-func (p *plugin) Close() {}
+func (p *plugin) Close() { synths.Delete(p) }
 
 // before is how many of the engine's frames, silent, the buffer holds
 // before its first: the cubic reads the one before where it reads, and
@@ -366,6 +370,9 @@ type processor struct {
 	outs [synth.DrumParts][][]float32
 	// at counts the host's frames since the last Reset.
 	at int64
+	// offline says the host renders offline: a bank's notes wait for
+	// their samples.
+	offline bool
 	// latency and tail are what Latency and Tail report, which they read
 	// on the host's goroutine as blocks run on the audio thread.
 	latency, tail atomic.Int64
@@ -379,6 +386,9 @@ func newProcessor(snd *voicing) *processor {
 
 // Prepare implements [plug.Processor].
 func (p *processor) Prepare(s plug.Setup) {
+	p.offline = s.Offline
+	p.cur.SetOffline(s.Offline)
+	p.pre.SetOffline(s.Offline)
 	p.rate = s.Rate
 	if p.rate <= 0 {
 		p.rate = synth.Rate
@@ -478,8 +488,12 @@ func (p *processor) Process(b *plug.Block) {
 // ahead of them.
 type voicing struct{ in, pre *synth.Instrument }
 
-// newSound returns the sound of patch pt.
+// newSound returns the sound of patch pt. A sound of a bank has its
+// samples read in, for its first notes to play at once.
 func newSound(pt *synth.Patch) (*voicing, error) {
+	if f := synth.SoundFontNamed(pt.SoundFont); f != nil && pt.Kind == "" {
+		go f.Preload(pt.Bank, pt.Program)
+	}
 	in, err := synth.NewInstrument(pt)
 	if err != nil {
 		return nil, err
@@ -533,6 +547,8 @@ func (p *processor) adopt() bool {
 		return false
 	}
 	in := snd.in
+	in.SetOffline(p.offline)
+	snd.pre.SetOffline(p.offline)
 	in.SetKnobs(p.knobs)
 	snd.pre.SetKnobs(p.knobs)
 	if p.cur.Retune(in) {

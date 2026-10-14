@@ -107,7 +107,7 @@ func (e *patchEditor) FollowState(u *gunim.UI) {
 // waves, its LFOs, the switches that bring in cards, and its drums.
 func shapeOf(pt *synth.Patch) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s|%d|%d|%t|%t|", pt.Kind, len(pt.Osc), len(pt.LFO), pt.Chip != nil, pt.Arpeggio != nil)
+	fmt.Fprintf(&b, "%s|%d|%d|%t|%t|%t|", pt.Kind, len(pt.Osc), len(pt.LFO), pt.Chip != nil, pt.Arpeggio != nil, sampled(pt))
 	for _, o := range pt.Osc {
 		b.WriteString(o.Wave + ",")
 	}
@@ -304,6 +304,12 @@ func column(kids ...gunim.Node) gunim.Node {
 func (e *patchEditor) build() {
 	e.follows = nil
 	var cards []*plugui.Section
+	if sampled(e.pt) {
+		// A bank's sound is the bank's own: there is nothing in it to
+		// build, but its level and its voices.
+		e.flow.cards = []*plugui.Section{e.recordedCard()}
+		return
+	}
 	switch e.pt.Kind {
 	case "drums":
 		cards = e.kitCards()
@@ -321,6 +327,20 @@ func (e *patchEditor) build() {
 			e.chipCard(), e.arpCard())
 	}
 	e.flow.cards = cards
+}
+
+// recordedCard is the card of a sound a SoundFont bank plays: its level
+// and its voices, and what it is.
+func (e *patchEditor) recordedCard() *plugui.Section {
+	sec := e.card("RECORDED",
+		k("Gain", 0, 2, 1, func(pt *synth.Patch) float64 { return or(pt.Gain, 1) }, func(pt *synth.Patch, v float64) { pt.Gain = v }),
+		k("Voices", 4, 48, 32, func(pt *synth.Patch) float64 { return or(float64(pt.Poly), 16) },
+			func(pt *synth.Patch, v float64) { pt.Poly = int(math.Round(v)) }).steps(44).shows(whole))
+	words := "Its bank is missing, so General MIDI's own sound of it plays in its place."
+	if f, ok := fontNamed(e.pt.SoundFont); ok {
+		words = fmt.Sprintf("Samples of %s. The Sound page's knobs shape it: its filter, envelope, tune, pan and level.", f.Title)
+	}
+	return sec.Add(widget.NewLabel(words), 260)
 }
 
 // kindCard picks what makes the sound: oscillators or a plucked string;

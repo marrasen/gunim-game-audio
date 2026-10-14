@@ -23,7 +23,8 @@ const (
 	Songs = "Songs"
 )
 
-// Banks are the banks, in the order Presets lists them.
+// Banks are the module's own banks, in the order Presets lists them;
+// the banks UseFont was handed stand between General MIDI and Songs.
 var Banks = []string{Library, GeneralMIDI, Songs}
 
 // A Sound is a sound the plugin offers: a patch, and where it comes
@@ -36,6 +37,10 @@ type Sound struct {
 	// About says what it sounds like.
 	About string
 	patch *synth.Patch
+	// drums says it is a kit, and pitch is the note a preview of it
+	// plays, where it is not 0.
+	drums bool
+	pitch float64
 }
 
 // Patch returns the sound's patch, the caller's own to change.
@@ -74,13 +79,14 @@ var gmKits = []struct {
 }
 
 // Sounds returns every sound the plugin offers, bank by bank, each
-// bank group by group, in the order Presets lists them. The first call
-// reads them; later calls share what it read, which they leave as it
-// is.
+// bank group by group, in the order Presets lists them: the module's
+// own, and those of the banks UseFont was handed. The first call reads
+// the module's own; later calls share what it read, which they leave as
+// it is.
 func Sounds() []Sound { return slices.Clone(all()) }
 
-// all reads the sounds once.
-var all = sync.OnceValue(func() []Sound {
+// ownSounds reads the module's own sounds once.
+var ownSounds = sync.OnceValue(func() []Sound {
 	out, err := readSounds()
 	if err != nil {
 		panic("plugsynth: " + err.Error())
