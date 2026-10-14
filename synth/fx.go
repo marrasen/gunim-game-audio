@@ -43,7 +43,7 @@ type allpass struct {
 func (a *allpass) step(x float32) float32 {
 	d := a.buf[a.at]
 	y := d - a.g*x
-	a.buf[a.at] = x + a.g*y
+	a.buf[a.at] = flush(x + a.g*y)
 	a.at++
 	if a.at == len(a.buf) {
 		a.at = 0
