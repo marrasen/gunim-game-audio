@@ -8,13 +8,13 @@
 // note's own mod wheel and pressure, as [plug.Expression] events, move
 // it as its patch answers them. Its views hold a patch editor, whose
 // edits are edits of the state.
-// It offers every sound the module has, in a browser: the patch library's
-// presets, General MIDI's 128 instruments and its drum kits, and the
-// patches the songs play. Its state holds the whole patch, so a host
-// may hand it one of its own too. A drum kit plays each part of the kit,
-// as the kick or the hats, into an aux output of its own where the host
-// connects it. It registers itself as it starts;
-// import it for that:
+// It offers every sound the module has to the host's browser, as
+// presets: the patch library's presets, General MIDI's 128 instruments
+// and its drum kits, and the patches the songs play. Its state holds the
+// whole patch, so a host may hand it one of its own too. A drum kit
+// plays each part of the kit, as the kick or the hats, into an aux
+// output of its own where the host connects it. It registers itself as
+// it starts; import it for that:
 //
 //	import _ "github.com/marrasen/gunim-game-audio/plugsynth"
 //
@@ -308,7 +308,7 @@ func (p *plugin) sound() State {
 	return p.st
 }
 
-// pick plays sound s, as the browser picks it.
+// pick plays sound s, as a step to it picks it.
 func (p *plugin) pick(s Sound) {
 	// The library's own sounds always load.
 	_ = p.SetState(s.State())

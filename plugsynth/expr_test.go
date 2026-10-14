@@ -136,11 +136,11 @@ func TestAPatchEditedPlaysOnUnbroken(t *testing.T) {
 }
 
 // TestWhisperSingsItsVowelsInTurn finds the whisper of Wire Cathedral
-// in the browser, singing the song's vowels in turn.
+// among the sounds, singing the song's vowels in turn.
 func TestWhisperSingsItsVowelsInTurn(t *testing.T) {
 	s, ok := Find(Songs, "Wire Cathedral", "whisper")
 	if !ok {
-		t.Fatal("the browser lacks Wire Cathedral's whisper")
+		t.Fatal("the sounds lack Wire Cathedral's whisper")
 	}
 	if got := s.Patch().Vowels; got != "a i o u e a o i" {
 		t.Fatalf("whisper sings %q in turn", got)

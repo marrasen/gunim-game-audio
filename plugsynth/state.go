@@ -20,7 +20,7 @@ import (
 // The knobs are parameters, beside the state: they turn the patch from
 // how it is made.
 type State struct {
-	// Bank, Group and Name are where the browser lists the sound, as
+	// Bank, Group and Name are where Presets lists the sound, as
 	// [Sound] has them.
 	Bank, Group, Name string
 	// Patch is the patch the plugin plays.
