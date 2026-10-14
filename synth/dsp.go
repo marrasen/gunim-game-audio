@@ -100,9 +100,24 @@ func (f *svf) step(x float32) (lp, bp, hp float32) {
 	v3 := x - f.ic2
 	v1 := f.a1*f.ic1 + f.a2*v3
 	v2 := f.ic2 + f.a2*f.ic1 + f.a3*v3
-	f.ic1 = 2*v1 - f.ic1
-	f.ic2 = 2*v2 - f.ic2
+	f.ic1 = flush(2*v1 - f.ic1)
+	f.ic2 = flush(2*v2 - f.ic2)
 	return v2, v1, x - f.k*v1 - v2
+}
+
+// tiny is the level under which a filter's state rounds to zero: some
+// 400 decibels under full scale.
+const tiny = 1e-20
+
+// flush is v, or zero under tiny. Left alone, a filter's state decays in
+// silence to a subnormal number and sticks there, and the processor
+// works on subnormals many times slower, for as long as the silence
+// lasts.
+func flush(v float32) float32 {
+	if v < tiny && v > -tiny {
+		return 0
+	}
+	return v
 }
 
 func (f *svf) reset() { f.ic1, f.ic2 = 0, 0 }
@@ -122,7 +137,7 @@ func (f *onePole) setAt(hz float32, sr float64) {
 
 // lp filters x and returns its lowpass.
 func (f *onePole) lp(x float32) float32 {
-	f.z += f.a * (x - f.z)
+	f.z = flush(f.z + f.a*(x-f.z))
 	return f.z
 }
 
