@@ -8,7 +8,7 @@ import (
 	"github.com/marrasen/gunim/widget"
 )
 
-// The panel's pages: Sound, the browser and the knobs used most;
+// The panel's pages: Sound, the sound's name and the knobs used most;
 // Patch, the patch editor; and Controls, a knob for every parameter, for
 // a host's automation and control wires to drive.
 const (

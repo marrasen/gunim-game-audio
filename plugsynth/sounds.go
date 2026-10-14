@@ -23,7 +23,7 @@ const (
 	Songs = "Songs"
 )
 
-// Banks are the banks, in the order the browser shows them.
+// Banks are the banks, in the order Presets lists them.
 var Banks = []string{Library, GeneralMIDI, Songs}
 
 // A Sound is a sound the plugin offers: a patch, and where it comes
@@ -74,8 +74,9 @@ var gmKits = []struct {
 }
 
 // Sounds returns every sound the plugin offers, bank by bank, each
-// bank group by group, in the browser's order. The first call reads
-// them; later calls share what it read, which they leave as it is.
+// bank group by group, in the order Presets lists them. The first call
+// reads them; later calls share what it read, which they leave as it
+// is.
 func Sounds() []Sound { return slices.Clone(all()) }
 
 // all reads the sounds once.
@@ -147,7 +148,7 @@ func Find(bank, group, name string) (Sound, bool) {
 	return Sound{}, false
 }
 
-// Named returns the first sound named name, in the browser's order, and
+// Named returns the first sound named name, in Sounds' order, and
 // whether there is one: a name of the library, as "Juno pad", or of
 // General MIDI, as "Acoustic Grand Piano", names one sound only.
 func Named(name string) (Sound, bool) {
@@ -165,31 +166,6 @@ func Groups(bank string) []string {
 	for _, s := range all() {
 		if s.Bank == bank && (len(out) == 0 || out[len(out)-1] != s.Group) {
 			out = append(out, s.Group)
-		}
-	}
-	return out
-}
-
-// matches reports whether s matches every word of query, in its name,
-// its group or what it sounds like, in any case.
-func (s Sound) matches(words []string) bool {
-	hay := strings.ToLower(s.Name + " " + s.Group + " " + s.About)
-	for _, w := range words {
-		if !strings.Contains(hay, w) {
-			return false
-		}
-	}
-	return true
-}
-
-// search returns the sounds that match query, word by word: every
-// sound, for an empty one.
-func search(query string) []Sound {
-	words := strings.Fields(strings.ToLower(query))
-	var out []Sound
-	for _, s := range all() {
-		if s.matches(words) {
-			out = append(out, s)
 		}
 	}
 	return out

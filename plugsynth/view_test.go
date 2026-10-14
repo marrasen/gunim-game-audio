@@ -2,9 +2,7 @@ package plugsynth
 
 import (
 	"fmt"
-	"math"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -62,134 +60,39 @@ func click(w *gunim.Window, run func(int), p geom.Point) {
 	run(1)
 }
 
-func TestTheBrowserPicksASoundAsOneEditAndPlaysIt(t *testing.T) {
-	p, h := newSynth(t)
-	w, pn, run := stage(t, p, h)
-	b := pn.browser
-	if b.bank != Library || b.group != "Pads & strings" || len(b.sounds.rows) != 7 {
-		t.Fatalf("the browser opens on %s/%s with %d rows, not the Juno pad's group", b.bank, b.group, len(b.sounds.rows))
-	}
-	// The Bass group, from the left column.
-	gi := b.groups.index(Library, "Bass")
-	click(w, run, where(t, w, run, b.groups, b.groups.rowRect(gi)))
-	if b.group != "Bass" || b.sounds.rows[1].s.Name != "Juno octave bass" {
-		t.Fatalf("a click on Bass shows %s, its first sound %s", b.group, b.sounds.rows[1].label)
-	}
-	if len(h.log) != 0 {
-		t.Errorf("showing a group edits: %q", h.log)
-	}
-	// The Moog bass.
-	si := slices.IndexFunc(b.sounds.rows, func(r listRow) bool { return r.s.Name == "Moog bass" })
-	click(w, run, where(t, w, run, b.sounds, b.sounds.rowRect(si)))
-	if want := []string{"begin Pick Moog bass", "changed", "end"}; !slices.Equal(h.log, want) {
-		t.Errorf("a pick tells the host %q, not %q", h.log, want)
-	}
-	if p.sound().Name != "Moog bass" || pn.st.Name != "Moog bass" {
-		t.Errorf("after the pick the synth plays %s and the view shows %s", p.sound().Name, pn.st.Name)
-	}
-	if !slices.Equal(h.heard, []float64{45}) {
-		t.Errorf("the pick auditions %v, not a low A", h.heard)
-	}
-	run(40)
-	if v := b.sounds.pill.Value(); math.Abs(float64(v)-float64(si)) > 0.01 {
-		t.Errorf("the pill settles on row %.2f, not %d", v, si)
-	}
-	// The Sub bass, five rows down: the pill slides there frame by
-	// frame, never more than a row and a half at once, and settles.
-	sub := slices.IndexFunc(b.sounds.rows, func(r listRow) bool { return r.s.Name == "Sub bass" })
-	click(w, run, where(t, w, run, b.sounds, b.sounds.rowRect(sub)))
-	h.heard = h.heard[:1]
-	last, frames := b.sounds.pill.Value(), 0
-	for range 40 {
-		run(1)
-		v := b.sounds.pill.Value()
-		if math.Abs(float64(v-last)) > 1.5 {
-			t.Fatalf("the pill jumps from row %.2f to %.2f in one frame", last, v)
-		}
-		if math.Abs(float64(v)-float64(sub)) > 0.05 {
-			frames++
-		}
-		last = v
-	}
-	if math.Abs(float64(last)-float64(sub)) > 0.01 || frames < 3 {
-		t.Errorf("the pill settles on row %.2f, not %d, after %d frames", last, sub, frames)
-	}
-	h.log = nil
-	click(w, run, where(t, w, run, b.sounds, b.sounds.rowRect(si)))
-	run(40)
-	// Picking it again plays it again, and edits nothing.
-	h.log, h.heard = nil, h.heard[:1]
-	click(w, run, where(t, w, run, b.sounds, b.sounds.rowRect(si)))
-	if len(h.log) != 0 || len(h.heard) != 2 {
-		t.Errorf("a click on the sound playing edits %q, auditions %v", h.log, h.heard)
-	}
-}
-
-func TestTheSearchFindsSoundsInEveryBank(t *testing.T) {
-	p, h := newSynth(t)
-	w, pn, run := stage(t, p, h)
-	b := pn.browser
-	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, q string, u *gunim.UI) {
-		b.field.SetText(q, u)
-		b.field.OnChange(q, u)
-	})
-	if err := w.Client().Patch("synth", "piano"); err != nil {
-		t.Fatal(err)
-	}
-	run(2)
-	banks := map[string]bool{}
-	n := 0
-	for _, r := range b.sounds.rows {
-		if r.header {
-			continue
-		}
-		n++
-		banks[r.s.Bank] = true
-		if !strings.Contains(strings.ToLower(r.s.Name+r.s.Group+r.s.About), "piano") {
-			t.Errorf("the search for piano finds %s", r.s.Name)
-		}
-	}
-	if n < 8 || !banks[Library] || !banks[GeneralMIDI] || !banks[Songs] {
-		t.Errorf("the search for piano finds %d sounds, in banks %v", n, banks)
-	}
-	if i := b.groups.index(GeneralMIDI, "Piano"); b.groups.rows[i].count != 8 {
-		t.Errorf("General MIDI's pianos count %d matches", b.groups.rows[i].count)
-	}
-	// A group clicked during a search scrolls to its sounds.
-	click(w, run, where(t, w, run, b.groups, b.groups.rowRect(b.groups.index(GeneralMIDI, "Piano"))))
-	run(40)
-	if b.query != "piano" || b.group != "Pads & strings" {
-		t.Errorf("a group clicked during a search shows %s, searching %q", b.group, b.query)
-	}
-	if b.ss.Offset() <= 0 {
-		t.Error("a group clicked during a search leaves its sounds where they were")
-	}
-	if err := w.Client().Patch("synth", "zzzz"); err != nil {
-		t.Fatal(err)
-	}
-	run(1)
-	if len(b.sounds.rows) != 0 {
-		t.Errorf("a search for nothing finds %d rows", len(b.sounds.rows))
-	}
-}
-
 func TestTheStepsWalkTheGroupRound(t *testing.T) {
 	p, h := newSynth(t)
 	play(t, p, "Aah choir")
 	w, pn, run := stage(t, p, h)
-	_ = w
-	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, by int, u *gunim.UI) { pn.browser.step(by, u) })
+	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, by int, u *gunim.UI) { pn.skip(by, u) })
 	for _, c := range []struct {
 		by   int
 		want string
 	}{{1, "String machine"}, {1, "Juno pad"}, {-1, "String machine"}, {-1, "Aah choir"}} {
+		h.log, h.heard = nil, nil
 		if err := w.Client().Patch("synth", c.by); err != nil {
 			t.Fatal(err)
 		}
 		run(1)
-		if p.sound().Name != c.want {
-			t.Errorf("a step by %d plays %s, not %s", c.by, p.sound().Name, c.want)
+		if p.sound().Name != c.want || pn.st.Name != c.want {
+			t.Errorf("a step by %d plays %s, shows %s, not %s", c.by, p.sound().Name, pn.st.Name, c.want)
 		}
+		if want := []string{"begin Pick " + c.want, "changed", "end"}; !slices.Equal(h.log, want) {
+			t.Errorf("a step tells the host %q, not %q", h.log, want)
+		}
+		if !slices.Equal(h.heard, []float64{60}) {
+			t.Errorf("a step to %s auditions %v, not middle C", c.want, h.heard)
+		}
+	}
+	// A bass auditions a low A, and the steps keep to the Bass group.
+	play(t, p, "Moog bass")
+	h.heard = nil
+	if err := w.Client().Patch("synth", 1); err != nil {
+		t.Fatal(err)
+	}
+	run(1)
+	if st := p.sound(); st.Group != "Bass" || st.Name == "Moog bass" || !slices.Equal(h.heard, []float64{45}) {
+		t.Errorf("a step from the Moog bass plays %s/%s, auditions %v", st.Group, st.Name, h.heard)
 	}
 }
 
@@ -215,9 +118,8 @@ func TestTheViewsFollowAStateSetElsewhere(t *testing.T) {
 		}
 		last = v
 	}
-	b := pn.browser
-	if pn.st.Name != "TR-808" || b.group != "Drum kits" || b.sounds.index(p.sound()) < 0 || pn.keys.low != 35 {
-		t.Errorf("after the state is set elsewhere, the view shows %s, its browser %s, its keys from %d", pn.st.Name, b.group, pn.keys.low)
+	if pn.st.Name != "TR-808" || pn.st.Group != "Drum kits" || pn.keys.low != 35 {
+		t.Errorf("after the state is set elsewhere, the view shows %s/%s, its keys from %d", pn.st.Group, pn.st.Name, pn.keys.low)
 	}
 	if !knob(pn, AttackID).Disabled {
 		t.Error("the drums' envelope knobs stay lit")

@@ -600,13 +600,15 @@ func TestEverySectionShowsAndTheKeysGiveWay(t *testing.T) {
 		{plug.Full, geom.Sz(1200, 420), true, true},
 		{plug.Full, geom.Sz(900, 560), true, true},
 		{plug.Panel, geom.Sz(900, 420), true, false},
+		// Short: what the sound is gives way to the keys.
+		{plug.Full, geom.Sz(600, 300), true, false},
 		// Narrow: the sections stand in two rows, and what the sound
 		// is gives way to the keys.
-		{plug.Full, geom.Sz(700, 420), true, false},
+		{plug.Full, geom.Sz(500, 420), true, false},
 		// Shorter still: the keys give way, and what the sound is
 		// comes back.
-		{plug.Full, geom.Sz(700, 360), false, true},
-		{plug.Full, geom.Sz(600, 300), false, true},
+		{plug.Full, geom.Sz(500, 360), false, true},
+		{plug.Full, geom.Sz(500, 300), false, true},
 		{plug.Panel, geom.Sz(280, 180), false, false},
 	} {
 		pn, ok := p.View(c.size, h).(*panel)

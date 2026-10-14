@@ -20,8 +20,8 @@ import (
 
 // View implements [plug.Viewer]: the sound's name and the level in a
 // chip; the sound, steps to the sounds beside it, and the knobs in a
-// panel; and in full, the browser beside those, what the sound is, and
-// a meter of what comes out.
+// panel; and in full, what the sound is too, and a meter of what comes
+// out. The host's browser picks the sounds, from Presets.
 func (p *plugin) View(s plug.Size, h plug.Host) gunim.Node {
 	switch s {
 	case plug.Chip:
@@ -156,15 +156,14 @@ func (c *chip) FollowState(u *gunim.UI) {
 }
 
 // panel is the sound's name, where it comes from, and steps to the
-// sounds beside it in its group, over the knobs' sections. In full, the
-// browser stands at the left, what the sound is shows under its name,
-// and a meter of what comes out stands at the right.
+// sounds beside it in its group, over the knobs' sections. In full,
+// what the sound is shows under its name, and a meter of what comes out
+// stands at the right.
 type panel struct {
 	anim.Group
 	p        *plugin
 	h        plug.Host
 	full     bool
-	browser  *browser
 	prev     *widget.IconButton
 	next     *widget.IconButton
 	sections []*plugui.Section
@@ -188,12 +187,10 @@ type panel struct {
 func newPanel(p *plugin, h plug.Host, full bool) *panel {
 	v := &panel{p: p, h: h, full: full, st: p.sound(), turn: anim.NewFloat(1)}
 	v.Add(v.turn)
-	v.browser = newBrowser(p, h)
-	v.browser.picked = v.FollowState
 	v.prev = widget.NewIconButton(icon.ChevronLeft, "The sound before")
 	v.next = widget.NewIconButton(icon.ChevronRight, "The next sound")
-	v.prev.OnClick = func(u *gunim.UI) gunim.Intent { v.browser.step(-1, u); return nil }
-	v.next.OnClick = func(u *gunim.UI) gunim.Intent { v.browser.step(1, u); return nil }
+	v.prev.OnClick = func(u *gunim.UI) gunim.Intent { v.skip(-1, u); return nil }
+	v.next.OnClick = func(u *gunim.UI) gunim.Intent { v.skip(1, u); return nil }
 	v.sections = []*plugui.Section{
 		plugui.NewSection(h, &Descriptor, "FILTER", 0, CutoffID, ResID),
 		plugui.NewSection(h, &Descriptor, "ENVELOPE", 0, AttackID, ReleaseID),
@@ -229,12 +226,10 @@ func (v *panel) dim() {
 	}
 }
 
-// The panel's sizes: how far in from its edges it draws, how wide the
-// browser stands in full, and the header's.
+// The panel's sizes: how far in from its edges it draws, and the
+// header's.
 const (
 	panelInset = 16
-	browserMin = 300
-	browserMax = 470
 	stepW      = 28
 	nameY      = panelInset
 	crumbY     = nameY + 30
@@ -263,39 +258,16 @@ func (v *panel) Children() []gunim.Node {
 	for _, s := range v.sections {
 		kids = append(kids, s)
 	}
-	if v.full {
-		kids = append(kids, v.browser)
-	}
 	if v.keys != nil {
 		kids = append(kids, v.keys)
 	}
 	return append(kids, v.pages.nodes()...)
 }
 
-// browserW is how wide the browser stands in a full view w wide: a
-// little under half of it, and narrower down to browserMin where that
-// lets the sections stand in one row.
-func (v *panel) browserW(w float32) float32 {
-	row := float32(0)
-	for i, s := range v.sections {
-		if i > 0 {
-			row += plugui.SectionGap
-		}
-		row += s.Width()
-	}
-	// The detail is w less the browser, the meter and three insets; its
-	// sections' row stands in it less an inset.
-	oneRow := w - row - 3*panelInset - audioui.MeterW
-	return max(min(w*0.48, browserMax, oneRow), browserMin)
-}
-
-// detail is the part right of the browser, in full, or the whole panel.
+// detail is the part left of the meter, in full, or the whole panel.
 func (v *panel) detail(size geom.Size) geom.Rect {
 	r := geom.Rect{Max: size.Point()}
 	if v.full {
-		if v.page() == SoundPage {
-			r.Min.X = v.browserW(size.W) + panelInset
-		}
 		r.Max.X -= audioui.MeterW + panelInset
 	}
 	return r
@@ -303,9 +275,9 @@ func (v *panel) detail(size geom.Size) geom.Rect {
 
 // Layout implements [gunim.Node]: the steps beside the name, every
 // section along the foot, in rows as many as fit, each row centred;
-// the keys between, as tall as the room lets; in full, the browser at
-// the left. Where room is short, the keys grow shorter, then what the
-// sound is gives way to them, then they give way to the sections.
+// the keys between, as tall as the room lets. Where room is short, the
+// keys grow shorter, then what the sound is gives way to them, then they
+// give way to the sections.
 func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
 	size := c.Max
 	if v.page() != SoundPage {
@@ -324,12 +296,6 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 	keysRoom := func(about bool) float32 { return secTop - 14 - v.keysTop(about) }
 	v.aboutShown = v.full && (v.keys == nil || keysRoom(true) >= keysMin || keysRoom(false) < keysMin)
 	next := 2 + len(v.sections)
-	if v.full {
-		b := kids.At(next)
-		b.Layout(gunim.Tight(geom.Sz(v.browserW(size.W)-panelInset, max(size.H-2*panelInset, 0))))
-		b.Place(geom.Pt(panelInset, panelInset))
-		next++
-	}
 	if v.keys != nil {
 		top := v.keysTop(v.aboutShown)
 		h := min(keysRoom(v.aboutShown), keysMax)
@@ -347,7 +313,7 @@ func (v *panel) Layout(c gunim.Constraints, _ gunim.Frame, kids gunim.Children) 
 
 // Paint implements [gunim.Node]: the sound's name, turning over as it
 // changes, where it comes from, and in full what it is and the meter;
-// then the sections, the steps and the browser.
+// then the sections and the steps.
 func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.Children) {
 	ink, accent := widget.Ink.Get(f.Theme), widget.Accent.Get(f.Theme)
 	d := v.detail(box)
@@ -399,8 +365,8 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	}
 }
 
-// about is what the sound is, from the browser's list, or the state's
-// own words for a sound the browser lacks.
+// about is what the sound is, from the sounds' list, or the state's
+// own words for a sound the list lacks.
 func (v *panel) about() string {
 	if s, ok := Find(v.st.Bank, v.st.Group, v.st.Name); ok {
 		return s.About
@@ -448,7 +414,7 @@ func (v *panel) Follow(id uint32, val float64, u *gunim.UI) {
 }
 
 // FollowState implements [plug.StateFollower]: the panel shows the
-// sound playing, its name turning over, and the browser marks it.
+// sound playing, its name turning over.
 func (v *panel) FollowState(u *gunim.UI) {
 	st := v.p.sound()
 	if st.Name != v.st.Name || st.Group != v.st.Group || st.Bank != v.st.Bank {
@@ -461,7 +427,6 @@ func (v *panel) FollowState(u *gunim.UI) {
 	if v.keys != nil {
 		v.keys.follow(st.Patch.Kind)
 	}
-	v.browser.follow(u)
 	v.pages.editor.FollowState(u)
 	u.Invalidate()
 }
@@ -471,7 +436,7 @@ func (v *panel) FollowState(u *gunim.UI) {
 func (v *panel) Focusable() bool { return true }
 
 // Handle implements [gunim.Handler]: Page Up and Page Down step
-// through the sounds of the group listed, and Z and X shift the keys
+// through the sounds of the sound's group, and Z and X shift the keys
 // an octave down and up.
 func (v *panel) Handle(e input.Event, u *gunim.UI) bool {
 	k, ok := e.(input.KeyPress)
@@ -480,9 +445,9 @@ func (v *panel) Handle(e input.Event, u *gunim.UI) bool {
 	}
 	switch {
 	case k.Key == input.KeyPageUp:
-		v.browser.step(-1, u)
+		v.skip(-1, u)
 	case k.Key == input.KeyPageDown:
-		v.browser.step(1, u)
+		v.skip(1, u)
 	case (k.Key == input.KeyZ || k.Key == input.KeyX) && k.Mods == 0 && v.keys != nil && v.shown:
 		d := -1
 		if k.Key == input.KeyX {
@@ -493,4 +458,16 @@ func (v *panel) Handle(e input.Event, u *gunim.UI) bool {
 		return false
 	}
 	return true
+}
+
+// bankIcon draws the icon of bank in r.
+func bankIcon(p *paint.Painter, f gunim.Frame, bank string, r geom.Rect, c color.NRGBA) {
+	ic := icon.Library
+	switch bank {
+	case GeneralMIDI:
+		ic = icon.Piano
+	case Songs:
+		ic = icon.ListMusic
+	}
+	widget.PaintIcon(p, f.Theme, ic, r, c)
 }
