@@ -35,6 +35,10 @@ const (
 	UnipolarID
 	// SeedID picks the random shapes' values.
 	SeedID
+	// ModToID picks what the Mod input moves, as [ModTargets] names
+	// them, and ModAmountID how far, from -1 to 1.
+	ModToID
+	ModAmountID
 )
 
 // The values the LFO reports as it plays, read-only parameters, for its
@@ -58,12 +62,35 @@ const (
 // Shapes are the shapes' names, by ShapeID's value.
 var Shapes = []string{"Sine", "Triangle", "Saw", "Square", "Sample & hold", "Smooth random"}
 
+// What the Mod input moves, by ModToID's value. The input, from -1 to
+// 1, times the amount is m.
+const (
+	// ModRate runs the LFO 2^(3m) times as fast: three octaves either
+	// way at full. Each frame's step is scaled, so the phase moves on
+	// smoothly as the rate changes.
+	ModRate = iota
+	// ModDepth adds m to the depth, within 0 to 1.
+	ModDepth
+	// ModPhase turns the wave on by m half cycles.
+	ModPhase
+)
+
+// ModTargets are the targets' names, by ModToID's value.
+var ModTargets = []string{"Rate", "Depth", "Phase"}
+
 // Where the phase counts from, by StartID's value.
 const (
 	// FromSong counts it from the song's start, by the beats a synced
 	// LFO's tempo map counts, or the seconds a free one's: so the LFO is
 	// where the song is, in a render as in playback. A new rate or note
 	// value takes the phase where it falls at that place in the song.
+	//
+	// The Mod input, moving the rate, can't keep that: the LFO runs
+	// ahead of the song, or behind it, by what the input did. It keeps
+	// that lead on top of the song's phase, so the wave moves smoothly
+	// as the input stops or the rate changes. The lead goes back to 0
+	// at each Prepare and Reset, and as Position.Playing turns on: so a
+	// play or a render is in step with the song as it starts.
 	FromSong = iota
 	// FromPlay counts it from where the playing starts, or jumps to: as
 	// Position.Playing turns on, and at each Prepare and Reset. A render
@@ -122,6 +149,9 @@ var Descriptor = plug.Descriptor{
 	Vendor:  "Marras",
 	Version: "0.1.0",
 	Kind:    "Generator|LFO",
+	ControlIn: []plug.ControlPort{
+		{Name: "Mod", Min: -1, Max: 1},
+	},
 	ControlOut: []plug.ControlPort{
 		{Name: "LFO", Min: -1, Max: 1},
 		{Name: "LFO 90°", Min: -1, Max: 1},
@@ -150,6 +180,10 @@ var Descriptor = plug.Descriptor{
 			Format: func(v float64) string { return fmt.Sprintf("%+.2f", v) }},
 		{ID: UnipolarID, Name: "Polarity", Max: 1, Steps: 1, Flags: plug.Automatable, Format: onOff("±", "+")},
 		{ID: SeedID, Name: "Seed", Max: 999, Steps: 999, Format: func(v float64) string { return fmt.Sprintf("%.0f", v) }},
+		{ID: ModToID, Name: "Mod to", Max: float64(len(ModTargets) - 1), Steps: len(ModTargets) - 1,
+			Flags: plug.Automatable, Format: named(ModTargets)},
+		{ID: ModAmountID, Name: "Mod amount", Min: -1, Max: 1, Default: 0.5, Flags: plug.Automatable,
+			Format: func(v float64) string { return fmt.Sprintf("%+.0f%%", v*100) }},
 		{ID: ValueID, Name: "Value", Min: -1, Max: 1, Flags: plug.ReadOnly | plug.Hidden},
 		{ID: CycleID, Name: "Cycle", Max: 1, Flags: plug.ReadOnly | plug.Hidden},
 	},
@@ -188,6 +222,8 @@ type settings struct {
 	depth, offset float64
 	unipolar      bool
 	seed          uint64
+	modTo         int
+	modAmount     float64
 }
 
 // defaults returns the settings at each parameter's default.
@@ -227,6 +263,10 @@ func (s *settings) take(id uint32, v float64) {
 		s.unipolar = v >= 0.5
 	case SeedID:
 		s.seed = uint64(math.Round(v))
+	case ModToID:
+		s.modTo = int(math.Round(v))
+	case ModAmountID:
+		s.modAmount = v
 	}
 }
 
@@ -240,13 +280,17 @@ const fallbackTempo = 120
 // the random shapes pick a value for each, and the rest is where in the
 // cycle it is. Counted from the song, it is worked out afresh for each
 // frame from the block's Position, so it is the same however the song
-// was played up to there.
+// was played up to there: but for the lead the Mod input gives it, as
+// [FromSong] tells.
 type processor struct {
 	s    settings
 	rate float64
 	// cycles is the phase counted from the play or run on, at the
 	// block's next frame.
 	cycles float64
+	// lead is how far the Mod input has moved the phase counted from
+	// the song on from where the song is, in cycles.
+	lead float64
 	// playing says the last block was played, to tell the play start.
 	playing bool
 	value   plug.Meter
@@ -260,15 +304,17 @@ func (p *processor) Prepare(s plug.Setup) {
 		p.rate = 48000
 	}
 	p.s = defaults()
-	p.cycles, p.playing = 0, false
+	p.cycles, p.lead, p.playing = 0, 0, false
 }
 
 // Reset implements [plug.Processor]: an LFO counted from the play
-// starts its cycle again.
+// starts its cycle again, and one counted from the song goes back to
+// where the song is.
 func (p *processor) Reset() {
 	if p.s.start == FromPlay {
 		p.cycles = 0
 	}
+	p.lead = 0
 }
 
 // Latency implements [plug.Processor]: the LFO is never late.
@@ -290,34 +336,47 @@ func (p *processor) Report(id uint32) float64 {
 }
 
 // Process implements [plug.Processor]: each change takes effect from its
-// frame on.
+// frame on. The Mod input, unconnected, stands at 0.
 func (p *processor) Process(b *plug.Block) {
 	pos := b.Position
-	if pos.Playing && !p.playing && p.s.start == FromPlay {
-		p.cycles = 0
+	if pos.Playing && !p.playing {
+		if p.s.start == FromPlay {
+			p.cycles = 0
+		}
+		p.lead = 0
 	}
 	p.playing = pos.Playing
 	var outs [4][]float32
 	for i := range outs {
 		outs[i] = b.ControlOutput(i)
 	}
+	mod := b.ControlInput(0)
 	ci := 0
 	for f := range b.Frames {
 		for ci < len(b.Changes) && b.Changes[ci].Frame <= f {
 			p.s.take(b.Changes[ci].ID, b.Changes[ci].Value)
 			ci++
 		}
+		m := 0.0
+		if mod != nil {
+			m = min(max(float64(mod[f]), -1), 1)
+		}
+		s, speed := p.s.modded(m)
 		c := p.at(pos, f, b.Frames)
 		for i, out := range outs {
 			if out != nil {
-				out[f] = float32(p.s.wave(c + float64(i)/4))
+				out[f] = float32(s.wave(c + float64(i)/4))
 			}
 		}
 		if f == b.Frames-1 {
-			p.value.Set(p.s.wave(c))
-			p.cycle.Set(c + p.s.phase - math.Floor(c+p.s.phase))
+			p.value.Set(s.wave(c))
+			p.cycle.Set(c + s.phase - math.Floor(c+s.phase))
 		}
-		p.cycles += p.perFrame(pos, f, b.Frames)
+		step := p.perFrame(pos, f, b.Frames)
+		p.cycles += step * speed
+		if p.s.start == FromSong {
+			p.lead += step * (speed - 1)
+		}
 	}
 	for ; ci < len(b.Changes); ci++ {
 		p.s.take(b.Changes[ci].ID, b.Changes[ci].Value)
@@ -350,9 +409,28 @@ func (p *processor) at(pos plug.Position, f, n int) float64 {
 		return p.cycles
 	}
 	if !p.s.sync {
-		return float64(pos.Frame+int64(f)) / p.rate * p.s.rate
+		return float64(pos.Frame+int64(f))/p.rate*p.s.rate + p.lead
 	}
-	return p.beat(pos, f, n) / p.s.beats
+	return p.beat(pos, f, n)/p.s.beats + p.lead
+}
+
+// modded returns the settings as the Mod input's value m moves them,
+// and how many times as fast the LFO runs.
+func (s *settings) modded(m float64) (t settings, speed float64) {
+	t = *s
+	x := s.modAmount * m
+	if x == 0 {
+		return t, 1
+	}
+	switch s.modTo {
+	case ModRate:
+		return t, math.Exp2(3 * x)
+	case ModDepth:
+		t.depth = min(max(t.depth+x, 0), 1)
+	case ModPhase:
+		t.phase += x / 2
+	}
+	return t, 1
 }
 
 // wave returns the output at c cycles, turned by the Phase setting:
