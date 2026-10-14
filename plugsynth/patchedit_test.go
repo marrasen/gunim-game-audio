@@ -150,6 +150,60 @@ func TestTheEditorAddsAndTakesOutOscillators(t *testing.T) {
 	}
 }
 
+// TestTheEditorShowsTheCardsOfASoundPicked shows the editor, then picks
+// a sound of another shape: the cards built for it are the ones it
+// shows, each in a place of its own, and none of the old ones stays.
+func TestTheEditorShowsTheCardsOfASoundPicked(t *testing.T) {
+	p, h := newSynth(t)
+	play(t, p, "Juno pad")
+	w, pn, run := stage(t, p, h)
+	pn.FollowState(nil)
+	showPage(t, w, run, pn, "Patch")
+	old := slices.Clone(pn.pages.editor.flow.cards)
+	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, _ struct{}, u *gunim.UI) {
+		play(t, p, "Robot girl")
+		pn.FollowState(u)
+	})
+	if err := w.Client().Patch("synth", struct{}{}); err != nil {
+		t.Fatal(err)
+	}
+	run(40)
+	cards := pn.pages.editor.flow.cards
+	if slices.Equal(cards, old) {
+		t.Fatal("the editor did not build the cards again")
+	}
+	rs := make([]geom.Rect, 0, len(cards))
+	for _, c := range cards {
+		var r geom.Rect
+		var ok bool
+		gunim.RegisterPatch(w, "synth", func(_ gunim.Node, _ struct{}, u *gunim.UI) { r, ok = u.Bounds(c) })
+		if err := w.Client().Patch("synth", struct{}{}); err != nil {
+			t.Fatal(err)
+		}
+		run(1)
+		if !ok {
+			t.Fatalf("the card %s is not shown", c.Name)
+		}
+		for _, o := range rs {
+			if r.Min.X < o.Max.X && o.Min.X < r.Max.X && r.Min.Y < o.Max.Y && o.Min.Y < r.Max.Y {
+				t.Fatalf("the card %s at %v stands over another at %v", c.Name, r, o)
+			}
+		}
+		rs = append(rs, r)
+	}
+	for _, c := range old {
+		gone := false
+		gunim.RegisterPatch(w, "synth", func(_ gunim.Node, _ struct{}, u *gunim.UI) { _, shown := u.Bounds(c); gone = !shown })
+		if err := w.Client().Patch("synth", struct{}{}); err != nil {
+			t.Fatal(err)
+		}
+		run(1)
+		if !gone && !slices.Contains(cards, c) {
+			t.Fatalf("the old card %s is still shown", c.Name)
+		}
+	}
+}
+
 // TestDrawingTheWaveEndsOnASecondButton draws a Game Boy wave, and a
 // second button pressed mid-drag ends the edit where it got to.
 func TestDrawingTheWaveEndsOnASecondButton(t *testing.T) {
