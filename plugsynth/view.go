@@ -66,7 +66,9 @@ func (m *meter) step(dt time.Duration) bool {
 
 // chip shows the sound, in a plugin's chip in a chain, and, beside it,
 // the level that comes out, left over right. The name turns over as the
-// sound changes.
+// sound changes. Where the host gives it no sound to hear, the host
+// meters the sound itself, if at all: the chip has no meter, and the
+// name has all its room.
 type chip struct {
 	anim.Group
 	p        *plugin
@@ -79,7 +81,10 @@ type chip struct {
 
 func newChip(p *plugin, h plug.Host) *chip {
 	_, out := h.Sound()
-	c := &chip{p: p, name: p.sound().Name, turn: anim.NewFloat(1), out: newMeter(out)}
+	c := &chip{p: p, name: p.sound().Name, turn: anim.NewFloat(1)}
+	if out != nil {
+		c.out = newMeter(out)
+	}
 	c.Add(c.turn)
 	return c
 }
@@ -99,11 +104,14 @@ func (c *chip) Layout(cs gunim.Constraints, _ gunim.Frame, _ gunim.Children) geo
 }
 
 // Paint implements [gunim.Node]: the sound's name, centred on the
-// height and fading where it is cut, and each channel's RMS over its
-// peak, fainter.
+// height and fading where it is cut, and its level in two rows of
+// lights.
 func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
-	ink, ground, over := widget.Ink.Get(f.Theme), audioui.Ground.Get(f.Theme), audioui.Over.Get(f.Theme)
-	room := box.W - chipBars - 8
+	ink := widget.Ink.Get(f.Theme)
+	room := box.W
+	if c.out != nil {
+		room -= chipBars + 8
+	}
 	t := c.turn.Value()
 	func() {
 		defer p.Layer(paint.LayerOpts{Bounds: geom.Rc(0, 0, room+2, box.H), Clip: true, Opacity: 1})()
@@ -114,28 +122,19 @@ func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 		run := audioui.Shaped(c.name, chipText, false, false)
 		run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2+box.H*0.6*(1-t)), audioui.Faded(ink, 0.9*t), room, 18)
 	}()
-	x, h := box.W-chipBars, float32(3)
-	top := (box.H - 2*h - 2) / 2
-	lv := c.out.levels
-	for ch := range 2 {
-		y := top + float32(ch)*(h+2)
-		p.RRect(geom.Rc(x, y, chipBars, h), h/2, paint.Solid(audioui.Faded(ground, 0.5)))
-		if lv.Peak[ch] > -59 {
-			p.RRect(geom.Rc(x, y, chipBars*audioui.MeterAt(lv.Peak[ch]), h), h/2, paint.Solid(audioui.Faded(ink, 0.3)))
-		}
-		if lv.RMS[ch] > -59 {
-			col := ink
-			if lv.Peak[ch] > -0.1 {
-				col = over
-			}
-			p.RRect(geom.Rc(x, y, chipBars*audioui.MeterAt(lv.RMS[ch]), h), h/2, paint.Solid(audioui.Faded(col, 0.85)))
-		}
+	if c.out == nil {
+		return
 	}
+	h := float32(8)
+	audioui.ChipLEDs.Paint(p, f.Theme, geom.Rc(box.W-chipBars, (box.H-h)/2, chipBars, h), c.out.levels)
 }
 
 // Step implements [gunim.Animator]: the name turning, and the bars.
 func (c *chip) Step(dt time.Duration) bool {
 	moving := c.Group.Step(dt)
+	if c.out == nil {
+		return moving
+	}
 	return c.out.step(dt) || moving
 }
 

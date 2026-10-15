@@ -162,8 +162,8 @@ func TestEverySoundLoadsAndSounds(t *testing.T) {
 	for _, s := range ss {
 		banks[s.Bank]++
 	}
-	// 69 presets; 128 programs and 3 kits; 214 patches of the songs.
-	if banks[Library] != 69 || banks[GeneralMIDI] != 131 || banks[Songs] != 214 {
+	// 69 presets; 128 programs and 3 kits; 270 patches of the songs.
+	if banks[Library] != 69 || banks[GeneralMIDI] != 131 || banks[Songs] != 270 {
 		t.Fatalf("the banks hold %v sounds", banks)
 	}
 	for _, s := range ss {
@@ -191,8 +191,8 @@ func TestEveryGroupIsListedOnce(t *testing.T) {
 	if got := len(Groups(Library)); got != 9 {
 		t.Errorf("the library has %d groups, not its 9 categories", got)
 	}
-	if got := len(Groups(Songs)); got != 28 {
-		t.Errorf("%d songs play patches, not 28", got)
+	if got := len(Groups(Songs)); got != 34 {
+		t.Errorf("%d songs play patches, not 34", got)
 	}
 	seen := map[[3]string]bool{}
 	for _, s := range Sounds() {
@@ -559,6 +559,9 @@ func TestTheViewsShowAndFollow(t *testing.T) {
 	c, ok := p.View(plug.Chip, h).(*chip)
 	if !ok || c.name != "Moog bass" {
 		t.Fatal("the chip shows another sound than the Moog bass")
+	}
+	if c.out != nil {
+		t.Error("the chip meters, though its host gives it no sound to hear")
 	}
 	play(t, p, "TR-808")
 	w := gunimtest.New(t, geom.Sz(200, 30), nil)
