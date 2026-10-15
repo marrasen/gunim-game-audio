@@ -174,6 +174,10 @@ func TestEditorsEditTheSongAsItPlays(t *testing.T) {
 func TestEditorsRenderWhatTheyShow(t *testing.T) {
 	h := newHarness(t, music.KeypadRound)
 	h.do(Focus{Patch: "lead", Kit: "kit", Drum: "sn", Track: "bass"}, Audition{Patch: "lead", Pitch: 72}, Audition{Patch: "kit", Drum: "cp"})
+	// The loudness is measured from its first reading after sound comes
+	// on, as the app reads the state every frame.
+	h.play(50 * time.Millisecond)
+	h.s.state()
 	h.play(500 * time.Millisecond)
 	st := h.s.state()
 	if st.Preview.Patch != "lead" || len(st.Preview.Wave) != 720 || len(st.Preview.Cycle) != 256 {

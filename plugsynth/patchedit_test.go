@@ -1,6 +1,7 @@
 package plugsynth
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -150,6 +151,77 @@ func TestTheEditorAddsAndTakesOutOscillators(t *testing.T) {
 	}
 }
 
+// TestCardsGlideAndFadeAsOscillatorsComeAndGo takes the second of
+// three oscillators out: its card fades out where it stood, and the
+// third's card glides up into its place. An oscillator added fades in.
+func TestCardsGlideAndFadeAsOscillatorsComeAndGo(t *testing.T) {
+	p, h := newSynth(t)
+	play(t, p, "Jupiter brass lead")
+	w, pn, run := stage(t, p, h)
+	pn.FollowState(nil)
+	showPage(t, w, run, pn, "Patch")
+	e := pn.pages.editor
+	gone, third := e.flow.slots[e.flow.keys[2]], e.flow.slots[e.flow.keys[3]]
+	if third.card.Name != "OSC 3" || gone.card.Name != "OSC 2" {
+		t.Fatalf("the slots hold %s and %s", gone.card.Name, third.card.Name)
+	}
+	from, to := bounds(t, w, run, third).Min, bounds(t, w, run, gone).Min
+	act := func(fn func(u *gunim.UI)) {
+		gunim.RegisterPatch(w, "synth", func(_ gunim.Node, _ struct{}, u *gunim.UI) { fn(u) })
+		if err := w.Client().Patch("synth", struct{}{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	act(func(u *gunim.UI) { e.dropOsc(1, u) })
+	run(6)
+	if third.card.Name != "OSC 2" {
+		t.Fatalf("the third oscillator's slot holds %s", third.card.Name)
+	}
+	mid := bounds(t, w, run, third).Min
+	if mid.Y >= from.Y || mid.Y <= to.Y {
+		t.Errorf("a few frames in, the third card stands at %v, not between %v and %v", mid, from, to)
+	}
+	if fade := gone.in.Value(); fade <= 0 || fade >= 1 {
+		t.Errorf("a few frames in, the card taken out shows at %.2f", fade)
+	}
+	run(90)
+	// It is wider, with a knob of its pulse's width, so it stands in the
+	// row the second stood in, centred.
+	if at := bounds(t, w, run, third).Min; math.Abs(float64(at.Y-to.Y)) > 0.5 {
+		t.Errorf("settled, the third card stands at %v, not in the row at %v", at, to)
+	}
+	if _, shown := gunimBounds(t, w, run, gone); shown {
+		t.Error("the card taken out is still shown")
+	}
+	act(func(u *gunim.UI) { e.addOsc(u) })
+	run(3)
+	added := e.flow.slots[e.flow.keys[3]]
+	if added == third || added.card.Name != "OSC 3" {
+		t.Fatalf("the oscillator added stands in %s's slot", added.card.Name)
+	}
+	if in := added.in.Value(); in <= 0 || in >= 1 {
+		t.Errorf("a few frames in, the card added shows at %.2f", in)
+	}
+	run(90)
+	if in := added.in.Value(); in != 1 {
+		t.Errorf("settled, the card added shows at %.2f", in)
+	}
+}
+
+// gunimBounds returns where n stands in the window, and whether the
+// last frame drew it.
+func gunimBounds(t *testing.T, w *gunim.Window, run func(int), n gunim.Node) (geom.Rect, bool) {
+	t.Helper()
+	var b geom.Rect
+	var ok bool
+	gunim.RegisterPatch(w, "synth", func(_ gunim.Node, _ struct{}, u *gunim.UI) { b, ok = u.Bounds(n) })
+	if err := w.Client().Patch("synth", struct{}{}); err != nil {
+		t.Fatal(err)
+	}
+	run(1)
+	return b, ok
+}
+
 // TestTheEditorShowsTheCardsOfASoundPicked shows the editor, then picks
 // a sound of another shape: the cards built for it are the ones it
 // shows, each in a place of its own, and none of the old ones stays.
@@ -226,5 +298,28 @@ func TestDrawingTheWaveEndsOnASecondButton(t *testing.T) {
 	}
 	if got := p.sound().Patch.Osc[0].Table; len(got) != 32 || got[0] != 14 {
 		t.Fatalf("the wave drawn is %v", got)
+	}
+}
+
+// TestTheAddButtonsShowWhereThePatchCanHaveMore shows the buttons that
+// add an oscillator and an LFO for each kind of patch, greyed where it
+// has as many as it can.
+func TestTheAddButtonsShowWhereThePatchCanHaveMore(t *testing.T) {
+	a := newAdds(&patchEditor{})
+	for _, c := range []struct {
+		pt         *synth.Patch
+		osc, lfo   bool
+		full, lfos bool
+	}{
+		{&synth.Patch{Osc: make([]synth.Osc, 2)}, true, true, false, false},
+		{&synth.Patch{Osc: make([]synth.Osc, maxOscs), LFO: make([]synth.LFO, maxLFOs)}, true, true, true, true},
+		{&synth.Patch{Kind: "pluck"}, false, true, false, false},
+		{&synth.Patch{Kind: "drums"}, false, false, false, false},
+	} {
+		a.follow(c.pt)
+		if a.shows != [2]bool{c.osc, c.lfo} || a.osc.Disabled != c.full || a.lfo.Disabled != c.lfos {
+			t.Errorf("a %q patch of %d oscillators and %d LFOs shows %v, greyed %v and %v", c.pt.Kind, len(c.pt.Osc), len(c.pt.LFO),
+				a.shows, a.osc.Disabled, a.lfo.Disabled)
+		}
 	}
 }

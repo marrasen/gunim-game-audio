@@ -12,9 +12,10 @@ import (
 // The host tells of each note before it lands, in [plug.Block.Upcoming].
 // The processor keeps the notes told of, and plays the sound on a second
 // instrument, pre, ahead of each: a swell that rises into the note and
-// cuts as it lands, and a quiet grace note before it. It steers them at
-// every aheadStep frames of the engine's, counted from the last Reset,
-// so they sound the same in any block size.
+// cuts as it lands, and a quiet grace note before it, both as hard as
+// the Velocity knob says. It steers them at every aheadStep frames of
+// the engine's, counted from the last Reset, so they sound the same in
+// any block size.
 
 // The most notes told of the processor keeps, how many of the engine's
 // frames apart it steers the sound ahead of them, how fast a swell cuts
@@ -179,7 +180,7 @@ func (p *processor) steer(at int64) {
 			x.swell = 0
 		case swell && x.swell == 0 && at >= x.lands-p.swell && at < x.lands:
 			x.swell, x.swellPitch = p.ahead.newID(), x.pitch
-			p.pre.NoteOnTurn(x.swell, x.pitch, x.vel, 0, x.turn)
+			p.pre.NoteOnTurn(x.swell, x.pitch, x.vel*p.aheadVel, 0, x.turn)
 			p.pre.Fade(x.swell, p.rise(x, at), 0)
 		}
 		if x.swell != 0 {
@@ -188,7 +189,7 @@ func (p *processor) steer(at int64) {
 		half := p.ghost / 2
 		if p.ghost > 0 && !x.ghosted && at >= x.lands-p.ghost && at < x.lands-half {
 			x.ghost, x.ghosted = p.ahead.newID(), true
-			p.pre.NoteOnTurn(x.ghost, x.pitch, x.vel*ghostLevel, 0, x.turn)
+			p.pre.NoteOnTurn(x.ghost, x.pitch, x.vel*ghostLevel*p.aheadVel, 0, x.turn)
 		}
 		if x.ghost != 0 && at >= x.lands-half {
 			p.pre.NoteOff(x.ghost)

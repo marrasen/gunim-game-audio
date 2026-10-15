@@ -51,7 +51,7 @@ func newPages(v *panel, h plug.Host) *pages {
 		sec("VOICE", VowelID),
 		sec("PLAYED", ModID, PressureID),
 		sec("OUTPUT", GainID, PanID),
-		sec("AHEAD", SwellID, GhostID),
+		sec("AHEAD", SwellID, GhostID, AheadVelID),
 	}
 	pg.controls = widget.NewScroll(&flow{cards: pg.sections})
 	return pg
@@ -86,17 +86,42 @@ func (v *panel) edited(u *gunim.UI) {
 	u.Invalidate()
 }
 
-// pageNodes are the tabs and the pages, as the panel's last children.
-func (pg *pages) nodes() []gunim.Node { return []gunim.Node{pg.tabs, pg.editor, pg.controls} }
+// nodes are the Patch page's buttons that add, the tabs and the
+// pages, as the panel's last children.
+func (pg *pages) nodes() []gunim.Node {
+	return []gunim.Node{pg.editor.adds, pg.tabs, pg.editor, pg.controls}
+}
+
+// The panel's children from its pages, counted back from its last.
+const (
+	addsBack = 4 - iota
+	tabsBack
+	editorBack
+	controlsBack
+	// keysBack is the keys', before the pages', where the panel has
+	// them.
+	keysBack = 5
+)
+
+// addsGapX is the room between the buttons that add and the tabs.
+const addsGapX = 12
 
 // layoutPages places the tabs at the right of the line under the name,
-// and
-// lays the pages out where page shows, in area, the others in none.
+// and on the Patch page the buttons that add before them; it lays the
+// pages out where page shows, in area, the others in none.
 func (v *panel) layoutPages(kids gunim.Children, right float32, area geom.Rect) {
 	n := kids.Len()
-	tabs, editor, controls := kids.At(n-3), kids.At(n-2), kids.At(n-1)
-	tabs.Layout(gunim.Tight(geom.Sz(tabsW, widget.SegmentedHeight.Get(nil))))
+	adds, tabs, editor, controls := kids.At(n-addsBack), kids.At(n-tabsBack), kids.At(n-editorBack), kids.At(n-controlsBack)
+	h := widget.SegmentedHeight.Get(nil)
+	tabs.Layout(gunim.Tight(geom.Sz(tabsW, h)))
 	tabs.Place(geom.Pt(right-tabsW, crumbY-7))
+	if v.page() == PatchPage {
+		sz := adds.Layout(gunim.Constraints{Max: geom.Sz(max(right-tabsW-addsGapX-panelInset-120, 0), h)})
+		adds.Place(geom.Pt(right-tabsW-addsGapX-sz.W, crumbY-7))
+	} else {
+		adds.Layout(gunim.Tight(geom.Size{}))
+		adds.Place(geom.Point{})
+	}
 	for i, k := range []gunim.Child{editor, controls} {
 		if v.page() == i+1 {
 			k.Layout(gunim.Tight(area.Size()))
@@ -119,7 +144,7 @@ func (v *panel) layoutPage(size geom.Size, kids gunim.Children) geom.Size {
 	kids.At(0).Place(geom.Pt(right-2*stepW-4, nameY-2))
 	kids.At(1).Layout(gunim.Tight(geom.Sz(stepW, stepW)))
 	kids.At(1).Place(geom.Pt(right-stepW, nameY-2))
-	for i := 2; i < kids.Len()-3; i++ {
+	for i := 2; i < kids.Len()-addsBack; i++ {
 		kids.At(i).Layout(gunim.Tight(geom.Size{}))
 		kids.At(i).Place(geom.Point{})
 	}
@@ -129,7 +154,7 @@ func (v *panel) layoutPage(size geom.Size, kids gunim.Children) geom.Size {
 		h := float32(64)
 		w := min(area.Size().W, 15*28+2*(shiftW+4))
 		area.Max.Y -= h + 10
-		k := kids.At(kids.Len() - 4)
+		k := kids.At(kids.Len() - keysBack)
 		k.Layout(gunim.Tight(geom.Sz(w, h)))
 		k.Place(geom.Pt(d.Min.X+(d.Size().W-w)/2, area.Max.Y+6))
 		v.shown = true
@@ -142,9 +167,9 @@ func (v *panel) layoutPage(size geom.Size, kids gunim.Children) geom.Size {
 func (v *panel) shows(i, n int) bool {
 	switch v.page() {
 	case SoundPage:
-		return i < n-2
+		return i < n-addsBack || i == n-tabsBack
 	case PatchPage:
-		return i < 2 || i >= n-3 && i != n-1 || v.keys != nil && v.shown && i == n-4
+		return i < 2 || i >= n-addsBack && i != n-controlsBack || v.keys != nil && v.shown && i == n-keysBack
 	}
-	return i < 2 || i == n-3 || i == n-1
+	return i < 2 || i == n-tabsBack || i == n-controlsBack
 }

@@ -53,6 +53,20 @@ func TestTheSwellRisesIntoItsNote(t *testing.T) {
 	}
 }
 
+func TestTheVelocityKnobPlaysTheSoundAheadSofter(t *testing.T) {
+	both := func(vel float64) []plug.Change {
+		return append(set(SwellID, 500), plug.Change{ID: GhostID, Value: 300}, plug.Change{ID: AheadVelID, Value: vel})
+	}
+	full := rms(ahead(t, 256, both(1), nil)[lands-24000 : lands])
+	soft := rms(ahead(t, 256, both(0.3), nil)[lands-24000 : lands])
+	if soft <= 0 || soft >= full*0.8 {
+		t.Errorf("at 30%% velocity the sound ahead plays at %.4f, at full %.4f", soft, full)
+	}
+	if r := rms(ahead(t, 256, both(0), nil)[:lands]); r != 0 {
+		t.Errorf("at no velocity the sound ahead plays at %.5f", r)
+	}
+}
+
 func TestTheSoundAheadIsTheSameInAnyBlockSize(t *testing.T) {
 	both := append(set(SwellID, 300), plug.Change{ID: GhostID, Value: 150})
 	want := ahead(t, 256, both, nil)

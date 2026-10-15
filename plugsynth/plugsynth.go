@@ -82,6 +82,9 @@ const (
 	// note, from 0 to 1, on top of each note's own.
 	ModID
 	PressureID
+	// AheadVelID is how hard the swell and the grace note play, as a
+	// share of their note's velocity.
+	AheadVelID
 )
 
 // Vowels are the vowels VowelID picks from 1 on.
@@ -152,6 +155,7 @@ var Descriptor = plug.Descriptor{
 		{ID: VowelID, Name: "Vowel", Max: 5, Steps: 5, Flags: plug.Automatable, Format: vowel},
 		{ID: ModID, Name: "Mod wheel", Max: 1, Flags: plug.Automatable, Format: percent},
 		{ID: PressureID, Name: "Pressure", Max: 1, Flags: plug.Automatable, Format: percent},
+		{ID: AheadVelID, Name: "Velocity", Max: 1, Default: 1, Flags: plug.Automatable, Format: percent},
 	},
 	New: func(h plug.Host) plug.Plugin { return newPlugin(h) },
 }
@@ -344,6 +348,9 @@ type processor struct {
 	// times, in the engine's frames.
 	ahead        aheadNotes
 	swell, ghost int64
+	// aheadVel is how hard they play, as a share of their note's
+	// velocity.
+	aheadVel float64
 	// rate is the host's rate, and step how many of the engine's frames
 	// pass in one of the host's; delay is how many of the host's frames
 	// the sound comes late.
@@ -379,7 +386,7 @@ type processor struct {
 }
 
 func newProcessor(snd *voicing) *processor {
-	p := &processor{cur: snd.in, pre: snd.pre}
+	p := &processor{cur: snd.in, pre: snd.pre, aheadVel: 1}
 	p.Prepare(plug.Setup{Rate: synth.Rate, MaxBlock: 512, Channels: 2})
 	return p
 }
@@ -624,6 +631,9 @@ func (p *processor) take(c plug.Change) {
 		return
 	case GhostID:
 		p.ghost = int64(math.Round(v * synth.Rate / 1000))
+		return
+	case AheadVelID:
+		p.aheadVel = min(max(v, 0), 1)
 		return
 	}
 	p.cur.SetKnobs(p.knobs)
