@@ -65,6 +65,8 @@ var (
 		"A string machine's ensemble: three copies, each swept by a slow and a fast sine"}
 	distortTips = []string{"A fuzz's hard clip", "A guitar amplifier's valves and its cabinet",
 		"A wavefolder, which folds the sound back on itself"}
+	autoGainTips = []string{"The distortion as loud as it comes out, louder the harder it drives",
+		"The distortion kept as loud as the sound fed to it, however hard it drives"}
 )
 
 // unitCard is a unit's card in the chain: its section of controls, a
@@ -74,7 +76,9 @@ type unitCard struct {
 	unit    Unit
 	section *plugui.Section
 	sel     *plugui.Selector
-	remove  *widget.IconButton
+	// auto switches a distortion's Auto gain.
+	auto   *plugui.Selector
+	remove *widget.IconButton
 	// x and y are where it stands, gliding; appear grows from 0 to 1 as
 	// it comes, and lift as it is dragged.
 	x, y, appear, lift *anim.Float
@@ -124,9 +128,13 @@ func newUnitCard(pn *chainPanel, u Unit) *unitCard {
 		c.sel = plugui.NewSelector("Type", DistortTypeNames, distortTips)
 		c.sel.OnPick = pick(DistortTypeParam)
 		c.sel.SetSelected(stepOf(v[UnitParamID(u.Slot, DistortTypeParam)], len(DistortTypeNames)), nil)
+		c.auto = plugui.NewSelector("Auto gain", []string{"Off", "On"}, autoGainTips)
+		c.auto.OnPick = pick(DistortAutoParam)
+		c.auto.SetSelected(stepOf(v[UnitParamID(u.Slot, DistortAutoParam)], 2), nil)
 		c.section.Knobs = []*plugui.Knob{knob(DistortDriveParam, "How hard the sound is driven"),
-			knob(DistortMixParam, "How much of the distortion is heard")}
-		c.section.Add(c.sel, 56)
+			knob(DistortMixParam, "How much of the distortion is heard"),
+			knob(DistortOutputParam, "How far the sound is turned up or down, after the mix")}
+		c.section.Add(c.sel, 56).Add(c.auto, 56)
 	}
 	c.remove = widget.NewIconButton(icon.X, "Remove the "+strings.ToLower(kindName[u.Kind]))
 	c.remove.OnClick = func(ui *gunim.UI) gunim.Intent {
@@ -154,6 +162,9 @@ func (c *unitCard) follow(id uint32, v float64, u *gunim.UI) {
 	c.section.Follow(id, v, u)
 	if c.sel != nil && (id == UnitParamID(c.unit.Slot, ChorusModeParam) || id == UnitParamID(c.unit.Slot, DistortTypeParam)) {
 		c.sel.SetSelected(int(math.Round(v)), u)
+	}
+	if c.auto != nil && id == UnitParamID(c.unit.Slot, DistortAutoParam) {
+		c.auto.SetSelected(int(math.Round(v)), u)
 	}
 }
 

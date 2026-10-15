@@ -3,6 +3,8 @@ package synth
 import (
 	"math"
 	"strconv"
+
+	"github.com/marrasen/gunim-game-audio/soundfont"
 )
 
 // Rate is the sample rate the engine runs at, in frames a second.
@@ -15,7 +17,8 @@ const Rate = rate
 // each group has a sustain pedal, which holds only that group's notes.
 //
 // It plays synth, pluck and drums patches on the same voices a song's
-// tracks play, so a patch sounds alike in both. A drums patch plays its
+// tracks play, so a patch sounds alike in both, and a patch of a
+// SoundFont bank on the bank's samples, where the bank is registered. A drums patch plays its
 // kit by General MIDI's drum notes: a note plays the kit's drum named by
 // its number, as GMKit's are, or else the first drum of its role the
 // kit lists, as bd, bd9, sbd or nbd on 36, or else the built-in drum of
@@ -41,6 +44,12 @@ type Instrument struct {
 	vs     *voices
 	hs     *hits
 	ctx    renderCtx
+	// sf are a SoundFont patch's voices, and regions the regions a note
+	// plays, kept from note to note; notes counts the notes struck, to
+	// tell the voices of each apart.
+	sf      *sfVoices
+	regions []soundfont.Region
+	notes   uint64
 	// kit is a drums patch's drums, by note.
 	kit [128]*drum
 	// held are the notes sounding by their IDs, the oldest first, n of
@@ -63,7 +72,9 @@ const (
 type liveNote struct {
 	id, group int32
 	v         *voice
-	age       uint64
+	// age is the voice's age, as it took the note; for a SoundFont
+	// patch's note, the note its voices play, as they count it.
+	age uint64
 	// n is the note as struck, bend how far it is bent, and mod and
 	// press its controllers, for a mono patch to go back to it.
 	n                note
@@ -83,7 +94,8 @@ type pedal struct {
 
 // Knobs turn an Instrument's patch as it plays, from how the patch is
 // made: their zero value leaves it as it is. A drums patch takes only
-// Gain.
+// Gain. A SoundFont patch takes Gain, Pan and Tune, and the filter's
+// Cutoff and the envelope's knobs on its notes to come.
 type Knobs struct {
 	// Cutoff moves the filter's cutoff, in octaves, and Res adds to its
 	// resonance, from -1 to 1. Env adds to how many octaves the filter's
@@ -114,18 +126,26 @@ type Knobs struct {
 	Mod, Pressure float64
 }
 
-// NewInstrument returns an instrument that plays p. It plays a patch of
-// a SoundFont bank on the engine's own instruments, as a song does where
-// the bank is missing.
+// NewInstrument returns an instrument that plays p. A patch of a
+// SoundFont bank plays the bank's samples, where it is registered, and
+// else, as a song does where the bank is missing, the engine's own
+// instruments. A kit of the engine's drums named to play on a bank plays
+// the engine's drums.
 func NewInstrument(p *Patch) (*Instrument, error) {
 	src := *p
-	src.SoundFont = ""
-	if src.Kind == "" && len(src.Osc) == 0 && src.Noise == 0 && p.SoundFont != "" {
-		gm := GMPatch(p.Program & 127)
-		if p.Gain != 0 {
-			gm.Gain *= p.Gain
+	sampled := src.Kind == "" && len(src.Osc) == 0 && src.Noise == 0 && p.SoundFont != ""
+	if !sampled || SoundFontNamed(p.SoundFont) == nil {
+		src.SoundFont = ""
+		if sampled {
+			gm := GMPatch(p.Program & 127)
+			if p.Bank == DrumBank || p.FontKit {
+				gm = GMKit(p.Program & 127)
+			}
+			if p.Gain != 0 {
+				gm.Gain *= p.Gain
+			}
+			src = *gm
 		}
-		src = *gm
 	}
 	in := &Instrument{orig: &src, src: src, level: 1}
 	c, err := in.src.compile("instrument")
@@ -136,6 +156,14 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 	mod, press := in.src.Responses()
 	c.live = &liveCtl{lfoRate: 1, lfoDepth: 1, modR: mod, pressR: press}
 	in.ctx = renderCtx{beatHz: 2, carry: true, l: make([]float32, control), r: make([]float32, control)}
+	if c.kind == kindFont {
+		// A note may play a region for each side, and a layer or two:
+		// room for them all, and for the notes ringing out.
+		in.sf = newSFVoices(2 * max(c.poly, 16))
+		in.sf.live = true
+		in.regions = make([]soundfont.Region, 0, 16)
+		return in, nil
+	}
 	if c.kind == kindDrums {
 		in.hs = newHits(c.poly)
 		// Each hit's noise is seeded now, so a note takes nothing new as
@@ -255,19 +283,78 @@ func (in *Instrument) NoteOnTurn(id int32, pitch, vel float64, group int32, turn
 	}
 	var v *voice
 	age := uint64(0)
-	if in.p.kind == kindDrums {
+	switch in.p.kind {
+	case kindFont:
+		in.notes++
+		age = in.notes
+		in.playFont(age, pitch, vel)
+	case kindDrums:
 		// A drum rings out by itself; the note is kept, voiceless, for
 		// Pass to hand on.
 		if key := int(math.Round(pitch)); key >= 0 && key <= 127 && in.kit[key] != nil {
 			h := in.hs.play(*in.kit[key], float32(vel), 0, float32(pitch), rate/2, 0)
 			h.part = drumParts[key]
 		}
-	} else {
+	default:
 		v = in.vs.play(in.p, n)
 		age = v.age
 	}
 	in.held[in.n] = liveNote{id: id, group: group, v: v, age: age, n: n, turn: turn}
 	in.n++
+}
+
+// SetOffline says the instrument renders offline, as for an export,
+// where a block may take as long as it needs: a note of a SoundFont
+// bank waits for its samples where another goroutine is decoding them,
+// as it may not on an audio thread, where it plays without them.
+func (in *Instrument) SetOffline(on bool) {
+	if in.sf != nil {
+		in.sf.live = !on
+	}
+}
+
+// playFont plays a SoundFont patch's note at pitch and velocity vel,
+// from 0 to 1, as note: each region the bank plays for it, through the
+// knobs as they stand.
+func (in *Instrument) playFont(note uint64, pitch, vel float64) {
+	key := int(math.Round(pitch))
+	if key < 0 || key > 127 {
+		return
+	}
+	v127 := min(max(int(vel*127+0.5), 1), 127)
+	src, k := in.orig, &in.k
+	in.regions = in.p.font.AppendRegions(in.regions[:0], src.Bank, src.Program, key, v127)
+	for i := range in.regions {
+		v := in.sf.play(&in.regions[i], key, v127, 0)
+		v.note = note
+		v.fine = pitch - float64(key)
+		v.gainBy = float64(in.p.gain)
+		reg := &v.reg
+		if k.Attack != 0 || k.Decay != 0 || k.Release != 0 {
+			reg.Vol.Attack *= math.Exp2(k.Attack)
+			reg.Vol.Decay *= math.Exp2(k.Decay)
+			reg.Vol.Release *= math.Exp2(k.Release)
+		}
+		reg.Vol.Sustain = min(max(reg.Vol.Sustain+k.Sustain, 0), 1)
+		if k.Cutoff != 0 {
+			reg.Cutoff = min(max(reg.Cutoff*math.Exp2(k.Cutoff), 20), 20000)
+		}
+		l, r := panGains(min(max(float32(reg.Pan+k.Pan), -1), 1))
+		v.panL, v.panR = l, r
+	}
+}
+
+// fontVoices calls fn with each voice that plays note, of a SoundFont
+// patch's.
+func (in *Instrument) fontVoices(note uint64, fn func(v *sfVoice)) {
+	if in.sf == nil || note == 0 {
+		return
+	}
+	for i := range in.sf.vs {
+		if v := &in.sf.vs[i]; v.on && v.note == note {
+			fn(v)
+		}
+	}
 }
 
 // Fade moves note id's level, a factor on its sound from 1 as it starts,
@@ -336,6 +423,7 @@ func (in *Instrument) Bend(id int32, semis float64) {
 		if h.v != nil && h.v.on && h.v.age == h.age {
 			h.v.bend = h.bend
 		}
+		in.fontVoices(h.age, func(v *sfVoice) { v.bend = semis })
 	}
 }
 
@@ -438,6 +526,8 @@ func (in *Instrument) find(id int32) int {
 func (in *Instrument) let(i int) {
 	if h := &in.held[i]; h.v != nil && h.v.on && h.v.age == h.age {
 		h.v.release()
+	} else if in.sf != nil {
+		in.fontVoices(h.age, (*sfVoice).release)
 	}
 	copy(in.held[i:in.n], in.held[i+1:in.n])
 	in.n--
@@ -503,6 +593,13 @@ func (in *Instrument) Sounding() bool {
 			}
 		}
 	}
+	if in.sf != nil {
+		for i := range in.sf.vs {
+			if in.sf.vs[i].on {
+				return true
+			}
+		}
+	}
 	return false
 }
 
@@ -512,6 +609,11 @@ func (in *Instrument) Sounding() bool {
 // It counts the patch as it stands now, with the knobs as last set: a
 // note started before a knob changed may ring longer.
 func (in *Instrument) Tail() float64 {
+	if in.p.kind == kindFont {
+		// A bank's release is its regions' own, a second or two at most
+		// for most; a cymbal or a held piano note rings longer.
+		return fontTail * math.Exp2(in.k.Release)
+	}
 	if in.p.kind != kindDrums {
 		return in.src.Amp.Release
 	}
@@ -588,7 +690,14 @@ func (in *Instrument) Silence() {
 			in.hs.hs[i].on = false
 		}
 	}
+	if in.sf != nil {
+		in.sf.silence()
+	}
 }
+
+// fontTail is how long, in seconds, a SoundFont patch is taken to ring
+// once let go.
+const fontTail = 3
 
 // Retune plays next's patch in place of its own, the notes sounding as
 // well as those to come, where the two patches are alike in shape, as a
@@ -622,6 +731,9 @@ func (in *Instrument) Retune(next *Instrument) bool {
 // sameShape reports whether p and q are alike enough in shape for a
 // voice playing one to play on with the other, as Retune says.
 func (p *patch) sameShape(q *patch) bool {
+	if p.kind == kindFont && (p.font != q.font || p.src.Bank != q.src.Bank || p.src.Program != q.src.Program) {
+		return false
+	}
 	if p.kind != q.kind || p.kind == kindDrums || p.poly != q.poly || len(p.osc) != len(q.osc) ||
 		p.filter != q.filter || len(p.lfo) != len(q.lfo) || p.vocoder != q.vocoder || p.singer != q.singer {
 		return false

@@ -53,6 +53,14 @@ func hertz(v float64) string {
 	return fmt.Sprintf("%.0f Hz", v)
 }
 
+// decibels writes a level in decibels to show.
+func decibels(v float64) string {
+	if math.Abs(v) < 0.05 {
+		return "0 dB"
+	}
+	return fmt.Sprintf("%+.1f dB", v)
+}
+
 // onOff writes a switch to show.
 func onOff(v float64) string {
 	if v > 0.5 {

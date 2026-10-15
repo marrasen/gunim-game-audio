@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,9 +174,43 @@ func TestADroppedFileThatIsNoMIDIFileSaysSo(t *testing.T) {
 		t.Fatalf("a folder: %v, playing %d", a.list, a.cur)
 	}
 	// A file dropped while a song plays plays at once, after the list.
-	a.add([]string{"file://" + good})
+	a.add([]string{fileURI(good)})
 	if len(a.list) != 2 || a.cur != 1 || !a.playing() {
 		t.Fatalf("a file dropped while one plays: %d on the list, playing %d", len(a.list), a.cur)
+	}
+}
+
+// fileURI is the file URI of path, as a file manager hands it over:
+// file:///home/me/a.mid, or file:///C:/Music/a.mid.
+func fileURI(path string) string {
+	p := filepath.ToSlash(path)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
+func TestAFileURINamesItsFile(t *testing.T) {
+	cases := map[string]string{
+		"file:///home/me/a%20song.mid":   "/home/me/a song.mid",
+		"file://localhost/home/me/a.mid": "/home/me/a.mid",
+	}
+	if runtime.GOOS == "windows" {
+		cases = map[string]string{
+			"file:///C:/Music/a%20song.mid":   `C:\Music\a song.mid`,
+			"file://localhost/C:/Music/a.mid": `C:\Music\a.mid`,
+			"file://server/share/a.mid":       `\\server\share\a.mid`,
+		}
+	}
+	for uri, want := range cases {
+		if got, ok := uriPath(uri); !ok || got != want {
+			t.Errorf("%s names %q, %v; want %q", uri, got, ok, want)
+		}
+	}
+	for _, p := range []string{"/home/me/a.mid", `C:\Music\a.mid`, "a.mid", "https://example.com/a.mid"} {
+		if got, ok := uriPath(p); ok {
+			t.Errorf("%s reads as a file URI, of %q", p, got)
+		}
 	}
 }
 

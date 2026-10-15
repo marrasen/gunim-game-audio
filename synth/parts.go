@@ -73,6 +73,9 @@ func (in *Instrument) RenderParts(l, r []float32, parts *[DrumParts]Part) {
 	if in.vs != nil {
 		in.vs.render(l, r, &in.ctx)
 	}
+	if in.sf != nil {
+		in.sf.render(l, r, float64(in.p.live.tune))
+	}
 	if in.hs != nil {
 		if parts != nil {
 			in.hs.renderParts(l, r, parts, in.ctx.carry)

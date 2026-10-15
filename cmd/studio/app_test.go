@@ -20,9 +20,9 @@ import (
 	"github.com/marrasen/gunim/widget"
 
 	music "github.com/marrasen/gunim-game-audio"
-	"github.com/marrasen/gunim-game-audio/internal/fontcache"
 	"github.com/marrasen/gunim-game-audio/internal/sftest"
 	"github.com/marrasen/gunim-game-audio/soundfont"
+	"github.com/marrasen/gunim-game-audio/soundfont/fontcache"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 

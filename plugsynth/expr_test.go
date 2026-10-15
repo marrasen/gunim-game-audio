@@ -49,7 +49,7 @@ func TestEveryParameterTurnsTheSound(t *testing.T) {
 	}
 	plain := render(0, 0)
 	for _, prm := range Descriptor.Params {
-		if prm.ID == SwellID || prm.ID == GhostID {
+		if prm.ID == SwellID || prm.ID == GhostID || prm.ID == AheadVelID {
 			continue
 		}
 		v := prm.Plain(0.85)

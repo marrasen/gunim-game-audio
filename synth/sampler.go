@@ -13,13 +13,19 @@ const sfLevel = 2.6
 // sfVoice plays a region of a SoundFont bank: its sample, looped as the
 // bank says, through its envelopes, its LFOs and its lowpass filter.
 type sfVoice struct {
-	on     bool
+	on bool
+	// r is the region it plays, reg, its own copy, so the voice keeps it
+	// whatever becomes of the regions it was found among.
 	r      *soundfont.Region
+	reg    soundfont.Region
 	frames []int16
 	age    uint64
-	// key is the note, vel its velocity, 0 to 1, and shift the semitones
-	// a channel's bend wheel and vibrato move it.
-	key, vel, shift float64
+	// note is the note of an Instrument it plays, 0 for a song's.
+	note uint64
+	// key is the note, vel its velocity, 0 to 1, shift the semitones
+	// a channel's bend wheel and vibrato move it, and bend those a
+	// note's own bend does.
+	key, vel, shift, bend float64
 	// pos is where in the sample it plays, end where the sample ends,
 	// and loopA and loopB its loop, where it loops.
 	pos          float64
@@ -49,15 +55,24 @@ type sfVoice struct {
 // for a key shifted by semis semitones more.
 func (v *sfVoice) sfStep(semis float64) float64 {
 	r := v.r
-	cents := (v.key-float64(r.Root))*r.KeyTrack + r.Tune + semis*100
+	cents := (v.key-float64(r.Root))*r.KeyTrack + r.Tune + (semis+v.bend)*100
 	return float64(r.Sample.Rate) / rate * math.Pow(2, cents/1200)
 }
 
-// start plays region r for key at velocity vel, 0 to 127.
-func (v *sfVoice) start(r *soundfont.Region, key, vel int, age uint64, gate int64) {
-	frames := r.Sample.Frames()
-	*v = sfVoice{on: len(frames) > 1, r: r, frames: frames, age: age, key: float64(key), vel: float64(vel) / 127,
+// start plays region r for key at velocity vel, 0 to 127. Where wait is
+// false, a sample another goroutine is decoding is not waited for: the
+// voice stays silent.
+func (v *sfVoice) start(r *soundfont.Region, key, vel int, age uint64, gate int64, wait bool) {
+	var frames []int16
+	if wait {
+		frames = r.Sample.Frames()
+	} else {
+		frames = r.Sample.TryFrames()
+	}
+	*v = sfVoice{on: len(frames) > 1, reg: *r, frames: frames, age: age, key: float64(key), vel: float64(vel) / 127,
 		released: -1, gate: gate, gainBy: 1}
+	v.r = &v.reg
+	r = v.r
 	v.end = min(len(frames)+r.End, len(frames))
 	if v.end <= 0 {
 		v.end = len(frames)
@@ -80,18 +95,11 @@ func (v *sfVoice) release() {
 	}
 }
 
-// cut stops the note at once, but for a few milliseconds' fade, as an
+// choke stops the note at once, but for a few milliseconds' fade, as an
 // exclusive class's next note does.
 func (v *sfVoice) choke() {
 	v.release()
-	v.r = chokeRegion(v.r)
-}
-
-// chokeRegion returns r with a release of 5 ms.
-func chokeRegion(r *soundfont.Region) *soundfont.Region {
-	c := *r
-	c.Vol.Release = 0.005
-	return &c
+	v.reg.Vol.Release = 0.005
 }
 
 // envAt returns envelope e's level at t seconds: rising through its
@@ -142,13 +150,14 @@ func (v *sfVoice) render(l, r []float32) {
 		step := v.sfStep(v.shift + v.fine + vib + (mod*reg.ModToPitch+mlfo*reg.ModLFOToPitch)/100)
 		level := envAt(reg.Vol, v.t, v.released, v.relFrom, true)
 		v.level = level
-		gain := reg.Gain * v.vel * v.vel * level * sfLevel * v.gainBy
+		// The velocity's level is the region's, as its modulators make it.
+		gain := reg.Gain * level * sfLevel * v.gainBy
 		if reg.ModLFOToVolume != 0 {
 			gain *= math.Pow(10, mlfo*reg.ModLFOToVolume/20)
 		}
-		// The filter, closing as the velocity falls, as the SoundFont's
-		// default modulator has it.
-		cutHz := reg.Cutoff * math.Pow(2, (mod*reg.ModToFilter+mlfo*reg.ModLFOToFilter-2400*(1-v.vel))/1200)
+		// The filter, closing as the velocity falls where the region's
+		// modulators say, as the SoundFont's default one has it.
+		cutHz := reg.Cutoff * math.Pow(2, (mod*reg.ModToFilter+mlfo*reg.ModLFOToFilter)/1200)
 		filtered := cutHz < 18000
 		if filtered {
 			c := float32(min(cutHz, 20000))
@@ -206,10 +215,12 @@ func (v *sfVoice) render(l, r []float32) {
 	}
 }
 
-// sfVoices are a channel's SoundFont voices.
+// sfVoices are a channel's SoundFont voices. live says they play on an
+// audio thread, which may not wait for a sample decoded elsewhere.
 type sfVoices struct {
-	vs  []sfVoice
-	age uint64
+	vs   []sfVoice
+	age  uint64
+	live bool
 }
 
 func newSFVoices(n int) *sfVoices { return &sfVoices{vs: make([]sfVoice, n)} }
@@ -245,7 +256,7 @@ func (vv *sfVoices) play(r *soundfont.Region, key, vel int, gate int64) *sfVoice
 		}
 	}
 	v := &vv.vs[best]
-	v.start(r, key, vel, vv.age, gate)
+	v.start(r, key, vel, vv.age, gate, !vv.live)
 	return v
 }
 

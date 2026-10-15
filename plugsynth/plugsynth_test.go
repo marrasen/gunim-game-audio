@@ -162,8 +162,8 @@ func TestEverySoundLoadsAndSounds(t *testing.T) {
 	for _, s := range ss {
 		banks[s.Bank]++
 	}
-	// 69 presets; 128 programs and 3 kits; 214 patches of the songs.
-	if banks[Library] != 69 || banks[GeneralMIDI] != 131 || banks[Songs] != 214 {
+	// 69 presets; 128 programs and 3 kits; 270 patches of the songs.
+	if banks[Library] != 69 || banks[GeneralMIDI] != 131 || banks[Songs] != 270 {
 		t.Fatalf("the banks hold %v sounds", banks)
 	}
 	for _, s := range ss {
@@ -191,8 +191,8 @@ func TestEveryGroupIsListedOnce(t *testing.T) {
 	if got := len(Groups(Library)); got != 9 {
 		t.Errorf("the library has %d groups, not its 9 categories", got)
 	}
-	if got := len(Groups(Songs)); got != 28 {
-		t.Errorf("%d songs play patches, not 28", got)
+	if got := len(Groups(Songs)); got != 34 {
+		t.Errorf("%d songs play patches, not 34", got)
 	}
 	seen := map[[3]string]bool{}
 	for _, s := range Sounds() {
@@ -604,7 +604,10 @@ func TestEverySectionShowsAndTheKeysGiveWay(t *testing.T) {
 		{plug.Full, geom.Sz(900, 560), true, true},
 		{plug.Panel, geom.Sz(900, 420), true, false},
 		// Short: what the sound is gives way to the keys.
-		{plug.Full, geom.Sz(600, 300), true, false},
+		{plug.Full, geom.Sz(700, 300), true, false},
+		// Short and narrow: the sections stand in two rows, and the keys
+		// give way.
+		{plug.Full, geom.Sz(600, 300), false, true},
 		// Narrow: the sections stand in two rows, and what the sound
 		// is gives way to the keys.
 		{plug.Full, geom.Sz(500, 420), true, false},

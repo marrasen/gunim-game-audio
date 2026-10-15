@@ -44,6 +44,12 @@ import music "github.com/marrasen/gunim-game-audio"
 | Harbour Lanterns | `harbour-lanterns` | A calm song of a harbour at dusk, made in code, at 80 BPM in F major, for a room and its map, played on a SoundFont bank's recorded instruments: a piano's arpeggio, an upright bass, strings and brushes always, and a nylon guitar, a flute's tune and a vibraphone coming and going. Without a bank it plays the engine's own General MIDI sounds. |
 | Ember Crown | `ember-crown` | An orchestral boss fight, made in code, at 138 BPM in D minor, in four tiers, played on a SoundFont bank's recorded instruments: staccato strings and a contrabass; horns and timpani; a trumpet's theme, a choir and snares; drums, a brass section and orchestra hits. Without a bank it plays the engine's own General MIDI sounds. |
 | Alien Entrance | `alien-entrance` | An alien boss's entrance, made in code, at 128 BPM in C minor, in four tiers that rise as the boss's health falls: a bass and radar blips; saucer stabs, a march and claps; a theremin's theme, as in a 1950s film, and a choir; drums, string runs and zaps. A victory sting of 2 bars ends it. |
+| Sugar Rush | `sugar-rush` | A driving candy-pop song for a lane of battle, made in code, at 150 BPM in A major, in four tiers: a fat pumping synth bass, a pad and hats; a four-on-the-floor kick, claps and supersaw stabs, pumping under it; the hook and sparkly bells; full drums, the hook an octave up too, and glassy sparkles. Its stings: clear, a wave won; tierup; best, a new best; and over, a cartoon sad trombone. Sugar Storm fights to it. |
+| Sundae Showdown | `sundae-showdown` | A cartoon villain's boss fight in candy pop, made in code, at 140 BPM in G minor, in four tiers that rise as the boss's health falls: an oom-pah fat synth bass, a creepy-cute music box and a soft kick; a beat and supersaw stabs; claps and the villain's theme, sung on a vowel; full drums, a choir and glassy runs. A victory sting of 2 bars ends it. |
+| Candy Lounge | `candy-lounge` | A cozy candy-pop groove, made in code, at 90 BPM in F major, swung, for a game's menu: a soft beat, a warm bass, an electric piano and a pad always, and a music box quoting Sugar Rush's hook, vibes, a glassy topline and a shaker coming and going. |
+| Frost Hollow | `frost-hollow` | An icy, ominous fight song for a deeper world, made in code, at 144 BPM in D harmonic minor, in four tiers: a dark pulsing bass, glassy icicles and a choir's drone; a pounding beat and dark stabs; a ghostly theme, sung on a vowel, and chimes; full drums, a choir and icy arpeggios. Its stings are Sugar Rush's, in its key. |
+| Neon Abyss | `neon-abyss` | A dark synthwave fight song for the deepest world, made in code, at 150 BPM in F sharp Phrygian, in four tiers: a racing pluck bass, a pad and hats; a four-on-the-floor kick, claps and stabs; a screaming lead's menacing theme; full drums, a choir and arpeggios. Its stings are Sugar Rush's, in its key. |
+| Dread Sundae | `dread-sundae` | A darker boss fight for the deeper worlds, made in code, at 128 BPM in C harmonic minor, in four tiers that rise as the boss's health falls: a heavy bass, a creepy music box and a tolling timpani; a church organ and a beat; claps and the villain's theme; pounding drums, a choir and glassy runs. A victory sting of 2 bars ends it. |
 
 Try them in the jukebox, a window that plays a song, sets its tier
 with buttons or the keys 1 to 4, and shows what each part plays, bar by
@@ -787,7 +793,10 @@ bank: the SF2s of E-mu's SoundFont 2, and the SF3s of MuseScore, whose
 samples are Ogg Vorbis, so a General MIDI bank of 128 instruments and
 its drum kits comes in 40 MB. Package `soundfont` reads a bank and
 finds what each note plays; the engine plays it through each region's
-envelopes, LFOs and filter.
+envelopes, LFOs and filter, as the bank's modulators move them by the
+note's velocity and key, as a piano's filter opens the harder it is
+struck. An SF2's samples stay in its file, mapped into memory, so a
+bank of a gigabyte opens at once and costs only the notes played.
 
 No bank comes with this module, as each has a licence of its own, and
 a bank makes a game many times larger: a program that wants one ships
@@ -852,6 +861,60 @@ it. The bank is registered as `general`; the patch editor's Plays on
 and Program pick it and a program, and the kit editor's Plays on and
 Kit pick it and a kit. The jukebox, `cmd/play` and `cmd/render` take
 `-soundfont` too.
+
+#### Recorded instruments
+
+`soundfont.Instruments` lists banks of one instrument each, recorded,
+from the [FreePats](https://freepats.zenvoid.org/) project, each with
+its licence, its credit, the checksum of its download and the level it
+plays at beside the engine's own sounds:
+
+| Group | Banks | Licence |
+|---|---|---|
+| Piano | Salamander Grand Piano (310 MB, 1.3 GB unpacked), YDP Grand Piano, Upright Piano KW, Honky-tonk Piano FB | CC BY 3.0, CC BY 3.0, CC0, CC0 |
+| Drums | MuldjordKit, World Percussion | CC BY 4.0, CC0 |
+| Orchestral percussion | Timpani, Tubular Bells, Xylophone | CC0 |
+| Guitar | Spanish Classical Guitar, Steel-String Guitar, Clean Electric Guitar | CC0, GPLv3+ with the FreePats exception, CC0 |
+| Bass | Finger Bass YR | CC0 |
+| Strings | Concert Harp | CC0 |
+| Winds | Clarinet, Tenor Saxophone, Recorder | CC0 |
+| Organ | Church Organ, made with the Aeolus organ synthesizer | CC0 |
+
+Those under CC BY ask that their `Credit` show where they play. The
+FreePats exception lets music made with a bank go under any licence.
+
+#### Fetching and keeping banks
+
+Package `soundfont/fontcache` keeps the banks a program fetches, in the
+user's cache, where the MIDI player, the studio and any other program
+find them: `Fetch` downloads a bank, checks it against its checksum,
+unpacks it where it comes as a `.7z`, `.tar.xz` or `.tar.bz2`, keeping
+its licence and readme beside it, and tells how far it has come;
+`Fetched`, `Notices` and `Remove` find a bank, its notices, and let it
+go.
+
+```go
+path, err := fontcache.Fetch(ctx, soundfont.Instruments[0], func(x float64) { fmt.Printf("%.0f%%\r", x*100) })
+```
+
+#### The synth plugin plays banks
+
+`plugsynth.UseFont` hands the synth plugin a bank read: its sounds join
+the plugin's, sampled. A General MIDI bank, its `Group` empty, is a
+bank of the browser's of its own, by its title, its instruments filed
+by General MIDI's families and its kits under Drum kits; register it as
+`music.SoundFont` and the library's songs play it too. A bank of one
+instrument is filed under Recorded instruments, in its `Group`. A synth
+playing a sound of a bank that comes later plays it from then on;
+`plugsynth.DropFont` lets one go, its sounds back on the engine's own
+instruments. The patch editor shows a recorded sound's level and
+voices; the Sound page's knobs shape it, its filter, envelope, tune,
+pan and level.
+
+```go
+bank, _ := soundfont.Open(path)
+plugsynth.UseFont(plugsynth.Font{Name: b.Key(), Title: b.Name, Group: b.Group, Kit: b.Kit, Level: b.Level, Credit: b.Credit, Font: bank})
+```
 
 ## Licence
 

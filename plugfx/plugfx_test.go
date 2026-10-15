@@ -179,8 +179,10 @@ func TestEachEffectSoundsAsTheSongsEngine(t *testing.T) {
 		t.Run("distortion "+name, func(t *testing.T) {
 			d := synth.NewDistortionUnit(synth.Rate)
 			d.Set(0.7, name)
+			// Auto gain is the plugin's own, so it is off here.
 			colour(t, Distortion, []plug.Change{{ID: UnitParamID(2, DistortTypeParam), Value: float64(kind)},
-				{ID: UnitParamID(2, DistortDriveParam), Value: 70}}, d.Process)
+				{ID: UnitParamID(2, DistortDriveParam), Value: 70}, {ID: UnitParamID(2, DistortAutoParam), Value: 0}},
+				d.Process)
 		})
 	}
 }

@@ -2,6 +2,9 @@ package soundfont
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/marrasen/gunim-game-audio/internal/sftest"
@@ -41,5 +44,31 @@ func TestABankReadsItsPresetsAndRegions(t *testing.T) {
 func TestNotABankIsRefused(t *testing.T) {
 	if _, err := Read(bytes.NewReader([]byte("RIFF\x04\x00\x00\x00WAVE"))); err == nil {
 		t.Error("a WAV file read as a bank")
+	}
+}
+
+func TestABankOpenedFromItsFilePlaysAsOneRead(t *testing.T) {
+	b := sftest.Build()
+	path := filepath.Join(t.TempDir(), "test.sf2")
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Read(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, want := f.Regions(0, 0, 72, 100)[0].Sample.Frames(), r.Regions(0, 0, 72, 100)[0].Sample.Frames()
+	if len(got) != 100 || !slices.Equal(got, want) {
+		t.Errorf("the file's sample is %v, want %v", got, want)
+	}
+	// The file may go once the bank is open: its samples stay.
+	if err := os.Remove(path); err == nil {
+		if n := len(f.Regions(128, 0, 38, 100)[0].Sample.Frames()); n == 0 {
+			t.Error("the kit's sample went with the file")
+		}
 	}
 }

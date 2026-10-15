@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"unsafe"
 
 	"github.com/jfreymuth/oggvorbis"
 )
@@ -61,6 +62,8 @@ type instrument struct {
 // as the file gives them.
 type zone struct {
 	gens map[int]int16
+	// mods are its modulators.
+	mods []mod
 	// keys and vels are its ranges, inclusive.
 	keyLo, keyHi, velLo, velHi int
 	// link is the instrument a preset's zone plays, or the sample an
@@ -80,52 +83,94 @@ type Sample struct {
 	Start, End, LoopStart, LoopEnd int
 	// vorbis says it is an Ogg Vorbis stream, decoded on first use.
 	vorbis bool
-	once   sync.Once
+	// mu guards the decoding, and done says frames are ready.
+	mu     sync.Mutex
+	done   atomic.Bool
 	frames []int16
 	f      *Font
 }
 
 // Frames returns the sample's frames, 16 bits each, decoding them first
-// where the bank holds them compressed.
+// where the bank holds them compressed, or waiting while another
+// decodes them. They may be the bank's own memory: the caller only
+// reads them.
 func (s *Sample) Frames() []int16 {
-	s.once.Do(func() {
-		d := s.f.data
-		if !s.vorbis {
-			lo, hi := max(s.Start, 0), min(s.End, len(d)/2)
-			if lo >= hi {
-				return
-			}
-			s.frames = make([]int16, hi-lo)
-			for i := range s.frames {
-				s.frames[i] = int16(binary.LittleEndian.Uint16(d[2*(lo+i):]))
-			}
-			return
-		}
-		lo, hi := max(s.Start, 0), min(s.End, len(d))
-		if lo >= hi {
-			return
-		}
-		pcm, format, err := oggvorbis.ReadAll(bytes.NewReader(d[lo:hi]))
-		if err != nil || format == nil || format.Channels == 0 {
-			return
-		}
-		ch := format.Channels
-		s.frames = make([]int16, len(pcm)/ch)
-		for i := range s.frames {
-			v := pcm[i*ch] * 32767
-			s.frames[i] = int16(min(max(v, -32768), 32767))
-		}
-	})
+	if s.done.Load() {
+		return s.frames
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.decode()
 	return s.frames
 }
 
-// Open reads the bank in the file at path.
+// TryFrames is Frames for a caller that may not wait, as an audio
+// thread: while another decodes the frames, it returns nil.
+func (s *Sample) TryFrames() []int16 {
+	if s.done.Load() {
+		return s.frames
+	}
+	if !s.mu.TryLock() {
+		return nil
+	}
+	defer s.mu.Unlock()
+	s.decode()
+	return s.frames
+}
+
+// decode makes the frames, once, under mu.
+func (s *Sample) decode() {
+	if s.done.Load() {
+		return
+	}
+	defer s.done.Store(true)
+	d := s.f.data
+	if !s.vorbis {
+		lo, hi := max(s.Start, 0), min(s.End, len(d)/2)
+		if lo >= hi {
+			return
+		}
+		if b := d[2*lo : 2*hi]; littleEndian && uintptr(unsafe.Pointer(&b[0]))%2 == 0 {
+			// The bank's bytes are the frames already: a large bank
+			// is held once, not twice.
+			s.frames = unsafe.Slice((*int16)(unsafe.Pointer(&b[0])), hi-lo)
+			return
+		}
+		s.frames = make([]int16, hi-lo)
+		for i := range s.frames {
+			s.frames[i] = int16(binary.LittleEndian.Uint16(d[2*(lo+i):]))
+		}
+		return
+	}
+	lo, hi := max(s.Start, 0), min(s.End, len(d))
+	if lo >= hi {
+		return
+	}
+	pcm, format, err := oggvorbis.ReadAll(bytes.NewReader(d[lo:hi]))
+	if err != nil || format == nil || format.Channels == 0 {
+		return
+	}
+	ch := format.Channels
+	s.frames = make([]int16, len(pcm)/ch)
+	for i := range s.frames {
+		v := pcm[i*ch] * 32767
+		s.frames[i] = int16(min(max(v, -32768), 32767))
+	}
+}
+
+// littleEndian says the machine keeps an int16's low byte first, as an
+// SF2 does.
+var littleEndian = binary.NativeEndian.Uint16([]byte{1, 0}) == 1
+
+// Open reads the bank in the file at path. An SF2's samples stay in
+// the file, mapped into memory, and are read as they are first played,
+// so a bank of a gigabyte opens at once and costs only what it plays.
 func Open(path string) (*Font, error) {
-	b, err := os.ReadFile(path)
+	b, err := mapFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return Read(bytes.NewReader(b))
+	return readBank(b)
 }
 
 // Read reads an SF2 or an SF3 bank.
@@ -134,12 +179,17 @@ func Read(r io.Reader) (*Font, error) {
 	if err != nil {
 		return nil, err
 	}
+	return readBank(b)
+}
+
+// readBank reads the bank in b, which it keeps.
+func readBank(b []byte) (*Font, error) {
 	if len(b) < 12 || string(b[:4]) != "RIFF" || string(b[8:12]) != "sfbk" {
 		return nil, errors.New("soundfont: not a SoundFont bank")
 	}
 	f := &Font{byKey: map[int]*Preset{}}
 	var pdta map[string][]byte
-	err = chunks(b[12:], func(id string, body []byte) error {
+	err := chunks(b[12:], func(id string, body []byte) error {
 		if id != "LIST" || len(body) < 4 {
 			return nil
 		}
@@ -225,15 +275,16 @@ func (f *Font) readHydra(p map[string][]byte) error {
 		}
 		return strings.TrimSpace(string(b))
 	}
-	phdr, pbag, pgen := rec("phdr", 38), rec("pbag", 4), rec("pgen", 4)
-	inst, ibag, igen := rec("inst", 22), rec("ibag", 4), rec("igen", 4)
+	phdr, pbag, pgen, pmod := rec("phdr", 38), rec("pbag", 4), rec("pgen", 4), rec("pmod", 10)
+	inst, ibag, igen, imod := rec("inst", 22), rec("ibag", 4), rec("igen", 4), rec("imod", 10)
 	shdr := rec("shdr", 46)
 	if len(phdr) < 2 || len(inst) < 2 || len(shdr) < 1 {
 		return errors.New("soundfont: an empty bank")
 	}
 	// zones reads the zones from bag a to b, their generators from the
-	// generator list, the last generator, link, naming what each plays.
-	zones := func(bags [][]byte, gens [][]byte, a, b, link int) (global zone, out []zone) {
+	// generator list, the last generator, link, naming what each plays,
+	// and their modulators from the modulator list.
+	zones := func(bags, gens, mods [][]byte, a, b, link int) (global zone, out []zone) {
 		global = zone{link: -1, keyHi: 127, velHi: 127}
 		for k := a; k < b && k+1 < len(bags); k++ {
 			z := zone{gens: map[int]int16{}, keyHi: 127, velHi: 127, link: -1}
@@ -252,6 +303,12 @@ func (f *Font) readHydra(p map[string][]byte) error {
 					z.gens[op] = int16(binary.LittleEndian.Uint16(amt))
 				}
 			}
+			m0, m1 := u16(bags[k], 2), u16(bags[k+1], 2)
+			for m := m0; m < m1 && m < len(mods); m++ {
+				r := mods[m]
+				z.mods = append(z.mods, mod{src: uint16(u16(r, 0)), dest: uint16(u16(r, 2)), amount: int16(u16(r, 4)),
+					amtSrc: uint16(u16(r, 6)), trans: uint16(u16(r, 8))})
+			}
 			if z.link < 0 {
 				// A zone that plays nothing is the global zone, if first.
 				if k == a {
@@ -264,12 +321,12 @@ func (f *Font) readHydra(p map[string][]byte) error {
 		return global, out
 	}
 	for i := 0; i+1 < len(inst); i++ {
-		g, zs := zones(ibag, igen, u16(inst[i], 20), u16(inst[i+1], 20), 53)
+		g, zs := zones(ibag, igen, imod, u16(inst[i], 20), u16(inst[i+1], 20), 53)
 		f.instruments = append(f.instruments, instrument{name: name(inst[i][:20]), zones: zs, global: g})
 	}
 	for i := 0; i+1 < len(phdr); i++ {
 		h := phdr[i]
-		g, zs := zones(pbag, pgen, u16(h, 24), u16(phdr[i+1], 24), 41)
+		g, zs := zones(pbag, pgen, pmod, u16(h, 24), u16(phdr[i+1], 24), 41)
 		f.Presets = append(f.Presets, Preset{Name: name(h[:20]), Program: u16(h, 20), Bank: u16(h, 22), zones: zs, global: g})
 	}
 	for i := range f.Presets {
@@ -372,11 +429,17 @@ type Env struct{ Delay, Attack, Hold, Decay, Sustain, Release float64 }
 // Regions returns the regions key plays at vel, 0 to 127, of the preset
 // of bank and program, as Preset finds it: nil where it finds none.
 func (f *Font) Regions(bank, program, key, vel int) []Region {
+	return f.AppendRegions(nil, bank, program, key, vel)
+}
+
+// AppendRegions appends the regions Regions returns to out, and returns
+// it: a player that keeps out from note to note finds a note's regions
+// without allocating, where out has room for them.
+func (f *Font) AppendRegions(out []Region, bank, program, key, vel int) []Region {
 	p := f.Preset(bank, program)
 	if p == nil {
-		return nil
+		return out
 	}
-	var out []Region
 	for _, pz := range p.zones {
 		if key < pz.keyLo || key > pz.keyHi || vel < pz.velLo || vel > pz.velHi || pz.link >= len(f.instruments) {
 			continue
@@ -445,13 +508,19 @@ func (f *Font) region(key, vel int, ig, iz, pg, pz *zone) Region {
 		}
 		return 0
 	}
-	// A preset's generators add to its instrument's, where they may.
-	g := func(op int) float64 { return inst(op) + pre(op) }
-	s := f.samples[iz.link]
-	r := Region{Sample: s}
 	if k := int(inst(gKeynum)); k >= 0 {
 		key = k
 	}
+	if v := int(inst(gVelocity)); v >= 0 {
+		vel = v
+	}
+	// The modulators move the generators by the key and the velocity.
+	var mods [genCount]float64
+	modulate(&mods, key, vel, ig, iz, pg, pz)
+	// A preset's generators add to its instrument's, where they may.
+	g := func(op int) float64 { return inst(op) + pre(op) + mods[op] }
+	s := f.samples[iz.link]
+	r := Region{Sample: s}
 	r.Root = s.Root
 	if rk := int(inst(gRootKey)); rk >= 0 {
 		r.Root = rk
@@ -470,8 +539,9 @@ func (f *Font) region(key, vel int, ig, iz, pg, pz *zone) Region {
 		r.Loop = 0
 	}
 	// E-mu's hardware took the attenuation at 0.4 of its face value, and
-	// the banks are voiced so.
-	r.Gain = math.Pow(10, -g(gAttenuation)*0.4/200)
+	// the banks are voiced so; the modulators' it takes as they are, the
+	// velocity's 960 cB on a concave curve a level of its square.
+	r.Gain = math.Pow(10, -((inst(gAttenuation)+pre(gAttenuation))*0.4+mods[gAttenuation])/200)
 	r.Pan = min(max(g(gPan)/500, -1), 1)
 	tc := func(v float64) float64 { return math.Pow(2, v/1200) }
 	// The envelopes: hold and decay shorten as keys climb, where the bank
@@ -503,7 +573,8 @@ func (f *Font) region(key, vel int, ig, iz, pg, pz *zone) Region {
 }
 
 // Preload decodes the samples of the preset of bank and program, as
-// Preset finds it, so a player's first notes of it need not wait.
+// Preset finds it, and reads those of a bank kept in its file into
+// memory, so a player's first notes of it need not wait.
 func (f *Font) Preload(bank, program int) {
 	p := f.Preset(bank, program)
 	if p == nil {
@@ -515,10 +586,23 @@ func (f *Font) Preload(bank, program int) {
 		}
 		for _, iz := range f.instruments[pz.link].zones {
 			if iz.link < len(f.samples) {
-				f.samples[iz.link].Frames()
+				touch(f.samples[iz.link].Frames())
 			}
 		}
 	}
+}
+
+// touched keeps what touch read, so it is read.
+var touched atomic.Int64
+
+// touch reads a frame of each page of frames, so a bank mapped from its
+// file has the samples read in before they play.
+func touch(frames []int16) {
+	var sum int16
+	for i := 0; i < len(frames); i += 2048 {
+		sum += frames[i]
+	}
+	touched.Add(int64(sum))
 }
 
 // String names the font, for a list.

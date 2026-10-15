@@ -373,9 +373,23 @@ func (k *keys) Access() access.Info {
 
 // facts are short words on what patch p is made of, for chips under
 // the sound's name: its kind, its oscillators, its filter, how many
-// notes it plays at once, and the SoundFont program it stands in for.
+// notes it plays at once, and the SoundFont program it stands in for:
+// the bank it plays, or, where the bank is missing, the General MIDI
+// sound it plays in its place.
 func facts(p *synth.Patch) []string {
 	var out []string
+	if sampled(p) {
+		f, ok := fontNamed(p.SoundFont)
+		switch {
+		case !ok && (p.Bank == synth.DrumBank || p.FontKit):
+			return []string{"Recorded", "bank missing", "General MIDI kit"}
+		case !ok:
+			return []string{"Recorded", "bank missing", fmt.Sprintf("General MIDI %d", p.Program+1)}
+		case f.Group == "" && p.Bank != synth.DrumBank:
+			return []string{"Recorded", f.Title, fmt.Sprintf("General MIDI %d", p.Program+1)}
+		}
+		return []string{"Recorded", f.Title}
+	}
 	switch p.Kind {
 	case "drums":
 		out = append(out, fmt.Sprintf("Drum kit of %d", len(p.Kit)))
@@ -450,4 +464,10 @@ func paintFacts(p *paint.Painter, f gunim.Frame, words []string, at geom.Point, 
 		run.Paint(p, geom.Pt(x+8, at.Y+(20-run.Height())/2), audioui.Faded(ink, 0.7))
 		x += cw + 6
 	}
+}
+
+// sampled reports whether p plays a SoundFont bank's samples, as the
+// bank's own sound: a patch of nothing but the bank.
+func sampled(p *synth.Patch) bool {
+	return p.SoundFont != "" && p.Kind == "" && len(p.Osc) == 0 && p.Noise == 0
 }

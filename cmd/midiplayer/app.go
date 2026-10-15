@@ -18,9 +18,9 @@ import (
 	"github.com/marrasen/gunim/audio"
 	"github.com/marrasen/gunim/driver"
 
-	"github.com/marrasen/gunim-game-audio/internal/fontcache"
 	"github.com/marrasen/gunim-game-audio/midi"
 	"github.com/marrasen/gunim-game-audio/soundfont"
+	"github.com/marrasen/gunim-game-audio/soundfont/fontcache"
 	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim-game-audio/tracker"
 )
@@ -143,8 +143,8 @@ func (a *app) add(paths []string) {
 	var found []string
 	for _, p := range paths {
 		// Some file managers hand over a URI in place of a path.
-		if u, err := url.Parse(p); err == nil && u.Scheme == "file" {
-			p = u.Path
+		if q, ok := uriPath(p); ok {
+			p = q
 		}
 		if isBank(p) {
 			a.loadFont(p)
@@ -180,6 +180,24 @@ func (a *app) add(paths []string) {
 			a.say(fmt.Sprintf("Playing %s, and %d more after it", a.list[first].Name, added-1))
 		}
 	}
+}
+
+// uriPath returns the path of the file a file URI names, and false for
+// anything else: file:///home/me/a.mid, and on Windows
+// file:///C:/Music/a.mid, its drive's slash dropped, or
+// file://server/share/a.mid, a share's.
+func uriPath(s string) (string, bool) {
+	u, err := url.Parse(s)
+	if err != nil || u.Scheme != "file" {
+		return "", false
+	}
+	p := u.Path
+	if strings.HasPrefix(p, "/") && filepath.VolumeName(p[1:]) != "" {
+		p = p[1:]
+	} else if u.Host != "" && u.Host != "localhost" {
+		p = "//" + u.Host + p
+	}
+	return filepath.FromSlash(p), true
 }
 
 // addDemo puts the demo song on the playlist and plays it.

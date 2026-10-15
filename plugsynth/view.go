@@ -194,7 +194,7 @@ func newPanel(p *plugin, h plug.Host, full bool) *panel {
 		plugui.NewSection(h, &Descriptor, "FILTER", 0, CutoffID, ResID),
 		plugui.NewSection(h, &Descriptor, "ENVELOPE", 0, AttackID, ReleaseID),
 		plugui.NewSection(h, &Descriptor, "OUTPUT", 0, GainID),
-		plugui.NewSection(h, &Descriptor, "AHEAD", 0, SwellID, GhostID),
+		plugui.NewSection(h, &Descriptor, "AHEAD", 0, SwellID, GhostID, AheadVelID),
 	}
 	if a, ok := h.(plug.Auditioner); ok {
 		v.keys = newKeys(a)
@@ -341,6 +341,9 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 		crumb = "These turn the patch as it plays: right-click one to automate or modulate it"
 	}
 	wide := d.Max.X - panelInset - x - tabsW - 12
+	if v.page() == PatchPage {
+		wide -= v.pages.editor.adds.size.W + addsGapX
+	}
 	bankIcon(pt, f, v.st.Bank, geom.Rc(x, crumbY+1, 12, 12), audioui.Faded(accent, 0.9))
 	audioui.Shaped(crumb, 11, false, false).PaintFaded(pt, geom.Pt(x+18, crumbY), audioui.Faded(ink, 0.6), wide-18, 20)
 	if v.page() != SoundPage {
