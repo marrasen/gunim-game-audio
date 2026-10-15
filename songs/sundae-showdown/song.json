@@ -1,0 +1,234 @@
+{
+	"Kind": "synth",
+	"Title": "Sundae Showdown",
+	"Category": "Boss fights",
+	"Artist": "Mikael Lönebrink",
+	"BPM": 140,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "G",
+	"Scale": "minor",
+	"Chords": ["Gm", "Gm", "Eb", "D", "Gm", "Cm", "Ab", "D7"],
+	"Mode": "tiers",
+	"Clap": {"Track": "claps", "Drum": "cp"},
+	"Start": 1,
+	"Patches": {
+		"fatbass": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 2, "Spread": 8},
+				{"Wave": "pulse", "Width": 0.45, "Level": 0.5},
+				{"Wave": "sine", "Octave": -1, "Level": 0.6}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 240, "Res": 0.32, "Env": 3, "Key": 0.3, "Vel": 0.8},
+			"Amp": {"Attack": 0.004, "Decay": 0.25, "Sustain": 0.55, "Release": 0.08},
+			"FilterEnv": {"Attack": 0.001, "Decay": 0.16, "Sustain": 0.1, "Release": 0.07},
+			"Poly": 1,
+			"Glide": 0.04,
+			"Drive": 0.45,
+			"Gain": 0.75
+		},
+		"musicbox": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 5, "Index": 1.6, "Decay": 0.12, "Sustain": 0.05},
+				{"Wave": "sine", "Octave": 1, "Level": 0.25}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 7000, "Key": 0.3},
+			"Amp": {"Attack": 0.002, "Decay": 0.9, "Sustain": 0, "Release": 0.7},
+			"Poly": 8,
+			"Gain": 0.45
+		},
+		"supersaw": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 7, "Spread": 26},
+				{"Wave": "saw", "Octave": -1, "Level": 0.4}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 1800, "Res": 0.18, "Env": 2, "Vel": 0.7},
+			"Amp": {"Attack": 0.004, "Decay": 0.2, "Sustain": 0.35, "Release": 0.12},
+			"FilterEnv": {"Attack": 0.002, "Decay": 0.18, "Sustain": 0.2, "Release": 0.12},
+			"Poly": 16,
+			"Drive": 0.2,
+			"Gain": 0.42
+		},
+		"villain": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 2, "Spread": 10},
+				{"Wave": "pulse", "Width": 0.35, "Octave": -1, "Level": 0.35}
+			],
+			"Vowel": "o",
+			"Filter": {"Type": "lp", "Cutoff": 1700, "Res": 0.2, "Env": 1.4, "Key": 0.4, "Vel": 0.7},
+			"Amp": {"Attack": 0.015, "Decay": 0.25, "Sustain": 0.75, "Release": 0.14},
+			"FilterEnv": {"Attack": 0.02, "Decay": 0.25, "Sustain": 0.45, "Release": 0.14},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 5.4, "Depth": 0.14, "Delay": 0.2}],
+			"Poly": 1,
+			"Glide": 0.03,
+			"Drive": 0.15,
+			"Gain": 0.6
+		},
+		"choir": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 5, "Spread": 16},
+				{"Wave": "tri", "Octave": 1, "Level": 0.2}
+			],
+			"Vowel": "a",
+			"Filter": {"Type": "lp", "Cutoff": 3000, "Res": 0},
+			"Amp": {"Attack": 0.4, "Decay": 0.8, "Sustain": 0.9, "Release": 0.8},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 4.6, "Depth": 0.08, "Delay": 0.4}],
+			"Poly": 12,
+			"Gain": 0.5
+		},
+		"glass": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 7, "Index": 1, "Decay": 0.2, "Sustain": 0.1},
+				{"Wave": "sine", "Level": 0.6}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 8000, "Key": 0.3, "Vel": 0.6},
+			"Amp": {"Attack": 0.003, "Decay": 0.6, "Sustain": 0, "Release": 0.5},
+			"Poly": 8,
+			"Gain": 0.4
+		},
+		"lead": {
+			"Osc": [
+				{"Wave": "saw", "Unison": 3, "Spread": 14},
+				{"Wave": "pulse", "Width": 0.25, "Octave": 1, "Level": 0.25}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 2800, "Res": 0.2, "Env": 1.2, "Key": 0.4, "Vel": 0.6},
+			"Amp": {"Attack": 0.008, "Decay": 0.25, "Sustain": 0.75, "Release": 0.2},
+			"FilterEnv": {"Attack": 0.004, "Decay": 0.2, "Sustain": 0.4, "Release": 0.15},
+			"LFO": [{"To": "pitch", "Wave": "sine", "Hz": 5.5, "Depth": 0.1, "Delay": 0.25}],
+			"Poly": 1,
+			"Glide": 0.02,
+			"Gain": 0.55
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {"Decay": 0.6, "Tone": 0.45, "Gain": 1, "Tune": 1},
+				"sn": {"Tone": 0.6, "Decay": 0.8, "Gain": 0.75},
+				"cp": {"Tone": 0.45, "Gain": 0.8},
+				"hh": {"Tone": 0.45, "Gain": 0.42},
+				"oh": {"Tone": 0.45, "Gain": 0.35, "Decay": 0.8},
+				"cr": {"Gain": 0.45},
+				"tim": {"Gain": 0.8, "Tone": 0.35, "Decay": 0.6},
+				"lt": {"Gain": 0.65},
+				"mt": {"Gain": 0.65},
+				"ht": {"Gain": 0.6},
+				"boom": {"Gain": 0.6}
+			}
+		},
+		"fx": {
+			"Kind": "drums",
+			"Kit": {
+				"riser": {"Tone": 0.45, "Gain": 0.48},
+				"down": {"Tone": 0.2, "Gain": 0.42},
+				"boom": {"Gain": 0.62, "Decay": 1},
+				"cr": {"Gain": 0.45}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "bass", "Tier": 1, "Patch": "fatbass", "Color": "#3fd0c9",
+			"Pattern": "<[b ~ [c2 c2] ~ b ~ c2 ~] [b ~ [c2 c2] ~ b c1 c2 c1]>", "Octave": 2, "Legato": 0.55,
+			"Params": {"vel": "[1 0.6 0.8 0.6]*2"},
+			"Gain": -5, "Duck": 0.4
+		},
+		{
+			"Name": "musicbox", "Tier": 1, "Patch": "musicbox", "Color": "#fff1a8",
+			"Pattern": "<[c0 c2 c1 c2 c0 c2 c1 c2] [c0 c2 c1 c2 c3 c2 c1 c2]>", "Octave": 5, "Legato": 0.7,
+			"Params": {"vel": "[1 0.6 0.8 0.6]*2"},
+			"Gain": -6, "Pan": 0.2, "Reverb": 0.35, "Delay": 0.2
+		},
+		{
+			"Name": "kick", "Tier": 1, "Patch": "kit", "Color": "#ff5c5c",
+			"Pattern": "bd ~ bd ~",
+			"Gain": -12
+		},
+		{
+			"Name": "beat", "Tier": 2, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "[[bd ~ ~ bd ~ ~ bd ~], [~ ~ sn ~ ~ ~ sn ~]]", "Params": {"vel": "[1 0.6 0.85 0.6]*2"},
+			"Gain": -9, "Reverb": 0.15
+		},
+		{
+			"Name": "stabs", "Tier": 2, "Patch": "supersaw", "Color": "#7c8cff",
+			"Pattern": "<[ch ~ ~ ch ~ ~ ch ~] [ch ~ ~ ch ~ ch ~ ~]>", "Octave": 4, "Legato": 0.35,
+			"Params": {"vel": "1 0.8 0.9", "cutoff": "sine:1400:2800:4"},
+			"Gain": -7, "Duck": 0.6, "Reverb": 0.22
+		},
+		{
+			"Name": "claps", "Tier": 3, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "<[~ cp ~ cp] [~ cp ~ [cp cp]]>",
+			"Gain": -8, "Reverb": 0.25
+		},
+		{
+			"Name": "theme", "Tier": 3, "Patch": "villain", "Color": "#ff6b9d",
+			"Pattern": "[4 ~ 2 ~ 4 ~ 5 4] [3 _ 2 _ 1 _ 0 ~] [5 ~ 4 ~ 5 ~ 7 5] [4 _ 3# _ 4 _ ~ ~] [4 ~ 2 ~ 4 ~ 5 4] [3 _ 5 _ 7 _ 5 3] [5 _ 3 _ 1b _ 3 5] [4 _ 6# _ 8 _ 7 6#]",
+			"Bars": 8, "Octave": 4, "Legato": 0.75,
+			"Params": {"vel": "[1 0.8 0.9 0.8]*2", "vowel": "<o o a o>"},
+			"Gain": -5, "Pan": 0.05, "Reverb": 0.28, "Delay": 0.08, "Duck": 0.2
+		},
+		{
+			"Name": "drums", "Tier": 4, "Patch": "kit", "Color": "#ff5c5c",
+			"Pattern": "[[hh*16, cr] [hh*16] [hh*16] [hh*8, ~ ~ ~ ~ ~ ~ ~ ~ ht ht mt mt lt lt tim tim]]",
+			"Bars": 4,
+			"Params": {"vel": "[1 0.55 0.75 0.55]*4"},
+			"Gain": -10, "Pan": -0.1, "Reverb": 0.12, "Human": 0.25
+		},
+		{
+			"Name": "choir", "Tier": 4, "Patch": "choir", "Color": "#c58cff",
+			"Pattern": "ch", "Octave": 4, "Legato": 1,
+			"Params": {"vowel": "<a a o a>"},
+			"Gain": -18, "Reverb": 0.5, "HPF": 200, "Duck": 0.4
+		},
+		{
+			"Name": "runs", "Tier": 4, "Patch": "glass", "Color": "#c9f2ff",
+			"Pattern": "x*16", "Arp": "updown", "ArpOctaves": 2, "Octave": 5, "Legato": 0.6,
+			"Params": {"vel": "[1 0.55 0.7 0.55]*4", "pan": "sine:-0.5:0.5:2"},
+			"Gain": -12, "Reverb": 0.35, "Delay": 0.2
+		}
+	],
+	"Stings": {
+		"victory": {
+			"Bars": 2,
+			"Key": "G",
+			"Scale": "major",
+			"Chords": ["D", "G"],
+			"Then": "stop",
+			"Tracks": [
+				{
+					"Name": "fanfare", "Patch": "lead", "Color": "#ffcf5c",
+					"Pattern": "[D5 _ D5 D5 G5 _ B5 _] [D6 _ _ _ _ _ _ _]", "Bars": 2, "Legato": 0.92,
+					"Gain": -4, "Reverb": 0.35, "Delay": 0.1
+				},
+				{
+					"Name": "stabs", "Patch": "supersaw", "Color": "#7c8cff",
+					"Pattern": "[ch ~ ~ ch ch _ _ _] [ch _ _ _ _ _ _ _]", "Bars": 2, "Octave": 4, "Legato": 0.95,
+					"Gain": -8, "Reverb": 0.35
+				},
+				{
+					"Name": "timpani", "Patch": "kit", "Color": "#ff5c5c",
+					"Pattern": "[[tim ~ ~ tim] [tim*8]] [[tim, cr, boom] ~ ~ ~ ~ ~ ~ ~]", "Bars": 2,
+					"Params": {"vel": "[[0.9 0.6 0.6 0.8] [0.5 0.55 0.6 0.7 0.75 0.85 0.95 1]] 1"},
+					"Gain": -7, "Reverb": 0.3
+				},
+				{
+					"Name": "sparkle", "Patch": "glass", "Color": "#c9f2ff",
+					"Pattern": "[~ x*8] ~", "Bars": 2, "Arp": "up", "ArpOctaves": 3, "Octave": 5, "Legato": 0.5,
+					"Gain": -9, "Reverb": 0.4
+				},
+				{
+					"Name": "choir", "Patch": "choir", "Color": "#c58cff",
+					"Pattern": "~ ch", "Bars": 2, "Octave": 4, "Legato": 1,
+					"Params": {"vowel": "a"},
+					"Gain": -12, "Reverb": 0.45
+				}
+			]
+		}
+	},
+	"Mix": {
+		"Reverb": {"Size": 1, "Decay": 2.6, "Tone": 0.5, "PreDelay": 0.03},
+		"Delay": {"Beats": 0.75, "Feedback": 0.28, "Tone": 0.45},
+		"Duck": "beat",
+		"Gain": 0.8,
+		"Transitions": {"Patch": "fx", "Lift": 1, "Gain": -4, "Reverb": 0.35}
+	}
+}

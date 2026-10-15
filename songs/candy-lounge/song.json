@@ -1,0 +1,152 @@
+{
+	"Kind": "synth",
+	"Title": "Candy Lounge",
+	"Category": "Grooves",
+	"Artist": "Mikael Lönebrink",
+	"BPM": 90,
+	"BeatsPerBar": 4,
+	"PhraseBars": 8,
+	"Key": "F",
+	"Scale": "major",
+	"Chords": ["Fmaj7", "Am7", "Bbmaj7", "C7", "Fmaj7", "Dm7", "Gm7", "C7"],
+	"Mode": "wander",
+	"Swing": 0.18,
+	"Clap": {"Track": "beat", "Drum": "rim"},
+	"Patches": {
+		"ep": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 1, "Index": 1.6, "Decay": 0.5, "Sustain": 0.2},
+				{"Wave": "sine", "Level": 0.7},
+				{"Wave": "fm", "Ratio": 14, "Index": 0.5, "Decay": 0.03, "Sustain": 0, "Level": 0.12}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 3200, "Res": 0.05, "Vel": 0.6},
+			"Amp": {"Attack": 0.004, "Decay": 1.6, "Sustain": 0.25, "Release": 0.45},
+			"LFO": [{"To": "amp", "Wave": "sine", "Hz": 4.5, "Depth": 0.12}],
+			"Poly": 10,
+			"Gain": 0.5
+		},
+		"bass": {
+			"Osc": [
+				{"Wave": "sine"},
+				{"Wave": "saw", "Level": 0.25},
+				{"Wave": "pulse", "Width": 0.45, "Level": 0.2}
+			],
+			"Filter": {"Type": "lp24", "Cutoff": 420, "Res": 0.15, "Env": 1, "Key": 0.3},
+			"Amp": {"Attack": 0.008, "Decay": 0.5, "Sustain": 0.6, "Release": 0.15},
+			"FilterEnv": {"Attack": 0.002, "Decay": 0.25, "Sustain": 0.3, "Release": 0.12},
+			"Poly": 1,
+			"Glide": 0.03,
+			"Drive": 0.2,
+			"Gain": 0.85
+		},
+		"pad": {
+			"Osc": [
+				{"Wave": "tri", "Level": 0.7},
+				{"Wave": "saw", "Unison": 3, "Spread": 14, "Level": 0.3}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 1000, "Res": 0.1, "Env": 0.4, "Key": 0.3},
+			"Amp": {"Attack": 1, "Decay": 1.5, "Sustain": 0.85, "Release": 1.8},
+			"FilterEnv": {"Attack": 1.2, "Decay": 2, "Sustain": 0.5, "Release": 1.5},
+			"LFO": [{"To": "cutoff", "Wave": "sine", "Beats": 16, "Depth": 0.4}],
+			"Poly": 12,
+			"Gain": 0.42
+		},
+		"musicbox": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 5, "Index": 1.6, "Decay": 0.12, "Sustain": 0.05},
+				{"Wave": "sine", "Octave": 1, "Level": 0.25}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 7000, "Key": 0.3},
+			"Amp": {"Attack": 0.002, "Decay": 1.1, "Sustain": 0, "Release": 0.9},
+			"Poly": 8,
+			"Gain": 0.42
+		},
+		"vibes": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 4, "Index": 1.1, "Decay": 0.3, "Sustain": 0.1},
+				{"Wave": "sine", "Level": 0.8}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 4500, "Key": 0.3, "Vel": 0.5},
+			"Amp": {"Attack": 0.003, "Decay": 1.2, "Sustain": 0.1, "Release": 0.8},
+			"LFO": [{"To": "amp", "Wave": "sine", "Hz": 5, "Depth": 0.2}],
+			"Poly": 6,
+			"Gain": 0.5
+		},
+		"glass": {
+			"Osc": [
+				{"Wave": "fm", "Ratio": 7, "Index": 1, "Decay": 0.2, "Sustain": 0.1},
+				{"Wave": "sine", "Level": 0.6}
+			],
+			"Filter": {"Type": "lp", "Cutoff": 8000, "Key": 0.3, "Vel": 0.6},
+			"Amp": {"Attack": 0.003, "Decay": 0.9, "Sustain": 0, "Release": 0.8},
+			"Poly": 8,
+			"Gain": 0.38
+		},
+		"kit": {
+			"Kind": "drums",
+			"Kit": {
+				"bd": {"Decay": 0.6, "Tone": 0.3, "Gain": 0.75},
+				"sn": {"Tone": 0.3, "Decay": 0.6, "Gain": 0.45},
+				"rim": {"Gain": 0.38, "Tone": 0.35, "Pan": 0.15},
+				"hh": {"Tone": 0.35, "Gain": 0.28},
+				"sh": {"Gain": 0.25, "Pan": -0.25},
+				"snap": {"Gain": 0.4, "Tone": 0.4}
+			}
+		}
+	},
+	"Tracks": [
+		{
+			"Name": "beat", "Core": true, "Patch": "kit", "Color": "#ff8a4c",
+			"Pattern": "[[bd ~ ~ ~ ~ ~ ~ bd ~ ~ bd ~ ~ ~ ~ ~], [~ ~ ~ ~ sn ~ ~ ~ ~ ~ ~ ~ sn ~ ~ rim], hh*8]",
+			"Params": {"vel": "[1 0.5 0.8 0.5]*4"},
+			"Gain": -9, "Reverb": 0.15, "Human": 0.3, "LPF": 6000
+		},
+		{
+			"Name": "bass", "Core": true, "Patch": "bass", "Color": "#3fd0c9",
+			"Pattern": "[b _ ~ b c2 _ ~ c1]", "Octave": 2, "Legato": 0.8,
+			"Params": {"vel": "1 0.75 0.85 0.7"},
+			"Gain": -6
+		},
+		{
+			"Name": "keys", "Core": true, "Patch": "ep", "Color": "#ffb3d9",
+			"Pattern": "[~ ch ~ ~ ch _ ~ ~]", "Octave": 4, "Legato": 0.9,
+			"Params": {"vel": "0.8 0.95"},
+			"Gain": -4, "Pan": -0.1, "Reverb": 0.3, "Chorus": 0.3
+		},
+		{
+			"Name": "pad", "Core": true, "Patch": "pad", "Color": "#a3b4ff",
+			"Pattern": "ch", "Octave": 4, "Legato": 1,
+			"Gain": -16, "HPF": 200, "Reverb": 0.45, "Chorus": 0.4
+		},
+		{
+			"Name": "hook", "Patch": "musicbox", "Color": "#fff1a8",
+			"Pattern": "[4 ~ 4 5 4 _ 2 4] [6 _ 4 _ 2 _ ~ ~] [5 ~ 5 7 5 _ 3 5] [8 _ 6 _ 4 _ ~ ~] [4 ~ 4 5 4 _ 2 4] [5 _ 7 _ 9 _ 7 5] [8 _ 7 5 3 _ 5 _] [4 _ _ _ ~ ~ ~ ~]",
+			"Bars": 8, "Octave": 5, "Legato": 0.9,
+			"Params": {"vel": "[0.9 0.7 0.8 0.7]*2"},
+			"Gain": -5, "Pan": 0.15, "Reverb": 0.4, "Delay": 0.28
+		},
+		{
+			"Name": "vibes", "Patch": "vibes", "Color": "#ff6b9d",
+			"Pattern": "[c0' ~ c2 ~ c1 ~ ~ ~] [~ c3 ~ c2 c1 _ ~ ~]", "Bars": 2, "Octave": 4, "Legato": 1,
+			"Params": {"vel": "[0.9 0.6 0.8 0.6]*2"},
+			"Gain": -6, "Pan": -0.2, "Reverb": 0.35, "Delay": 0.2
+		},
+		{
+			"Name": "topline", "Patch": "glass", "Color": "#e9f27a",
+			"Melody": {"Seed": 11, "Density": 0.4, "Low": 2, "High": 11, "Penta": true, "Evolve": 2},
+			"Octave": 5, "Legato": 0.9,
+			"Gain": -8, "Pan": 0.1, "Reverb": 0.45, "Delay": 0.3
+		},
+		{
+			"Name": "shaker", "Patch": "kit", "Color": "#ffe28a",
+			"Pattern": "[sh*16?0.3, ~ ~ ~ ~ ~ ~ snap ~ ~ ~ ~ ~ ~ ~ ~ ~]",
+			"Params": {"vel": "[0.5 0.8 0.6 1]*4"},
+			"Gain": -8, "Human": 0.3
+		}
+	],
+	"Mix": {
+		"Reverb": {"Size": 0.8, "Decay": 2.4, "Tone": 0.55, "PreDelay": 0.025},
+		"Delay": {"Beats": 0.75, "Feedback": 0.32, "Tone": 0.45},
+		"Gain": 0
+	}
+}
