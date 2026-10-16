@@ -2,6 +2,7 @@ package plugmod
 
 import (
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -247,6 +248,58 @@ func TestASyncedLFOIsTheSameHoweverTheSongIsPlayed(t *testing.T) {
 				t.Fatalf("%s: at frame %d playback puts out %v, the render %v", Shapes[shape], f, v, whole[f])
 			}
 		}
+	}
+}
+
+// stand runs pr for blocks of 100 frames with the song standing still at
+// beat 3, the host's frame moving on as its engine runs on, after a
+// first block playing up to there; it returns the main output of the
+// blocks standing still.
+func stand(pr *processor, blocks int, ch []plug.Change) []float32 {
+	at := int64(3 * rate / 2)
+	play := newBlock(100, plug.Position{Frame: at - 100, Playing: true, Tempo: 120, Beat: 3 - 100*2.0/rate})
+	play.b.Changes = ch
+	pr.Process(&play.b)
+	out := make([]float32, 0, 100*blocks)
+	for range blocks {
+		bl := newBlock(100, plug.Position{Frame: at, Playing: true, Still: true, Tempo: 120, Beat: 3})
+		pr.Process(&bl.b)
+		out = append(out, bl.outs[MainOut]...)
+		at += 100
+	}
+	return out
+}
+
+// An LFO counted from the song holds where the song stood still, at
+// every frame, though the host's frame moves on: synced, and free.
+func TestAnLFOFromTheSongHoldsWhileTheSongStandsStill(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		ch   []plug.Change
+	}{
+		{"synced", synced},
+		{"free", changes(float64(ShapeID), Saw, float64(SyncID), 0, float64(RateID), 3)},
+	} {
+		pr := newLFO(t)
+		pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 100})
+		out := stand(pr, 5, c.ch)
+		for f, v := range out {
+			if v != out[0] {
+				t.Fatalf("%s: standing still, frame %d puts out %v, frame 0 %v", c.name, f, v, out[0])
+			}
+		}
+	}
+}
+
+// One running free, synced, runs on at the tempo while the song stands
+// still.
+func TestAFreeRunningLFORunsOnWhileTheSongStandsStill(t *testing.T) {
+	pr := newLFO(t)
+	pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 100})
+	out := stand(pr, 2, append(slices.Clone(synced), changes(float64(StartID), FreeRunning)...))
+	// A saw at a quarter note, at 120, climbs 2 a beat: 4 a second.
+	if step, want := float64(out[150]-out[50]), 100*4.0/rate; !near(step, want, 1e-5) {
+		t.Fatalf("standing still, the saw moves %v over 100 frames, want %v", step, want)
 	}
 }
 
