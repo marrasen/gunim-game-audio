@@ -36,6 +36,10 @@ github.com/klauspost/compress v1.19.0 h1:sXLILfc9jV2QYWkzFOPWStmcUVH2RHEB1JCdY2o
 github.com/klauspost/compress v1.19.0/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/marrasen/gunim v0.0.0-20261016055058-17c4d8ac9f9a h1:8CkE+zdlBzKdMRgObuChZhNNTHrLFRFLcPSE4aF1d3A=
 github.com/marrasen/gunim v0.0.0-20261016055058-17c4d8ac9f9a/go.mod h1:EnaqqAd8J60E6mgBiFqIq/MC0vwLAiG3PQb1acEgTK8=
+github.com/marrasen/gunim v0.0.0-20261016075150-02ef27b0df51 h1:vk+i1Zkq5m5zmWS6W95uGMmTJZUKtdhi7p3Owim+Whw=
+github.com/marrasen/gunim v0.0.0-20261016075150-02ef27b0df51/go.mod h1:EnaqqAd8J60E6mgBiFqIq/MC0vwLAiG3PQb1acEgTK8=
+github.com/marrasen/gunim v0.0.0-20261016080724-bac9a034f3d9 h1:KqQov9WtaAv6x/16uKXKCm1iNURzFYMwSQIhVh+Js2I=
+github.com/marrasen/gunim v0.0.0-20261016080724-bac9a034f3d9/go.mod h1:EnaqqAd8J60E6mgBiFqIq/MC0vwLAiG3PQb1acEgTK8=
 github.com/marrasen/oto/v3 v3.5.1-gunim.5 h1:plT8vA7YvC94GQ5FgcVFntrnSoN7DpRQOeauDBqjA8Y=
 github.com/marrasen/oto/v3 v3.5.1-gunim.5/go.mod h1:9Kr9SPGrjo18cdaKxjd2kaf99e1Ln2CUKgbJP5TpiBU=
 github.com/mewkiz/flac v1.0.14 h1:hyRGAM8NCKznoPmIi9zz2jyO+nfmxY2ErqBnHZ+gxh4=

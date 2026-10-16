@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/bodgit/sevenzip v1.6.5
 	github.com/jfreymuth/oggvorbis v1.0.5
-	github.com/marrasen/gunim v0.0.0-20261016055058-17c4d8ac9f9a
+	github.com/marrasen/gunim v0.0.0-20261016080724-bac9a034f3d9
 	github.com/ulikunitz/xz v0.5.17
 )
 
