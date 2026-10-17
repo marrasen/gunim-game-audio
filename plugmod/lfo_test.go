@@ -135,6 +135,48 @@ func TestTheShapes(t *testing.T) {
 	}
 }
 
+func TestTheWidthTakesANewID(t *testing.T) {
+	for _, id := range []uint32{11, 12} {
+		if _, ok := Descriptor.Param(id); ok {
+			t.Errorf("parameter %d is in use again", id)
+		}
+	}
+	if WidthID != 16 {
+		t.Errorf("the width is parameter %d, want 16, the first never used", WidthID)
+	}
+	n := 0
+	for _, p := range Descriptor.Params {
+		if p.ID == WidthID {
+			n++
+		}
+	}
+	if n != 1 || ValueID != 20 || CycleID != 21 {
+		t.Errorf("the width is %d parameters, and the reports %d and %d, want one, 20 and 21", n, ValueID, CycleID)
+	}
+	// The Pulse comes last, so the shapes before keep their values.
+	if Pulse != len(Shapes)-1 || Shaper != 10 || Shapes[Pulse] != "Pulse" {
+		t.Errorf("the Pulse is shape %d of %d, after the Shaper at %d", Pulse, len(Shapes), Shaper)
+	}
+}
+
+func TestThePortsAreInTheirGroups(t *testing.T) {
+	for _, c := range []struct {
+		ports []plug.ControlPort
+		group string
+	}{
+		{Descriptor.ControlOut, "LFO"}, {Descriptor.ControlIn, "Mod"},
+	} {
+		if len(c.ports) != 4 {
+			t.Errorf("the %s group has %d ports, want 4", c.group, len(c.ports))
+		}
+		for _, p := range c.ports {
+			if p.Group != c.group {
+				t.Errorf("port %q is in group %q, want %q", p.Name, p.Group, c.group)
+			}
+		}
+	}
+}
+
 // block is a block a test's host runs, with its own outputs.
 type block struct {
 	b    plug.Block
@@ -472,6 +514,17 @@ func TestTheViewsShowAndTheScopeMoves(t *testing.T) {
 	pn.show(nil)
 	if knob(GlideID) || pn.count.Locked || pn.count.Selected() != 7 {
 		t.Errorf("the Steps shape leaves its controls grey, or shows %d steps", pn.count.Selected()+1)
+	}
+	if !knob(WidthID) {
+		t.Error("the Steps shape leaves the width lit")
+	}
+	h.values[ShapeID] = Pulse
+	pn.show(nil)
+	if knob(WidthID) || !knob(GlideID) {
+		t.Error("the Pulse greys its width, or leaves the glide lit")
+	}
+	if got := c.Access().Name; got != "LFO, Pulse 25%, 1.00 Hz" {
+		t.Errorf("the chip reads %q", got)
 	}
 }
 

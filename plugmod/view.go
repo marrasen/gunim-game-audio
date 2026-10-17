@@ -262,10 +262,22 @@ func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 func (c *chip) Step(time.Duration) bool { return c.sc.step() }
 
 // Access implements [gunim.Accessible]: the chip reads as the LFO's
-// shape and rate.
+// shape, with the Pulse's width, and rate.
 func (c *chip) Access() access.Info {
+	return access.Info{Role: access.RoleLabel, Name: "LFO, " + shapeText(c.h) + ", " + rateText(c.h)}
+}
+
+// shapeText writes the LFO's shape: the Pulse's with its width.
+func shapeText(h plug.Host) string {
 	p, _ := Descriptor.Param(ShapeID)
-	return access.Info{Role: access.RoleLabel, Name: "LFO, " + p.Text(c.h.Param(ShapeID)) + ", " + rateText(c.h)}
+	text := p.Text(h.Param(ShapeID))
+	var s settings
+	s.take(ShapeID, h.Param(ShapeID))
+	if s.shape == Pulse {
+		w, _ := Descriptor.Param(WidthID)
+		text += " " + w.Text(h.Param(WidthID))
+	}
+	return text
 }
 
 // Follow implements [plug.Follower]: the rate shows as it changes.
@@ -335,6 +347,7 @@ var (
 		"Slowly up and then fast, as a swell", "Fast down and then slowly, as a pluck",
 		"A new random value each cycle, held", "Random values, gliding from one to the next",
 		"The steps drawn in the scope, in turn", "The curve drawn in the scope: click to add a point, drag it, right-click to take it away",
+		"High for the Width's part of the cycle, low for the rest",
 	}
 	syncTips  = []string{"A rate in hertz, of its own", "A note value of the song's tempo"}
 	startTips = []string{"From the song's start, so it is in the same place each play",
@@ -419,6 +432,7 @@ func newPanel(h plug.Host, p *plugin, full bool) *panel {
 	v.sections = []*plugui.Section{
 		section("WAVE").Add(v.shape, 112).
 			Add(knob(PhaseID, "Where in its cycle the wave starts"), plugui.KnobW).
+			Add(knob(WidthID, "How much of each cycle the pulse is high"), plugui.KnobW).
 			Add(knob(SeedID, "Which random values the random shapes and the jitter pick"), plugui.KnobW),
 		section("RATE").Add(v.sync, 48).Add(v.rate, plugui.KnobW).Add(v.start, 56),
 		section("CHARACTER").
@@ -437,8 +451,9 @@ func newPanel(h plug.Host, p *plugin, full bool) *panel {
 
 // show sets the selectors as the parameters and the state stand, and
 // greys the controls the settings leave idle: the rate's knob of the
-// other Sync, the seed for a shape of no chance and no jitter, and the
-// steps' controls for another shape.
+// other Sync, the seed for a shape of no chance and no jitter, the
+// steps' controls for another shape, and the width for a shape but the
+// Pulse.
 func (v *panel) show(u *gunim.UI) {
 	set := settingsOf(v.h, v.p)
 	v.shape.SetSelected(set.shape, u)
@@ -457,6 +472,8 @@ func (v *panel) show(u *gunim.UI) {
 			k.Disabled = !randomShape(set.shape) && set.jitter == 0
 		case GlideID:
 			k.Disabled = set.shape != Steps
+		case WidthID:
+			k.Disabled = set.shape != Pulse
 		}
 	}
 }

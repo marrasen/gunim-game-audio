@@ -165,6 +165,39 @@ func TestTheShaperDrawsItsCurve(t *testing.T) {
 	}
 }
 
+func TestThePulseIsHighForItsWidth(t *testing.T) {
+	s := withShape(Pulse, 0)
+	if s.width != 0.25 {
+		t.Errorf("a new pulse is %v wide, want 0.25", s.width)
+	}
+	for _, c := range []struct{ width, at, want float64 }{
+		{0.25, 0, 1}, {0.25, 0.2, 1}, {0.25, 0.25, -1}, {0.25, 0.9, -1}, {0.25, 1.1, 1},
+		{0.5, 0.4, 1}, {0.5, 0.6, -1},
+		{0.1, 0.05, 1}, {0.1, 0.15, -1},
+		// At none, it is low all the cycle, and at all of it, high.
+		{0, 0, -1}, {0, 0.5, -1}, {1, 0, 1}, {1, 0.9999, 1},
+	} {
+		s.width = c.width
+		if got := s.wave(c.at); got != c.want {
+			t.Errorf("a pulse %v wide at %v is %v, want %v", c.width, c.at, got, c.want)
+		}
+	}
+	// Unipolar, it runs from 0 to the depth, as the square does.
+	s.width, s.unipolar, s.depth = 0.25, true, 0.5
+	if a, b := s.wave(0.1), s.wave(0.6); a != 0.5 || b != 0 {
+		t.Errorf("a unipolar pulse at half depth runs %v to %v, want 0.5 to 0", a, b)
+	}
+	// Smoothed, it is its average: over a whole cycle, high for the
+	// width and low for the rest.
+	s.unipolar, s.depth = false, 1
+	for _, w := range []float64{0.1, 0.25, 0.8} {
+		s.width = w
+		if got, want := s.area(0.3, 1.3), 2*w-1; !near(got, want, 1e-9) {
+			t.Errorf("a pulse %v wide has %v under a cycle, want %v", w, got, want)
+		}
+	}
+}
+
 func TestTheStateRoundTrips(t *testing.T) {
 	st := DefaultState()
 	st.Steps[3], st.Count = -0.125, 12

@@ -51,6 +51,9 @@ const (
 	// GlideID is how much of each step of the Steps shape slides from
 	// the step before to its own value, from 0 to all of it.
 	GlideID
+	// WidthID is how much of each cycle the Pulse shape is high, from 0
+	// to all of it.
+	WidthID
 )
 
 // The values the LFO reports as it plays, read-only parameters, for its
@@ -83,11 +86,14 @@ const (
 	// Shaper plays the curve the LFO's [State] draws through its
 	// points.
 	Shaper
+	// Pulse is high for WidthID's part of the cycle and low for the
+	// rest, as Square is for half.
+	Pulse
 )
 
 // Shapes are the shapes' names, by ShapeID's value.
 var Shapes = []string{"Sine", "Triangle", "Saw up", "Saw down", "Square", "Exp rise", "Exp fall",
-	"Sample & hold", "Smooth random", "Steps", "Shaper"}
+	"Sample & hold", "Smooth random", "Steps", "Shaper", "Pulse"}
 
 // The control inputs' indexes, one for each thing they move. Each runs
 // from -1 to 1, as the host scales what it is wired to, and stands at 0
@@ -182,16 +188,16 @@ var Descriptor = plug.Descriptor{
 	Version: "0.2.0",
 	Kind:    "Generator|LFO",
 	ControlIn: []plug.ControlPort{
-		{Name: "Rate mod", Min: -1, Max: 1},
-		{Name: "Depth mod", Min: -1, Max: 1},
-		{Name: "Phase mod", Min: -1, Max: 1},
-		{Name: "Offset mod", Min: -1, Max: 1},
+		{Name: "Rate mod", Min: -1, Max: 1, Group: "Mod"},
+		{Name: "Depth mod", Min: -1, Max: 1, Group: "Mod"},
+		{Name: "Phase mod", Min: -1, Max: 1, Group: "Mod"},
+		{Name: "Offset mod", Min: -1, Max: 1, Group: "Mod"},
 	},
 	ControlOut: []plug.ControlPort{
-		{Name: "LFO", Min: -1, Max: 1},
-		{Name: "LFO 90°", Min: -1, Max: 1},
-		{Name: "LFO 180°", Min: -1, Max: 1},
-		{Name: "LFO 270°", Min: -1, Max: 1},
+		{Name: "LFO", Min: -1, Max: 1, Group: "LFO"},
+		{Name: "LFO 90°", Min: -1, Max: 1, Group: "LFO"},
+		{Name: "LFO 180°", Min: -1, Max: 1, Group: "LFO"},
+		{Name: "LFO 270°", Min: -1, Max: 1, Group: "LFO"},
 	},
 	Params: []plug.Param{
 		{ID: ShapeID, Name: "Shape", Max: float64(len(Shapes) - 1), Steps: len(Shapes) - 1, Flags: plug.Automatable,
@@ -217,6 +223,7 @@ var Descriptor = plug.Descriptor{
 		{ID: JitterID, Name: "Jitter", Max: 1, Flags: plug.Automatable, Format: percent},
 		{ID: SmoothID, Name: "Smooth", Max: 1, Flags: plug.Automatable, Format: percent},
 		{ID: GlideID, Name: "Glide", Max: 1, Flags: plug.Automatable, Format: percent},
+		{ID: WidthID, Name: "Width", Max: 1, Default: 0.25, Flags: plug.Automatable, Format: percent},
 		{ID: ValueID, Name: "Value", Min: -1, Max: 1, Flags: plug.ReadOnly | plug.Hidden},
 		{ID: CycleID, Name: "Cycle", Max: 1, Flags: plug.ReadOnly | plug.Hidden},
 	},
@@ -296,6 +303,7 @@ type settings struct {
 	seed          uint64
 	jitter        float64
 	smooth, glide float64
+	width         float64
 	// pat is the state's steps and curve, as the shapes play them.
 	pat *pattern
 }
@@ -344,6 +352,8 @@ func (s *settings) take(id uint32, v float64) {
 		s.smooth = v
 	case GlideID:
 		s.glide = v
+	case WidthID:
+		s.width = v
 	}
 }
 
@@ -378,7 +388,7 @@ type processor struct {
 	still      bool
 	stillFrame int64
 	value      plug.Meter
-	cycle   plug.Meter
+	cycle      plug.Meter
 }
 
 // Prepare implements [plug.Processor].
@@ -643,6 +653,11 @@ func (s *settings) shapeAt(c float64) float64 {
 		return s.pat.step(x, s.glide)
 	case Shaper:
 		return s.pat.curveAt(x)
+	case Pulse:
+		if x >= s.width {
+			return -1
+		}
+		return 1
 	}
 	return 0
 }
@@ -685,6 +700,11 @@ func (s *settings) integral(n int64, x float64) float64 {
 		return s.pat.stepsIntegral(x, s.glide)
 	case Shaper:
 		return s.pat.curveIntegral(x)
+	case Pulse:
+		if x >= s.width {
+			return 2*s.width - x
+		}
+		return x
 	}
 	return 0
 }
