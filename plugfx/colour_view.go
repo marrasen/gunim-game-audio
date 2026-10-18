@@ -70,7 +70,7 @@ var (
 	distortTips = []string{"A fuzz's hard clip", "A guitar amplifier's valves and its cabinet",
 		"A wavefolder, which folds the sound back on itself"}
 	ditherTips = []string{"The steps between the levels kept, heard as a grainy edge to the sound",
-		"A little noise added before each sample is kept, which trades the grain for a soft hiss"}
+		"A little noise added before each sample is kept, which trades the grain for a soft hiss. At 1 bit it has nothing to smooth"}
 	autoGainTips = []string{"The distortion as loud as it comes out, louder the harder it drives",
 		"The distortion kept as loud as the sound fed to it, however hard it drives"}
 )
@@ -175,10 +175,21 @@ func (c *unitCard) width() float32 { return c.section.Width() }
 // follow takes a parameter set elsewhere, where it is the card's.
 func (c *unitCard) follow(id uint32, v float64, u *gunim.UI) {
 	c.section.Follow(id, v, u)
-	if c.sel != nil && (id == UnitParamID(c.unit.Slot, ChorusModeParam) || id == UnitParamID(c.unit.Slot, DistortTypeParam)) {
+	// Each slot holds every kind's parameters, so a selector follows its
+	// own kind's alone.
+	var sel, toggle uint32
+	switch c.unit.Kind {
+	case Chorus:
+		sel = ChorusModeParam
+	case Distortion:
+		sel, toggle = DistortTypeParam, DistortAutoParam
+	case Crush:
+		toggle = CrushDitherParam
+	}
+	if c.sel != nil && sel != 0 && id == UnitParamID(c.unit.Slot, sel) {
 		c.sel.SetSelected(int(math.Round(v)), u)
 	}
-	if c.toggle != nil && (id == UnitParamID(c.unit.Slot, DistortAutoParam) || id == UnitParamID(c.unit.Slot, CrushDitherParam)) {
+	if c.toggle != nil && toggle != 0 && id == UnitParamID(c.unit.Slot, toggle) {
 		c.toggle.SetSelected(int(math.Round(v)), u)
 	}
 }
@@ -300,8 +311,12 @@ func newAddCard(pn *chainPanel) *addCard {
 	return a
 }
 
-// addW is how wide the add card stands.
-const addW = 150
+// addW is how wide the add card stands, and addColumns how many columns
+// of buttons it holds.
+const (
+	addW       = 260
+	addColumns = 2
+)
 
 // Children implements [gunim.Composite].
 func (a *addCard) Children() []gunim.Node {
@@ -315,10 +330,13 @@ func (a *addCard) Children() []gunim.Node {
 // Layout implements [gunim.Node].
 func (a *addCard) Layout(_ gunim.Constraints, _ gunim.Frame, kids gunim.Children) geom.Size {
 	size := geom.Sz(addW, plugui.SectionH)
-	h := (size.H - plugui.SectionHead - plugui.SectionPad) / float32(len(a.buttons))
+	rows := (len(a.buttons) + addColumns - 1) / addColumns
+	w := float32(addW-2*plugui.SectionPad) / addColumns
+	h := (size.H - plugui.SectionHead - plugui.SectionPad) / float32(rows)
 	for i := range a.buttons {
-		kids.At(i).Layout(gunim.Tight(geom.Sz(addW-2*plugui.SectionPad, h-4)))
-		kids.At(i).Place(geom.Pt(plugui.SectionPad, plugui.SectionHead+float32(i)*h))
+		col, row := i%addColumns, i/addColumns
+		kids.At(i).Layout(gunim.Tight(geom.Sz(w-4, h-4)))
+		kids.At(i).Place(geom.Pt(plugui.SectionPad+float32(col)*w, plugui.SectionHead+float32(row)*h))
 	}
 	return size
 }
