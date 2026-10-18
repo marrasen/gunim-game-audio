@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/audio/plug"
 )
 
@@ -138,5 +139,40 @@ func TestTheCrushsChipNamesItsBits(t *testing.T) {
 	c := as[*colourChip](t, p.View(plug.Chip, h))
 	if got := c.Access().Name; got != "Colour: 12-bit, Juno I" {
 		t.Errorf("the chip reads %q", got)
+	}
+}
+
+func TestSilenceStaysSilentDithered(t *testing.T) {
+	// So a host may let the crush sleep through a pause.
+	c := newCrusher(48000)
+	c.set(4, 8000, 0.5, true)
+	in := sine(4800, 300, 0.5)
+	c.process(in[0], in[1])
+	l, r := make([]float32, 48000), make([]float32, 48000)
+	c.process(l, r)
+	if p := peak(l[24000:], r[24000:]); p != 0 {
+		t.Errorf("after the sound stops, silence comes out at %g", p)
+	}
+}
+
+func TestEachCardsSelectorsFollowTheirOwnKind(t *testing.T) {
+	// Each slot holds every kind's parameters: a crush's Dither stays
+	// where it is as the slot's distortion's Auto gain is set, and a
+	// distortion's Type as its chorus's Mode is.
+	_, _, pn, w, run := chainStage(t, []Unit{{Kind: Crush}, {Kind: Distortion, Slot: 1}})
+	crush, dist := pn.cards[0], pn.cards[1]
+	withUI(t, w, run, func(u *gunim.UI) {
+		pn.Follow(UnitParamID(0, DistortAutoParam), 1, u)
+		pn.Follow(UnitParamID(1, ChorusModeParam), 2, u)
+	})
+	if got := crush.toggle.Selected(); got != 0 {
+		t.Errorf("the crush's Dither shows %d after the slot's Auto gain is set", got)
+	}
+	if got := dist.sel.Selected(); got != 0 {
+		t.Errorf("the distortion's Type shows %d after the slot's chorus Mode is set", got)
+	}
+	withUI(t, w, run, func(u *gunim.UI) { pn.Follow(UnitParamID(0, CrushDitherParam), 1, u) })
+	if got := crush.toggle.Selected(); got != 1 {
+		t.Errorf("the crush's Dither shows %d after it is set on", got)
 	}
 }

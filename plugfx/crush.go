@@ -31,6 +31,10 @@ type crusher struct {
 	seed uint32
 }
 
+// crushQuiet is how quiet a sample is, under 24 bits' smallest step, for
+// the crush to take it as silence and dither it no more.
+const crushQuiet = 1.0 / (1 << 24)
+
 // crushSeed is where the dither's noise starts.
 const crushSeed = 0x9e3779b9
 
@@ -98,9 +102,10 @@ func (c *crusher) quantize(x float32) float32 {
 		return 0
 	}
 	v := x * c.levels
-	if c.dither {
+	if c.dither && (x > crushQuiet || x < -crushQuiet) {
 		// Triangular noise of a step either way, which leaves no trace of
-		// the sound in the error it makes.
+		// the sound in the error it makes. Silence stays silent, so a
+		// host may let the crush sleep through a pause.
 		v += c.noise() - c.noise()
 	}
 	v = float32(math.Floor(float64(v) + 0.5))
