@@ -21,13 +21,14 @@ const (
 	Chorus     = "chorus"
 	Phaser     = "phaser"
 	Distortion = "distortion"
+	Crush      = "crush"
 )
 
 // UnitKinds are the kinds of unit, in the order the views offer them.
-var UnitKinds = []string{Chorus, Phaser, Distortion}
+var UnitKinds = []string{Chorus, Phaser, Distortion, Crush}
 
 // kindName is how the views name a kind.
-var kindName = map[string]string{Chorus: "Chorus", Phaser: "Phaser", Distortion: "Distortion"}
+var kindName = map[string]string{Chorus: "Chorus", Phaser: "Phaser", Distortion: "Distortion", Crush: "Crush"}
 
 // ChorusModeNames name the chorus's modes, by ChorusModeParam's value,
 // as [synth.ChorusKinds] lists them.
@@ -67,6 +68,23 @@ const (
 	DistortMixParam    uint32 = 23
 	DistortAutoParam   uint32 = 24
 	DistortOutputParam uint32 = 25
+	// CrushBitsParam is how many bits the crush keeps, from 1 to 16,
+	// CrushRateParam the rate it holds samples at, in hertz,
+	// CrushSmoothParam how far it takes away the highs that rate cannot
+	// carry, CrushDitherParam, on at 1, dithers, and CrushMixParam is how
+	// much of it is heard, each in percent.
+	CrushBitsParam   uint32 = 31
+	CrushRateParam   uint32 = 32
+	CrushSmoothParam uint32 = 33
+	CrushDitherParam uint32 = 34
+	CrushMixParam    uint32 = 35
+)
+
+// The crush's ends and its defaults, an SP-1200's 12 bits at 26.04 kHz.
+const (
+	crushMinBits, crushMaxBits = 1, 16
+	crushMinRate, crushMaxRate = 1000, 48000
+	crushBits, crushRate       = 12, 26040
 )
 
 // UnitParamID returns the ID of the parameter of the unit in slot, from
@@ -98,7 +116,19 @@ var unitParams = map[string][]plug.Param{
 		{ID: DistortOutputParam, Name: "Output", Unit: "dB", Min: -24, Max: 12, Flags: plug.Automatable,
 			Format: decibels},
 	},
+	Crush: {
+		{ID: CrushBitsParam, Name: "Bits", Min: crushMinBits, Max: crushMaxBits, Default: crushBits,
+			Steps: crushMaxBits - crushMinBits, Flags: plug.Automatable, Format: bitsText},
+		{ID: CrushRateParam, Name: "Rate", Unit: "Hz", Min: crushMinRate, Max: crushMaxRate, Default: crushRate,
+			Log: true, Flags: plug.Automatable, Format: hertz},
+		{ID: CrushSmoothParam, Name: "Smooth", Unit: "%", Max: 100, Flags: plug.Automatable, Format: percent},
+		{ID: CrushDitherParam, Name: "Dither", Max: 1, Steps: 1, Flags: plug.Automatable, Format: onOff},
+		{ID: CrushMixParam, Name: "Mix", Unit: "%", Max: 100, Default: 100, Flags: plug.Automatable, Format: percent},
+	},
 }
+
+// bitsText writes the crush's bits to show: "12-bit".
+func bitsText(v float64) string { return fmt.Sprintf("%.0f-bit", math.Round(v)) }
 
 // ColourDescriptor is Colour, as it is registered.
 var ColourDescriptor = func() plug.Descriptor {
@@ -130,6 +160,12 @@ var ColourDescriptor = func() plug.Descriptor {
 			State: ColourState{Units: []Unit{{Kind: Distortion}, {Kind: Phaser, Slot: 1}, {Kind: Chorus, Slot: 2}}}.Encode(),
 			Params: map[uint32]float64{UnitParamID(0, DistortTypeParam): 1, UnitParamID(0, DistortDriveParam): 55,
 				UnitParamID(1, PhaserMixParam): 60}},
+		{Name: "SP-1200 crunch", State: ColourState{Units: []Unit{{Kind: Crush}}}.Encode()},
+		{Name: "8-bit console", State: ColourState{Units: []Unit{{Kind: Crush}}}.Encode(),
+			Params: map[uint32]float64{UnitParamID(0, CrushBitsParam): 8, UnitParamID(0, CrushRateParam): 16000}},
+		{Name: "Crushed and dirty", State: ColourState{Units: []Unit{{Kind: Crush}, {Kind: Distortion, Slot: 1}}}.Encode(),
+			Params: map[uint32]float64{UnitParamID(0, CrushBitsParam): 6, UnitParamID(0, CrushRateParam): 11025,
+				UnitParamID(0, CrushMixParam): 60, UnitParamID(1, DistortTypeParam): 1, UnitParamID(1, DistortDriveParam): 35}},
 	}
 	return d
 }()
@@ -401,6 +437,43 @@ func (a *autoGain) run(dl, dr, wl, wr []float32) {
 	}
 }
 
+// crushUnit is a bit crusher, blended with the sound fed to it: dl and
+// dr keep that sound while it runs.
+type crushUnit struct {
+	c      *crusher
+	mix    blend
+	dl, dr []float32
+	// dry and wet are the block's sound fed in and out, as blend takes
+	// them.
+	dry, wet [2][]float32
+}
+
+func (u *crushUnit) apply(v *slotValues) {
+	u.c.set(int(math.Round(v[CrushBitsParam])), v[CrushRateParam], v[CrushSmoothParam]/100, v[CrushDitherParam] > 0.5)
+	u.mix.mixTo = float32(v[CrushMixParam] / 100)
+}
+
+func (u *crushUnit) process(l, r []float32) {
+	n := len(l)
+	copy(u.dl, l)
+	copy(u.dr, r)
+	u.c.process(l, r)
+	u.dry, u.wet = [2][]float32{u.dl[:n], u.dr[:n]}, [2][]float32{l, r}
+	u.mix.run(u.dry[:], u.wet[:], l, r, 0, n)
+}
+
+func (u *crushUnit) carry(o colourUnit) {
+	if c, ok := o.(*crushUnit); ok {
+		u.c.phase, u.c.held, u.c.lp, u.c.seed = c.c.phase, c.c.held, c.c.lp, c.c.seed
+		u.mix.mix = c.mix.mix
+	}
+}
+
+func (u *crushUnit) clear() {
+	u.c.clear()
+	u.mix.jump()
+}
+
 // chain is the units at work, in their order, each in its slot.
 type chain struct {
 	units []colourUnit
@@ -417,6 +490,11 @@ func newChain(plan []Unit, rate float64, block int) *chain {
 			c.units = append(c.units, &chorusUnit{synth.NewChorusUnit(rate, synth.ChorusKinds[1])})
 		case Phaser:
 			c.units = append(c.units, &phaserUnit{synth.NewPhaserUnit(rate)})
+		case Crush:
+			u := &crushUnit{c: newCrusher(rate), dl: make([]float32, block), dr: make([]float32, block)}
+			u.mix.prepare(rate)
+			u.mix.widthTo = 1
+			c.units = append(c.units, u)
 		default:
 			d := &distortUnit{d: synth.NewDistortionUnit(rate), dl: make([]float32, block), dr: make([]float32, block)}
 			d.mix.prepare(rate)

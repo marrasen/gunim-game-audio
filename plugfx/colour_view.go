@@ -39,6 +39,8 @@ func kindColor(th *theme.Live, kind string) color.NRGBA {
 		return FxChorus.Get(th)
 	case Phaser:
 		return FxPhaser.Get(th)
+	case Crush:
+		return FxCrush.Get(th)
 	default:
 		return FxDistortion.Get(th)
 	}
@@ -52,6 +54,8 @@ func unitTitle(u Unit, v values) string {
 		return ChorusModeNames[stepOf(v[UnitParamID(u.Slot, ChorusModeParam)], len(ChorusModeNames))]
 	case Distortion:
 		return DistortTypeNames[stepOf(v[UnitParamID(u.Slot, DistortTypeParam)], len(DistortTypeNames))]
+	case Crush:
+		return bitsText(v[UnitParamID(u.Slot, CrushBitsParam)])
 	}
 	return kindName[u.Kind]
 }
@@ -65,6 +69,8 @@ var (
 		"A string machine's ensemble: three copies, each swept by a slow and a fast sine"}
 	distortTips = []string{"A fuzz's hard clip", "A guitar amplifier's valves and its cabinet",
 		"A wavefolder, which folds the sound back on itself"}
+	ditherTips = []string{"The steps between the levels kept, heard as a grainy edge to the sound",
+		"A little noise added before each sample is kept, which trades the grain for a soft hiss"}
 	autoGainTips = []string{"The distortion as loud as it comes out, louder the harder it drives",
 		"The distortion kept as loud as the sound fed to it, however hard it drives"}
 )
@@ -76,8 +82,8 @@ type unitCard struct {
 	unit    Unit
 	section *plugui.Section
 	sel     *plugui.Selector
-	// auto switches a distortion's Auto gain.
-	auto   *plugui.Selector
+	// toggle switches a distortion's Auto gain, or a crush's Dither.
+	toggle *plugui.Selector
 	remove *widget.IconButton
 	// x and y are where it stands, gliding; appear grows from 0 to 1 as
 	// it comes, and lift as it is dragged.
@@ -124,17 +130,26 @@ func newUnitCard(pn *chainPanel, u Unit) *unitCard {
 			knob(PhaserFeedbackParam, "How much goes round again, which sharpens the notches"),
 			knob(PhaserMixParam, "How much of the phaser is heard: all of it makes the deepest notches"),
 		}
+	case Crush:
+		c.toggle = plugui.NewSelector("Dither", []string{"Off", "On"}, ditherTips)
+		c.toggle.OnPick = pick(CrushDitherParam)
+		c.toggle.SetSelected(stepOf(v[UnitParamID(u.Slot, CrushDitherParam)], 2), nil)
+		c.section.Knobs = []*plugui.Knob{knob(CrushBitsParam, "How many bits each sample keeps: fewer, the grittier"),
+			knob(CrushRateParam, "How often a sample is taken and held: lower, the duller and the more it rings"),
+			knob(CrushSmoothParam, "How far the highs the rate cannot carry are taken away first, rather than folding back down"),
+			knob(CrushMixParam, "How much of the crush is heard")}
+		c.section.Add(c.toggle, 56)
 	default:
 		c.sel = plugui.NewSelector("Type", DistortTypeNames, distortTips)
 		c.sel.OnPick = pick(DistortTypeParam)
 		c.sel.SetSelected(stepOf(v[UnitParamID(u.Slot, DistortTypeParam)], len(DistortTypeNames)), nil)
-		c.auto = plugui.NewSelector("Auto gain", []string{"Off", "On"}, autoGainTips)
-		c.auto.OnPick = pick(DistortAutoParam)
-		c.auto.SetSelected(stepOf(v[UnitParamID(u.Slot, DistortAutoParam)], 2), nil)
+		c.toggle = plugui.NewSelector("Auto gain", []string{"Off", "On"}, autoGainTips)
+		c.toggle.OnPick = pick(DistortAutoParam)
+		c.toggle.SetSelected(stepOf(v[UnitParamID(u.Slot, DistortAutoParam)], 2), nil)
 		c.section.Knobs = []*plugui.Knob{knob(DistortDriveParam, "How hard the sound is driven"),
 			knob(DistortMixParam, "How much of the distortion is heard"),
 			knob(DistortOutputParam, "How far the sound is turned up or down, after the mix")}
-		c.section.Add(c.sel, 56).Add(c.auto, 56)
+		c.section.Add(c.sel, 56).Add(c.toggle, 56)
 	}
 	c.remove = widget.NewIconButton(icon.X, "Remove the "+strings.ToLower(kindName[u.Kind]))
 	c.remove.OnClick = func(ui *gunim.UI) gunim.Intent {
@@ -163,8 +178,8 @@ func (c *unitCard) follow(id uint32, v float64, u *gunim.UI) {
 	if c.sel != nil && (id == UnitParamID(c.unit.Slot, ChorusModeParam) || id == UnitParamID(c.unit.Slot, DistortTypeParam)) {
 		c.sel.SetSelected(int(math.Round(v)), u)
 	}
-	if c.auto != nil && id == UnitParamID(c.unit.Slot, DistortAutoParam) {
-		c.auto.SetSelected(int(math.Round(v)), u)
+	if c.toggle != nil && (id == UnitParamID(c.unit.Slot, DistortAutoParam) || id == UnitParamID(c.unit.Slot, CrushDitherParam)) {
+		c.toggle.SetSelected(int(math.Round(v)), u)
 	}
 }
 

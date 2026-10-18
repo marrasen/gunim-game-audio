@@ -23,6 +23,7 @@ var (
 	FxChorus     = theme.Color("plugfx.chorus", color.NRGBA{R: 0x8a, G: 0xd4, B: 0xff, A: 0xff})
 	FxPhaser     = theme.Color("plugfx.phaser", color.NRGBA{R: 0xc0, G: 0x9a, B: 0xff, A: 0xff})
 	FxDistortion = theme.Color("plugfx.distortion", color.NRGBA{R: 0xff, G: 0x8a, B: 0x5a, A: 0xff})
+	FxCrush      = theme.Color("plugfx.crush", color.NRGBA{R: 0x9b, G: 0xe3, B: 0x6e, A: 0xff})
 )
 
 // values are the parameters as the views show them, by ID.

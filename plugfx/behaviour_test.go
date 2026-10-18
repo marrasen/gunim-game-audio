@@ -23,8 +23,8 @@ func TestProcessAllocatesNothing(t *testing.T) {
 		{"colour", &ColourDescriptor, "plugfx.(*colourProc).Process", func(p plug.Plugin, i int) {
 			// A new chain every few blocks, so blocks cross over.
 			if i%3 == 0 {
-				units := []Unit{{Kind: Distortion, Slot: 1}, {Kind: Phaser, Slot: 0}, {Kind: Chorus, Slot: 3}}
-				_ = p.SetState(ColourState{Units: units[:1+i/3%3]}.Encode())
+				units := []Unit{{Kind: Distortion, Slot: 1}, {Kind: Crush, Slot: 4}, {Kind: Phaser, Slot: 0}, {Kind: Chorus, Slot: 3}}
+				_ = p.SetState(ColourState{Units: units[:1+i/3%4]}.Encode())
 			}
 		}},
 	}
@@ -196,7 +196,7 @@ func TestTheEffectsRunAtAnyRate(t *testing.T) {
 			p := d.New(nil)
 			if d == &ColourDescriptor {
 				_ = p.SetState(ColourState{Units: []Unit{{Kind: Chorus}, {Kind: Phaser, Slot: 1},
-					{Kind: Distortion, Slot: 2}}}.Encode())
+					{Kind: Distortion, Slot: 2}, {Kind: Crush, Slot: 3}}}.Encode())
 			}
 			out := rig{pr: p.Processor(), d: d, s: s}.run(t, noise(frames, frames/10))
 			for ch := range out {
