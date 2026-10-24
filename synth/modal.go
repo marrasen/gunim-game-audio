@@ -3,7 +3,7 @@ package synth
 import "math"
 
 // maxModes is how many modes a modelled drum rings with, at most.
-const maxModes = 32
+const maxModes = len(membraneModes)
 
 // membraneModes are a round drum head's lowest modes: each one's order and the zero of the Bessel function of that
 // order, which set its pitch and how strongly a strike at a given radius drives it.
@@ -15,25 +15,8 @@ var membraneModes = [...]struct {
 	{2, 8.4172}, {0, 8.6537}, {5, 8.7715}, {3, 9.7610}, {6, 9.9361}, {1, 10.1735},
 }
 
-// plateRatios are a cymbal's modes, as multiples of its lowest, spread evenly in pitch over five and a half octaves
-// and each moved a little off the even spread, and plateLevels how strongly a strike drives each.
-var plateRatios, plateLevels = func() (r, l [maxModes]float32) {
-	g := newRand(1964)
-	for i := range r {
-		r[i] = float32(math.Exp2((float64(i) + 0.8*(g.float()-0.5)) * 5.5 / maxModes))
-		l[i] = float32(0.4 + 0.6*g.float())
-	}
-	return r, l
-}()
-
-// The shapes a modelled drum rings as.
-const (
-	shapeMembrane = iota
-	shapePlate
-)
-
 // head is a modelled drum's own sound:
-//   - its shape, its lowest mode's pitch and how long that rings, in seconds, and how much faster each higher mode
+//   - its lowest mode's pitch and how long that rings, in seconds, and how much faster each higher mode
 //     dies;
 //   - where it is struck, how far a hard hit bends its pitch up and how long that takes to settle, in seconds, how
 //     long the stick or beater touches it at Tone 0, in seconds, and how hard it drives the output;
@@ -46,7 +29,6 @@ const (
 //   - how hard the whole sound is squashed, 0 for not at all;
 //   - and the pitch its sound is highpassed at, 0 for none, and how loud it is, 1 for as loud as it rings.
 type head struct {
-	shape                                                int
 	hz, ring, damp, strike, bend, settle, contact, drive float32
 	slap, slapHz, slapRing                               float32
 	click, clickHz                                       float32
@@ -63,18 +45,10 @@ var heads = map[int]head{
 	drModalSnare: {hz: 175, ring: 0.028, damp: 1.74, strike: 0.35, bend: 0.225, settle: 0.1125, contact: 0.3e-3, drive: 2.4,
 		slap: 2.03, slapHz: 1667, slapRing: 0.0106, click: 2.5, clickHz: 5000, buzz: 0.89, buzzHz: 4000, buzzRing: 0.2,
 		rattle: 0.6, squash: 1.125, hp: 12, gain: 1.25},
-	drModalHat: {shape: shapePlate, hz: 420, ring: 0.05, damp: 1.5, strike: 0.6, contact: 0.3e-3, drive: 1.2,
-		slap: 0.4, slapHz: 9000, slapRing: 0.004, buzz: 1.2, buzzHz: 9000, hp: 6000, gain: 0.7},
-	drModalOHat: {shape: shapePlate, hz: 420, ring: 0.5, damp: 1, strike: 0.6, contact: 0.3e-3, drive: 1.2,
-		slap: 0.4, slapHz: 9000, slapRing: 0.006, buzz: 1, buzzHz: 8500, hp: 6000, gain: 0.6},
-	drModalCrash: {shape: shapePlate, hz: 360, ring: 1.6, damp: 0.6, strike: 0.7, contact: 0.5e-3, drive: 2,
-		slap: 0.5, slapHz: 6000, slapRing: 0.02, buzz: 1.4, buzzHz: 7000, hp: 2500, gain: 0.8},
-	drModalRide: {shape: shapePlate, hz: 420, ring: 2.2, damp: 0.8, strike: 0.5, contact: 0.3e-3, drive: 0.7,
-		slap: 0.5, slapHz: 9000, slapRing: 0.005, buzz: 0.7, buzzHz: 9000, hp: 1500, gain: 0.45},
 }
 
-// isModal reports whether drum kind k is a modelled drum.
-func isModal(k int) bool { return k >= drModalKick && k <= drModalRide }
+// isModal reports whether drum kind k is a modelled drum with a head.
+func isModal(k int) bool { return k >= drModalKick && k <= drModalSnare }
 
 // membrane is a modelled drum sounding: each mode a damped rotation that the stick's strike drives, and the noises
 // the strike and the ringing make.
@@ -124,27 +98,14 @@ func (m *membrane) start(h *hit, k int, tune, tone, decay float32) {
 	m.settle = float32(math.Exp(-control / (float64(hd.settle) * rate)))
 	m.drive = hd.drive
 	var top float32
-	if hd.shape == shapePlate {
-		// A cymbal struck near its bell rings brighter, and near its edge darker.
-		m.n = maxModes
-		tilt := 1.5 * (0.6 - strike)
-		for i, r := range plateRatios {
-			m.hz[i] = hd.hz * tune * r * jitter(0.002)
-			tau := hd.ring * decay / (1 + hd.damp*float32(math.Log2(float64(r))))
-			m.keep[i] = float32(math.Exp(-1 / (float64(tau) * rate)))
-			m.amp[i] = plateLevels[i] * float32(math.Pow(float64(r), float64(tilt))) * jitter(0.05)
-			top = max(top, m.amp[i])
-		}
-	} else {
-		m.n = len(membraneModes)
-		for i, md := range membraneModes {
-			ratio := float32(md.zero / membraneModes[0].zero)
-			m.hz[i] = hd.hz * tune * ratio * jitter(0.003)
-			tau := hd.ring * decay / (1 + hd.damp*(ratio-1))
-			m.keep[i] = float32(math.Exp(-1 / (float64(tau) * rate)))
-			m.amp[i] = float32(math.Abs(math.Jn(md.order, md.zero*float64(strike)))) * jitter(0.05)
-			top = max(top, m.amp[i])
-		}
+	m.n = len(membraneModes)
+	for i, md := range membraneModes {
+		ratio := float32(md.zero / membraneModes[0].zero)
+		m.hz[i] = hd.hz * tune * ratio * jitter(0.003)
+		tau := hd.ring * decay / (1 + hd.damp*(ratio-1))
+		m.keep[i] = float32(math.Exp(-1 / (float64(tau) * rate)))
+		m.amp[i] = float32(math.Abs(math.Jn(md.order, md.zero*float64(strike)))) * jitter(0.05)
+		top = max(top, m.amp[i])
 	}
 	for i := range m.n {
 		m.amp[i] /= top

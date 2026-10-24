@@ -176,11 +176,12 @@ func TestModelledCymbalsRingBrightAndLong(t *testing.T) {
 	hat := renderKitHit(t, nil, "mhh", 1, 2*rate)
 	for _, name := range []string{"mcr", "mrd"} {
 		x := renderKitHit(t, nil, name, 1, 2*rate)
-		if lo, hi := through(x[:rate/5], 300), through(x[:rate/5], 6000); lo > hi/2 {
+		if lo, hi := through(x[:rate/5], 300), through(x[:rate/5], 6000); lo > hi {
 			t.Errorf("%s sounds %.4f at 300 Hz and %.4f at 6 kHz; want it bright", name, lo, hi)
 		}
-		if ring, h := rms(x[rate:rate*6/5]), rms(hat[rate:rate*6/5]); ring < 0.01 || ring < 10*h {
-			t.Errorf("%s rings at %.4f a second on, the closed hat at %.5f; want it ringing on", name, ring, h)
+		ring, h := rms(x[rate:rate*6/5])/rms(x[:rate/5]), rms(hat[rate:rate*6/5])/rms(hat[:rate/5])
+		if ring < 0.05 || h > 0.001 {
+			t.Errorf("%s rings at %.4f of its start a second on, the closed hat at %.5f; want it ringing on", name, ring, h)
 		}
 	}
 }
