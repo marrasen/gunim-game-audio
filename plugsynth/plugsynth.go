@@ -439,6 +439,45 @@ func (p *processor) Reset() {
 // where the rates differ.
 func (p *processor) Latency() int { return int(p.latency.Load()) }
 
+// Sounding reports whether the processor has sound still to give: a
+// note sounding or ringing out, the sound before ringing out, the sound
+// ahead of the notes, or sound made and not yet given. A note sounds
+// from its NoteOn on, though a bank's note starts silent for longer
+// than Latency, the more where its envelope waits. A host that stops
+// running the processor once its sound falls silent asks this first.
+// It is the audio thread's, between blocks.
+func (p *processor) Sounding() bool {
+	if p.cur.Sounding() || p.prev != nil && p.prev.Sounding() || p.aheadOn() {
+		return true
+	}
+	// The next block reads from a frame before the one at its start.
+	from := max(int(int64(math.Floor(p.engineAt(p.at-int64(p.delay))))-1-p.base), 0)
+	if from >= p.have {
+		return false
+	}
+	if !quiet(p.bl[from:p.have]) || !quiet(p.br[from:p.have]) {
+		return true
+	}
+	if p.split {
+		for i := range p.parts {
+			if !quiet(p.parts[i].L[from:p.have]) || !quiet(p.parts[i].R[from:p.have]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// quiet reports whether x is all silence.
+func quiet(x []float32) bool {
+	for _, v := range x {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // Tail implements [plug.Processor]: as long as the sound playing now
 // rings once its notes are let go, plus the delay. It counts the current
 // sound alone; a sound picked before it, still ringing out, may ring
