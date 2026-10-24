@@ -150,7 +150,9 @@ func TestABanksNoteSoundsThroughItsSilentStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	pr := p.proc
-	pr.Prepare(plug.Setup{Rate: 48000, MaxBlock: 16, Channels: 2})
+	// Offline, the note waits for its sample, read in as the sound is
+	// made.
+	pr.Prepare(plug.Setup{Rate: 48000, MaxBlock: 16, Channels: 2, Offline: true})
 	l, r := make([]float32, 16), make([]float32, 16)
 	run := func(evs ...plug.Event) bool {
 		pr.Process(&plug.Block{Frames: 16, Out: [][]float32{l, r}, Events: evs})
@@ -160,24 +162,20 @@ func TestABanksNoteSoundsThroughItsSilentStart(t *testing.T) {
 	if pr.Sounding() {
 		t.Fatal("a synth given no note sounds")
 	}
-	heard := run(plug.Event{Frame: 15, Kind: plug.NoteOn, Note: 1, Pitch: 36, Velocity: 0.8})
-	if heard {
-		t.Fatal("the bank's note sounds in its first frame: the test shows nothing")
+	if run(plug.Event{Frame: 15, Kind: plug.NoteOn, Note: 1, Pitch: 36, Velocity: 0.8}) {
+		t.Fatal("the bank's note sounds in its first frame")
 	}
-	if !pr.Sounding() {
-		t.Fatal("the bank's note struck does not sound, silent at first")
-	}
-	for range 100 {
-		heard = run()
-		if !heard && !pr.Sounding() {
-			t.Fatal("the bank's note falls silent before its sound comes")
+	silent := 1
+	for !run() {
+		if !pr.Sounding() {
+			t.Fatalf("the bank's note falls silent %d frames on, before its sound comes", silent)
 		}
-		if heard {
-			break
+		if silent += 16; silent > 48000 {
+			t.Fatal("the bank's note never sounds")
 		}
 	}
-	if !heard {
-		t.Fatal("the bank's note never sounds")
+	if silent <= pr.Latency() {
+		t.Fatalf("the bank's note is silent %d frames, within Latency, %d: the test shows nothing", silent, pr.Latency())
 	}
 	run(plug.Event{Kind: plug.NoteOff, Note: 1})
 	for range 48000 / 16 {
