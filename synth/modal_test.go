@@ -40,8 +40,9 @@ func swings(x []float32, n int) int {
 func brightness(x []float32) float64 { return through(x[:rate/20], 3000) / rms(x[:rate/20]) }
 
 func TestAHarderHitOnAModelledHeadIsBrighterAndHigher(t *testing.T) {
-	for _, name := range []string{"mbd", "mmt"} {
-		hard, soft := renderKitHit(t, nil, name, 1, rate/2), renderKitHit(t, nil, name, 0.3, rate/2)
+	kit := map[string]Drum{"tom": {Type: "mtom", Bend: 0.6}}
+	for _, name := range []string{"mbd", "tom"} {
+		hard, soft := renderKitHit(t, kit, name, 1, rate/2), renderKitHit(t, kit, name, 0.3, rate/2)
 		if bh, bs := brightness(hard), brightness(soft); bh < bs*1.2 {
 			t.Errorf("%s hit hard has %.4f of its sound at 3 kHz and soft %.4f; want hard the brighter", name, bh, bs)
 		}
@@ -133,8 +134,20 @@ func TestAModelledHeadSoundsTheSameInAnyBlockSize(t *testing.T) {
 
 func TestTheModelledSnaresWiresBuzzAsItRings(t *testing.T) {
 	x := renderKitHit(t, nil, "msn", 1, rate)
-	if ring, gone := through(x[rate/10:rate/5], 6000), through(x[rate*7/10:], 6000); ring < 0.01 || gone > ring/15 {
+	if ring, gone := through(x[rate/10:rate/5], 1500), through(x[rate*7/10:], 1500); ring < 0.002 || gone > ring/15 {
 		t.Errorf("the snare's wires buzz at %.4f as it rings and %.5f later; want them following its ring", ring, gone)
+	}
+}
+
+func TestASnaresWiresRattleOnAfterItsHeadFallsQuiet(t *testing.T) {
+	orig := heads[drModalSnare]
+	defer func() { heads[drModalSnare] = orig }()
+	h := orig
+	h.ring, h.buzzRing = 0.02, 0.2
+	heads[drModalSnare] = h
+	x := renderKitHit(t, nil, "msn", 1, rate)
+	if late := through(x[rate*3/10:rate*4/10], 1500); late < 1e-3 {
+		t.Errorf("the snare's wires rattle at %.5f 300 ms after a hit; want them still rattling", late)
 	}
 }
 

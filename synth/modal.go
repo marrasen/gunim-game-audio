@@ -39,24 +39,30 @@ const (
 //     long the stick or beater touches it at Tone 0, in seconds, and how hard it drives the output;
 //   - its slap, the many modes above those it rings with, heard as noise: how loud, at what pitch, and how long it
 //     rings;
-//   - its buzz, noise as loud as its ringing, as a snare's wires or a cymbal's sizzle: how loud, and at what pitch;
+//   - its click, the stick's tip, a burst of noise 1.5 ms long: how loud, and at what pitch;
+//   - its buzz, noise as loud as its ringing, as a snare's wires or a cymbal's sizzle: how loud, at what pitch, and
+//     how long it rattles on after the ringing falls, in seconds, 0 for 5 ms, and how much of it pulses with each
+//     swing of the head, from 0 to 1;
+//   - how hard the whole sound is squashed, 0 for not at all;
 //   - and the pitch its sound is highpassed at, 0 for none, and how loud it is, 1 for as loud as it rings.
 type head struct {
 	shape                                                int
 	hz, ring, damp, strike, bend, settle, contact, drive float32
 	slap, slapHz, slapRing                               float32
-	buzz, buzzHz                                         float32
-	hp, gain                                             float32
+	click, clickHz                                       float32
+	buzz, buzzHz, buzzRing, rattle                       float32
+	squash, hp, gain                                     float32
 }
 
 // heads are the modelled drums' heads, by kind.
 var heads = map[int]head{
-	drModalKick: {hz: 54, ring: 0.045, damp: 4.7, strike: 0.12, bend: 1.7, settle: 0.023, contact: 0.53e-3, drive: 1.8,
+	drModalKick: {hz: 54, ring: 0.065, damp: 4.7, strike: 0.12, bend: 1.7, settle: 0.023, contact: 0.53e-3, drive: 1.8,
 		slap: 1.57, slapHz: 1530, slapRing: 0.023, gain: 1},
-	drModalTom: {hz: 110, ring: 0.6, damp: 2.5, strike: 0.38, bend: 0.5, settle: 0.06, contact: 1.2e-3, drive: 0.6,
-		slap: 0.3, slapHz: 1800, slapRing: 0.02, gain: 1},
-	drModalSnare: {hz: 190, ring: 0.22, damp: 2, strike: 0.35, bend: 0.25, settle: 0.02, contact: 0.4e-3, drive: 0.9,
-		slap: 0.6, slapHz: 4000, slapRing: 0.008, buzz: 2.2, buzzHz: 5000, hp: 90, gain: 0.8},
+	drModalTom: {hz: 112, ring: 0.18, damp: 9.45, strike: 0.0087, bend: 0.18, settle: 0.15, contact: 0.2e-3, drive: 1.2,
+		slap: 1.14, slapHz: 920, slapRing: 0.0389, click: 1.5, clickHz: 4500, squash: 0.66, gain: 1.15},
+	drModalSnare: {hz: 175, ring: 0.028, damp: 1.74, strike: 0.35, bend: 0.225, settle: 0.1125, contact: 0.3e-3, drive: 2.4,
+		slap: 2.03, slapHz: 1667, slapRing: 0.0106, click: 2.5, clickHz: 5000, buzz: 0.89, buzzHz: 4000, buzzRing: 0.2,
+		rattle: 0.6, squash: 1.125, hp: 12, gain: 1.25},
 	drModalHat: {shape: shapePlate, hz: 420, ring: 0.05, damp: 1.5, strike: 0.6, contact: 0.3e-3, drive: 1.2,
 		slap: 0.4, slapHz: 9000, slapRing: 0.004, buzz: 1.2, buzzHz: 9000, hp: 6000, gain: 0.7},
 	drModalOHat: {shape: shapePlate, hz: 420, ring: 0.5, damp: 1, strike: 0.6, contact: 0.3e-3, drive: 1.2,
@@ -86,13 +92,18 @@ type membrane struct {
 	// slap filters noise into the drum's slap, which is as loud as level and keeps fade of itself a frame.
 	slap        svf
 	level, fade float32
-	// buzz filters noise into the buzz, as loud as buzzLevel times follow, which follows how loud the drum rings.
-	buzz              svf
-	buzzLevel, follow float32
-	// hp highpasses the sound, where hasHP says, and gain sets how loud it is.
-	hp    svf
-	hasHP bool
-	gain  float32
+	// click filters noise into the stick's click, as loud as clickLevel.
+	click      svf
+	clickLevel float32
+	// buzz filters noise into the buzz, as loud as buzzLevel times follow, which follows how loud the drum rings and
+	// keeps fall of itself a frame, with rattle of it pulsing with the head's swing instead.
+	buzz                            svf
+	buzzLevel, follow, fall, rattle float32
+	// squash is how hard the whole sound is squashed, hp highpasses it where hasHP says, and gain sets how loud it is.
+	squash float32
+	hp     svf
+	hasHP  bool
+	gain   float32
 }
 
 // start strikes the drum of hit h, of kind k, tuned by tune, as hard and as bright as vel and tone say, ringing for
@@ -147,9 +158,16 @@ func (m *membrane) start(h *hit, k int, tune, tone, decay float32) {
 	m.fade = float32(math.Exp(-1 / (float64(hd.slapRing) * rate)))
 	m.buzz.reset()
 	m.buzz.set(hd.buzzHz*bright, 0.2)
-	m.buzzLevel, m.follow = hd.buzz, 0
+	m.buzzLevel, m.follow, m.rattle = hd.buzz, 0, hd.rattle
+	m.fall = followFall
+	if hd.buzzRing > 0 {
+		m.fall = float32(math.Exp(-1 / (float64(hd.buzzRing) * rate)))
+	}
+	m.click.reset()
+	m.click.set(hd.clickHz*bright, 0.4)
+	m.clickLevel = 20 * hd.click * h.vel * h.vel
 	m.hp.reset()
-	m.gain = hd.gain
+	m.squash, m.gain = hd.squash, hd.gain
 	m.hasHP = hd.hp > 0
 	if m.hasHP {
 		m.hp.set(hd.hp, 0.1)
@@ -178,8 +196,19 @@ func (m *membrane) retune() {
 	}
 }
 
-// followFall is how much of how loud the drum rang the buzz keeps a frame, as a snare's wires settle in 5 ms.
+// followFall is how much of how loud the drum rang the buzz keeps a frame, as a snare's wires settle in 5 ms, unless
+// its head says otherwise.
 var followFall = float32(math.Exp(-1 / (0.005 * rate)))
+
+// clickFade is how loud the click is, frame by frame, falling to nothing over 1.5 ms.
+var clickFade = func() []float32 {
+	f := make([]float32, int(0.0015*rate)+1)
+	for i := range f {
+		x := 1 - float32(i)/float32(len(f)-1)
+		f[i] = x * x
+	}
+	return f
+}()
 
 // step returns the drum's next frame, t frames after the strike, with noise for its slap and its buzz.
 func (m *membrane) step(t int64, noise *rng) float32 {
@@ -198,21 +227,31 @@ func (m *membrane) step(t int64, noise *rng) float32 {
 	}
 	s = softClip(s * m.drive)
 	if m.buzzLevel > 0 {
-		m.follow = max(m.follow*followFall, abs32(s))
+		m.follow = max(m.follow*m.fall, abs32(s))
 		_, bp, _ := m.buzz.step(noise.bipolar())
-		s += bp * m.follow * m.buzzLevel
+		s += bp * ((1-m.rattle)*m.follow + m.rattle*abs32(s)) * m.buzzLevel
 	}
 	_, bp, _ := m.slap.step(noise.bipolar())
 	s += bp * m.level
 	m.level *= m.fade
+	if m.clickLevel > 0 {
+		_, bp, _ := m.click.step(noise.bipolar())
+		s += bp * m.clickLevel * clickFade[min(t, int64(len(clickFade)-1))]
+	}
+	if m.squash > 0 {
+		s = softClip(s * m.squash)
+	}
 	if m.hasHP {
 		_, _, s = m.hp.step(s)
 	}
 	return s * m.gain
 }
 
-// quiet reports whether every mode has fallen past hearing, -54 dB.
+// quiet reports whether every mode, the slap and the buzz have fallen past hearing, -54 dB.
 func (m *membrane) quiet() bool {
+	if m.level > 0.002 || m.follow*m.buzzLevel > 0.002 {
+		return false
+	}
 	for i := range m.n {
 		if abs32(m.re[i])+abs32(m.im[i]) > 0.002 {
 			return false

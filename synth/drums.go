@@ -165,7 +165,8 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 		h.end = dur + secs(0.03)
 	case drModalKick, drModalTom, drModalSnare, drModalHat, drModalOHat, drModalCrash, drModalRide:
 		h.head.start(h, d.kind, exp2((float32(d.Tune)+tune)/12), tone, decay)
-		h.end = secs(heads[d.kind].ring * 8 * decay)
+		hd := heads[d.kind]
+		h.end = secs(max(hd.ring, hd.buzzRing, hd.slapRing) * 8 * decay)
 	default:
 		if isChipDrum(d.kind) {
 			h.sid.reset()
