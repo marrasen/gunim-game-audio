@@ -210,16 +210,16 @@ var gmDrumNames = [128][]string{
 
 // The names of the drums of each role, for gmDrumNames.
 var (
-	kicks    = []string{"bd", "kick", "bd9", "kick909", "sbd", "nbd"}
-	snares   = []string{"sn", "snare", "ssn", "nsn"}
+	kicks    = []string{"bd", "kick", "bd9", "kick909", "sbd", "nbd", "mbd"}
+	snares   = []string{"sn", "snare", "ssn", "nsn", "msn"}
 	claps    = []string{"cp", "clap", "scp", "ncp"}
-	hats     = []string{"hh", "hat", "shh", "nhh"}
-	openHats = []string{"oh", "ohat", "soh", "noh"}
-	lowToms  = []string{"lt", "syn3", "stom", "ntom"}
-	midToms  = []string{"mt", "tom", "syn2", "stom", "ntom"}
-	highToms = []string{"ht", "syn1", "stom", "ntom"}
-	crashes  = []string{"cr", "crash"}
-	rides    = []string{"rd", "ride"}
+	hats     = []string{"hh", "hat", "shh", "nhh", "mhh"}
+	openHats = []string{"oh", "ohat", "soh", "noh", "moh"}
+	lowToms  = []string{"lt", "syn3", "stom", "ntom", "mlt"}
+	midToms  = []string{"mt", "tom", "syn2", "stom", "ntom", "mmt"}
+	highToms = []string{"ht", "syn1", "stom", "ntom", "mht"}
+	crashes  = []string{"cr", "crash", "mcr"}
+	rides    = []string{"rd", "ride", "mrd"}
 	shakers  = []string{"sh", "shaker"}
 )
 

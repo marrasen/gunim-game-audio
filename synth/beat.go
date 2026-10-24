@@ -89,21 +89,21 @@ const (
 // drumKind returns the kind of a drum of kind k.
 func drumKind(k int) string {
 	switch k {
-	case drKick, drSIDKick, drNESKick:
+	case drKick, drSIDKick, drNESKick, drModalKick:
 		return Kick
-	case drSnare, drSIDSnare, drNESSnare:
+	case drSnare, drSIDSnare, drNESSnare, drModalSnare:
 		return Snare
 	case drClap, drSIDClap, drNESClap:
 		return Clap
-	case drHat, drSIDHat, drNESHat:
+	case drHat, drSIDHat, drNESHat, drModalHat:
 		return Hat
-	case drOHat, drSIDOHat, drNESOHat:
+	case drOHat, drSIDOHat, drNESOHat, drModalOHat:
 		return OpenHat
 	case drRim, drNESMetal:
 		return Rim
-	case drTom, drSIDTom, drNESTom:
+	case drTom, drSIDTom, drNESTom, drModalTom:
 		return Tom
-	case drCrash, drRide:
+	case drCrash, drRide, drModalCrash, drModalRide:
 		return Cymbal
 	case drShaker:
 		return Shaker

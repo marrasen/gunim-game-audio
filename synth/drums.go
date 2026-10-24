@@ -43,6 +43,8 @@ type hit struct {
 	sidVol float32
 	// part is the [DrumPart] an Instrument plays the hit into.
 	part uint8
+	// head is a modelled drum's head.
+	head membrane
 }
 
 // decay starts envelope i falling from 1 to 1/e over tau seconds.
@@ -161,6 +163,9 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 		h.end = secs(0.6 * decay)
 	case drRiser, drDown:
 		h.end = dur + secs(0.03)
+	case drModalKick, drModalTom, drModalSnare, drModalHat, drModalOHat, drModalCrash, drModalRide:
+		h.head.start(h, d.kind, exp2((float32(d.Tune)+tune)/12), tone, decay)
+		h.end = secs(heads[d.kind].ring * 8 * decay)
 	default:
 		if isChipDrum(d.kind) {
 			h.sid.reset()
@@ -309,6 +314,11 @@ func (h *hit) render(l, r []float32, carry bool) {
 			s = h.hp.hp(bp) * (e[0] + 0.55*e[1]) * 3.2
 		case drRiser, drDown:
 			s = h.sweep(tone)
+		case drModalKick, drModalTom, drModalSnare, drModalHat, drModalOHat, drModalCrash, drModalRide:
+			if h.t%control == 0 && h.t > 0 {
+				h.head.retune()
+			}
+			s = h.head.step(h.t, h.noise)
 		default:
 			if isChipDrum(d.kind) {
 				dec := float32(d.Decay)
@@ -357,6 +367,9 @@ func (h *hit) done() bool { return h.t > h.end || h.fade < 1e-4 || h.silent() }
 func (h *hit) silent() bool {
 	if h.d.kind == drRiser || h.d.kind == drDown || isChipDrum(h.d.kind) || h.t < 4*clapGap {
 		return false
+	}
+	if isModal(h.d.kind) {
+		return h.head.quiet()
 	}
 	for k := range h.env {
 		if h.mul[k] > 0 && h.env[k] > 0.002 {
@@ -479,9 +492,9 @@ func newHits(n int) *hits { return &hits{hs: make([]hit, n)} }
 // chokes an open one.
 func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *hit {
 	hh.age++
-	if d.kind == drHat {
+	if d.kind == drHat || d.kind == drModalHat {
 		for i := range hh.hs {
-			if hh.hs[i].on && hh.hs[i].d.kind == drOHat {
+			if k := hh.hs[i].d.kind; hh.hs[i].on && (k == drOHat || k == drModalOHat) {
 				hh.hs[i].choke = 0.997
 			}
 		}

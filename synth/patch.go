@@ -240,8 +240,10 @@ type Drum struct {
 	// electronic tom as a Simmons drum's, its pitch diving; cowbell, a
 	// TR-808's; kick909, a TR-909's kick, its pitch falling fast from
 	// high with a click; metal, a struck piece of metal, its partials
-	// clanging; tambourine, its jingles clashing; or the
-	// SID's, built a frame at a time as a Commodore 64's drums are:
+	// clanging; tambourine, its jingles clashing; mkick, mtom or msnare,
+	// a kick, a tom or a snare modelled as a struck drum head; mhat,
+	// mohat, mcrash or mride, a hat or a cymbal modelled as a struck metal
+	// plate; or the SID's, built a frame at a time as a Commodore 64's drums are:
 	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
 	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
 	// neshat, nesohat, nestom or nesmetal. A drum named for its type needs
@@ -253,6 +255,11 @@ type Drum struct {
 	// Gain is its level, 1 by default, and Pan its place between the
 	// speakers.
 	Gain, Pan float64
+	// Strike is where a modelled drum is struck, from its centre, 0, to
+	// its edge, 1, and Bend how far a hard hit raises its pitch; 0 takes
+	// the drum's own for either.
+	Strike float64 `json:",omitempty"`
+	Bend   float64 `json:",omitempty"`
 	// Key is the note a SoundFont kit plays it on, where its patch names
 	// a bank: 0 takes General MIDI's for its name, as 36 for bd, or, for
 	// a drum named by a number, as GMKit's are, that note.
@@ -285,11 +292,16 @@ var drumNames = map[string]string{
 	"bd9": "kick909", "kick909": "kick909",
 	"mtl": "metal", "metal": "metal",
 	"tamb": "tambourine", "tambourine": "tambourine",
+	"mbd": "mkick", "mkick": "mkick",
+	"mlt": "mtom", "mmt": "mtom", "mht": "mtom", "mtom": "mtom",
+	"msn": "msnare", "msnare": "msnare",
+	"mhh": "mhat", "mhat": "mhat", "moh": "mohat", "mohat": "mohat",
+	"mcr": "mcrash", "mcrash": "mcrash", "mrd": "mride", "mride": "mride",
 }
 
 // tomTune tunes the low and high toms either side of the middle one,
 // and the syn-toms, syn1 the highest, as a kit numbers its toms.
-var tomTune = map[string]float64{"lt": -5, "ht": 5, "syn1": 5, "syn3": -5}
+var tomTune = map[string]float64{"lt": -5, "ht": 5, "syn1": 5, "syn3": -5, "mlt": -5, "mht": 5}
 
 // The types of drum.
 const (
@@ -327,6 +339,13 @@ const (
 	drKick909
 	drMetal
 	drTambourine
+	drModalKick
+	drModalTom
+	drModalSnare
+	drModalHat
+	drModalOHat
+	drModalCrash
+	drModalRide
 )
 
 var drumTypes = map[string]int{
@@ -338,6 +357,8 @@ var drumTypes = map[string]int{
 	"neskick": drNESKick, "nessnare": drNESSnare, "neshat": drNESHat, "nesohat": drNESOHat, "nestom": drNESTom, "nesmetal": drNESMetal,
 	"nesclap": drNESClap,
 	"syntom":  drSynTom, "cowbell": drCowbell, "kick909": drKick909, "metal": drMetal, "tambourine": drTambourine,
+	"mkick": drModalKick, "mtom": drModalTom, "msnare": drModalSnare, "mhat": drModalHat, "mohat": drModalOHat,
+	"mcrash": drModalCrash, "mride": drModalRide,
 }
 
 // The waves of an oscillator.
@@ -457,6 +478,8 @@ var fontKeys = map[string]int{
 	"hh": 42, "hat": 42, "oh": 46, "ohat": 46, "rim": 37, "lt": 43, "mt": 47, "ht": 50, "tom": 47,
 	"cr": 49, "crash": 49, "rd": 51, "ride": 51, "sh": 82, "shaker": 82, "cb": 56, "cowbell": 56,
 	"tamb": 54, "tambourine": 54, "mtl": 53, "metal": 53,
+	"mbd": 36, "mkick": 36, "mlt": 43, "mmt": 47, "mht": 50, "mtom": 47, "msn": 38, "msnare": 38,
+	"mhh": 42, "mhat": 42, "moh": 46, "mohat": 46, "mcr": 49, "mcrash": 49, "mrd": 51, "mride": 51,
 }
 
 // fontProgs are the drums a bank plays on one of its instruments,
