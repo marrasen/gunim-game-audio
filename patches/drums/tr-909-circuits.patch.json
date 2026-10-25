@@ -1,0 +1,38 @@
+{
+	"Kind": "drums",
+	"Kit": {
+		"bd": {
+			"Type": "tr909kick"
+		},
+		"sn": {
+			"Type": "tr909snare"
+		},
+		"cp": {
+			"Type": "tr909clap"
+		},
+		"rim": {
+			"Type": "tr909rim"
+		},
+		"hh": {
+			"Type": "tr909hat"
+		},
+		"oh": {
+			"Type": "tr909ohat"
+		},
+		"lt": {
+			"Type": "tr909tom"
+		},
+		"mt": {
+			"Type": "tr909tom"
+		},
+		"ht": {
+			"Type": "tr909tom"
+		},
+		"cr": {
+			"Type": "tr909crash"
+		},
+		"rd": {
+			"Type": "tr909ride"
+		}
+	}
+}

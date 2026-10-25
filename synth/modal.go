@@ -59,10 +59,11 @@ type membrane struct {
 	c, s, hz, keep, amp [maxModes]float32
 	n                   int
 	// bend is how far the strike's stretch raises the drum's pitch now, settle how much of it is left after a
-	// control step, pulse how many frames the stick touches the drum, and drive how hard it drives the output.
+	// control step, pulse how many frames the stick touches the drum, at the frame it last struck, force how hard,
+	// and drive how hard it drives the output.
 	bend, settle float32
-	pulse        int64
-	drive        float32
+	pulse, at    int64
+	force, drive float32
 	// slap filters noise into the drum's slap, which is as loud as level and keeps fade of itself a frame.
 	slap        svf
 	level, fade float32
@@ -85,48 +86,24 @@ type membrane struct {
 func (m *membrane) start(h *hit, k int, tune, tone, decay float32) {
 	hd := heads[k]
 	jitter := func(x float32) float32 { return 1 + x*float32(2*h.noise.float()-1) }
-	strike := hd.strike
-	if h.d.Strike > 0 {
-		strike = float32(min(h.d.Strike, 1))
-	}
-	strike = min(strike*jitter(0.1), 1)
-	m.bend = hd.bend
-	if h.d.Bend > 0 {
-		m.bend = float32(h.d.Bend)
-	}
-	m.bend *= h.vel * h.vel
 	m.settle = float32(math.Exp(-control / (float64(hd.settle) * rate)))
 	m.drive = hd.drive
-	var top float32
 	m.n = len(membraneModes)
 	for i, md := range membraneModes {
 		ratio := float32(md.zero / membraneModes[0].zero)
 		m.hz[i] = hd.hz * tune * ratio * jitter(0.003)
 		tau := hd.ring * decay / (1 + hd.damp*(ratio-1))
 		m.keep[i] = float32(math.Exp(-1 / (float64(tau) * rate)))
-		m.amp[i] = float32(math.Abs(math.Jn(md.order, md.zero*float64(strike)))) * jitter(0.05)
-		top = max(top, m.amp[i])
 	}
-	for i := range m.n {
-		m.amp[i] /= top
-	}
-	contact := hd.contact * (1 - 0.8*tone) * (1.4 - 0.7*h.vel)
-	m.pulse = max(int64(contact*rate), 2)
-	bright := (0.7 + 0.6*tone) * (0.8 + 0.4*h.vel)
 	m.slap.reset()
-	m.slap.set(hd.slapHz*bright, 0.3)
-	m.level = hd.slap * h.vel
 	m.fade = float32(math.Exp(-1 / (float64(hd.slapRing) * rate)))
 	m.buzz.reset()
-	m.buzz.set(hd.buzzHz*bright, 0.2)
 	m.buzzLevel, m.follow, m.rattle = hd.buzz, 0, hd.rattle
 	m.fall = followFall
 	if hd.buzzRing > 0 {
 		m.fall = float32(math.Exp(-1 / (float64(hd.buzzRing) * rate)))
 	}
 	m.click.reset()
-	m.click.set(hd.clickHz*bright, 0.4)
-	m.clickLevel = 20 * hd.click * h.vel * h.vel
 	m.hp.reset()
 	m.squash, m.gain = hd.squash, hd.gain
 	m.hasHP = hd.hp > 0
@@ -134,7 +111,53 @@ func (m *membrane) start(h *hit, k int, tune, tone, decay float32) {
 		m.hp.set(hd.hp, 0.1)
 	}
 	m.re, m.im = [maxModes]float32{}, [maxModes]float32{}
+	m.bend, m.level, m.clickLevel = 0, 0, 0
+	m.strike(h, k, tone, h.vel, 1, 0)
+}
+
+// strike strikes the drum of hit h, of kind k, as hard as vel and as bright as tone say, at frame at of the hit, with
+// force times the stick's own push, as the drum's sound is force times as loud as the hit's level.
+func (m *membrane) strike(h *hit, k int, tone, vel, force float32, at int64) {
+	hd := heads[k]
+	jitter := func(x float32) float32 { return 1 + x*float32(2*h.noise.float()-1) }
+	strike := hd.strike
+	if h.d.Strike > 0 {
+		strike = float32(min(h.d.Strike, 1))
+	}
+	strike = min(strike*jitter(0.1), 1)
+	bend := hd.bend
+	if h.d.Bend > 0 {
+		bend = float32(h.d.Bend)
+	}
+	m.bend = max(m.bend, bend*vel*vel)
+	var top float32
+	for i, md := range membraneModes {
+		m.amp[i] = float32(math.Abs(math.Jn(md.order, md.zero*float64(strike)))) * jitter(0.05)
+		top = max(top, m.amp[i])
+	}
+	for i := range m.n {
+		m.amp[i] /= top
+	}
+	contact := hd.contact * (1 - 0.8*tone) * (1.4 - 0.7*vel)
+	m.pulse, m.at, m.force = max(int64(contact*rate), 2), at, force
+	bright := (0.7 + 0.6*tone) * (0.8 + 0.4*vel)
+	m.slap.set(hd.slapHz*bright, 0.3)
+	m.level = max(m.level, hd.slap*vel*force)
+	m.buzz.set(hd.buzzHz*bright, 0.2)
+	m.click.set(hd.clickHz*bright, 0.4)
+	m.clickLevel = 20 * hd.click * vel * vel * force
 	m.retune()
+}
+
+// soften turns the drum's sound down by k, as its hit's level is turned up by as much, so a harder strike can land
+// on it.
+func (m *membrane) soften(k float32) {
+	for i := range m.n {
+		m.re[i] *= k
+		m.im[i] *= k
+	}
+	m.level *= k
+	m.follow *= k
 }
 
 // retune sets each mode's turn for the drum's pitch now, raised by the strike's stretch as it settles. Modes past
@@ -171,13 +194,14 @@ var clickFade = func() []float32 {
 	return f
 }()
 
-// step returns the drum's next frame, t frames after the strike, with noise for its slap and its buzz.
+// step returns the drum's next frame, t frames into its hit, with noise for its slap and its buzz.
 func (m *membrane) step(t int64, noise *rng) float32 {
+	t -= m.at
 	var in float32
-	if t < m.pulse {
-		// A raised cosine, its area 1.
+	if t >= 0 && t < m.pulse {
+		// A raised cosine, its area force.
 		x := sin1(float32(t) / float32(2*m.pulse))
-		in = 2 * x * x / float32(m.pulse)
+		in = 2 * x * x / float32(m.pulse) * m.force
 	}
 	var s float32
 	for i := range m.n {
@@ -195,7 +219,7 @@ func (m *membrane) step(t int64, noise *rng) float32 {
 	_, bp, _ := m.slap.step(noise.bipolar())
 	s += bp * m.level
 	m.level *= m.fade
-	if m.clickLevel > 0 {
+	if m.clickLevel > 0 && t >= 0 {
 		_, bp, _ := m.click.step(noise.bipolar())
 		s += bp * m.clickLevel * clickFade[min(t, int64(len(clickFade)-1))]
 	}

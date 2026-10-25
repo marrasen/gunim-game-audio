@@ -162,8 +162,8 @@ func TestEverySoundLoadsAndSounds(t *testing.T) {
 	for _, s := range ss {
 		banks[s.Bank]++
 	}
-	// 69 presets; 128 programs and 3 kits; 270 patches of the songs.
-	if banks[Library] != 69 || banks[GeneralMIDI] != 131 || banks[Songs] != 270 {
+	// 72 presets; 128 programs and 3 kits; 270 patches of the songs.
+	if banks[Library] != 72 || banks[GeneralMIDI] != 131 || banks[Songs] != 270 {
 		t.Fatalf("the banks hold %v sounds", banks)
 	}
 	for _, s := range ss {

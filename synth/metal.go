@@ -31,13 +31,14 @@ var cymPartials = func() (p [nPartials]struct {
 
 // cymbal is a modelled cymbal's own sound: how loud each of its bands is, how long each takes to swell, and how long
 // each rings, in seconds; how loud its metal partials are against its noise; its splash, a burst over all its bands,
-// how loud and how long it rings, in seconds; its stick's click, how loud and at what pitch; and how loud it is.
+// how loud and how long it rings, in seconds; its stick's click, how loud and at what pitch; how loud it is; and the
+// step it is cut to, as a share of how loud it is at the time, as a TR-909's 6-bit cymbals are, 0 for none.
 type cymbal struct {
 	level, rise, ring  [nBands]float32
 	metal              float32
 	splash, splashRing float32
 	click, clickHz     float32
-	gain               float32
+	gain, crush        float32
 }
 
 // cymbals are the modelled cymbals, by kind.
@@ -55,10 +56,26 @@ var cymbals = map[int]cymbal{
 	drModalRide: {level: [nBands]float32{0.0117, 0.267, 0.1125, 0.2, 0.15, 0.3, 0.675},
 		rise: [nBands]float32{1e-3, 0.71e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3},
 		ring: [nBands]float32{4.5, 0.45, 0.5, 0.48, 0.4, 0.0667, 0.02}, metal: 1, gain: 0.32},
+	drTR909Hat: {level: [nBands]float32{0.02, 0.05, 0.1, 0.2, 0.5, 1, 0.9},
+		rise: [nBands]float32{1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3},
+		ring: [nBands]float32{0.02, 0.02, 0.025, 0.03, 0.04, 0.045, 0.04}, metal: 0.6, gain: 0.5, crush: 1.0 / 32},
+	drTR909OHat: {level: [nBands]float32{0.02, 0.05, 0.1, 0.25, 0.6, 1, 0.9},
+		rise: [nBands]float32{1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3},
+		ring: [nBands]float32{0.15, 0.15, 0.2, 0.3, 0.35, 0.3, 0.2}, metal: 0.8, gain: 0.35, crush: 1.0 / 32},
+	drTR909Crash: {level: [nBands]float32{0.03, 0.12, 0.3, 0.4, 0.7, 0.8, 0.6},
+		rise: [nBands]float32{1e-3, 1e-3, 2e-3, 5e-3, 0.01, 0.01, 1e-3},
+		ring: [nBands]float32{0.5, 0.6, 0.8, 1, 0.9, 0.7, 0.4}, metal: 1.5, splash: 0.8, splashRing: 0.05,
+		gain: 0.17, crush: 1.0 / 32},
+	drTR909Ride: {level: [nBands]float32{0.02, 0.1, 0.3, 0.6, 0.5, 0.6, 0.4},
+		rise: [nBands]float32{1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3},
+		ring: [nBands]float32{0.8, 1, 1.2, 1, 0.7, 0.4, 0.15}, metal: 2.5, click: 0.2, clickHz: 5000,
+		gain: 0.2, crush: 1.0 / 32},
 }
 
 // isCymbal reports whether drum kind k is a modelled cymbal.
-func isCymbal(k int) bool { return k >= drModalHat && k <= drModalRide }
+func isCymbal(k int) bool {
+	return k >= drModalHat && k <= drModalRide || k >= drTR909Hat && k <= drTR909Ride
+}
 
 // plate is a modelled cymbal sounding: noise split into bands, and partials, each band and the partials in it
 // following an envelope that swells and rings.
@@ -75,7 +92,8 @@ type plate struct {
 	// click filters noise into the stick's click, as loud as clickLevel.
 	click      svf
 	clickLevel float32
-	gain       float32
+	// gain sets how loud it is, and crush the step it is cut to, as a share of its bands' envelopes.
+	gain, crush float32
 }
 
 // start strikes the cymbal of hit h, of kind k, tuned by tune, as hard and as bright as vel and tone say, ringing for
@@ -113,6 +131,7 @@ func (m *plate) start(h *hit, k int, tune, tone, decay float32) {
 	m.click.set(cy.clickHz*tune, 0.4)
 	m.clickLevel = 20 * cy.click * h.vel * h.vel
 	m.gain = cy.gain
+	m.crush = cy.crush * cy.gain
 }
 
 // renorm keeps each partial turning at an even level.
@@ -154,7 +173,17 @@ func (m *plate) step(t int64, noise *rng) float32 {
 		_, bp, _ := m.click.step(noise.bipolar())
 		s += bp * m.clickLevel * clickFade[min(t, int64(len(clickFade)-1))]
 	}
-	return s * m.gain
+	s *= m.gain
+	if m.crush > 0 {
+		var top float32
+		for _, x := range env {
+			top += x
+		}
+		if q := m.crush * top; q > 0 {
+			s = q * float32(math.Round(float64(s/q)))
+		}
+	}
+	return s
 }
 
 // quiet reports whether every band and the splash have fallen past hearing, -66 dB.

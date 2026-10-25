@@ -242,8 +242,13 @@ type Drum struct {
 	// high with a click; metal, a struck piece of metal, its partials
 	// clanging; tambourine, its jingles clashing; mkick, mtom or msnare,
 	// a kick, a tom or a snare modelled as a struck drum head; mhat,
-	// mohat, mcrash or mride, a hat or a cymbal modelled as a struck metal
-	// plate; or the SID's, built a frame at a time as a Commodore 64's drums are:
+	// mohat, mcrash or mride, a hat or a cymbal modelled as struck metal;
+	// a drum machine's, modelled on its circuits: the TR-808's tr808kick,
+	// tr808snare, tr808tom, tr808conga, tr808rim, tr808clap, tr808clave,
+	// tr808maracas, tr808cowbell, tr808hat, tr808ohat or tr808cymbal, the
+	// TR-909's tr909kick, tr909snare, tr909tom, tr909rim, tr909clap,
+	// tr909hat, tr909ohat, tr909crash or tr909ride, or the Simmons
+	// SDS-V's sdskick, sdssnare or sdstom; or the SID's, built a frame at a time as a Commodore 64's drums are:
 	// sidkick, sidsnare, sidclap, sidhat, sidohat, sidtom or sidzap; or
 	// the NES's and Game Boy's, at 60 frames a second: neskick, nessnare,
 	// neshat, nesohat, nestom or nesmetal. A drum named for its type needs
@@ -297,11 +302,20 @@ var drumNames = map[string]string{
 	"msn": "msnare", "msnare": "msnare",
 	"mhh": "mhat", "mhat": "mhat", "moh": "mohat", "mohat": "mohat",
 	"mcr": "mcrash", "mcrash": "mcrash", "mrd": "mride", "mride": "mride",
+	"tr8bd": "tr808kick", "tr8sn": "tr808snare", "tr8lt": "tr808tom", "tr8mt": "tr808tom", "tr8ht": "tr808tom",
+	"tr8lc": "tr808conga", "tr8mc": "tr808conga", "tr8hc": "tr808conga", "tr8rs": "tr808rim", "tr8cp": "tr808clap",
+	"tr8cl": "tr808clave", "tr8ma": "tr808maracas", "tr8cb": "tr808cowbell", "tr8hh": "tr808hat", "tr8oh": "tr808ohat",
+	"tr8cy": "tr808cymbal",
+	"tr9bd": "tr909kick", "tr9sn": "tr909snare", "tr9lt": "tr909tom", "tr9mt": "tr909tom", "tr9ht": "tr909tom",
+	"tr9rs": "tr909rim", "tr9cp": "tr909clap", "tr9hh": "tr909hat", "tr9oh": "tr909ohat", "tr9cr": "tr909crash",
+	"tr9rd": "tr909ride",
+	"sdsbd": "sdskick", "sdssn": "sdssnare", "sdslt": "sdstom", "sdsmt": "sdstom", "sdsht": "sdstom",
 }
 
 // tomTune tunes the low and high toms either side of the middle one,
 // and the syn-toms, syn1 the highest, as a kit numbers its toms.
-var tomTune = map[string]float64{"lt": -5, "ht": 5, "syn1": 5, "syn3": -5, "mlt": -5, "mht": 5}
+var tomTune = map[string]float64{"lt": -5, "ht": 5, "syn1": 5, "syn3": -5, "mlt": -5, "mht": 5,
+	"tr8lt": -6, "tr8ht": 5, "tr8lc": -7, "tr8hc": 7, "tr9lt": -5, "tr9ht": 5, "sdslt": -5, "sdsht": 5}
 
 // The types of drum.
 const (
@@ -346,6 +360,30 @@ const (
 	drModalOHat
 	drModalCrash
 	drModalRide
+	drTR808Kick
+	drTR808Snare
+	drTR808Tom
+	drTR808Conga
+	drTR808Rim
+	drTR808Clap
+	drTR808Clave
+	drTR808Maracas
+	drTR808Cowbell
+	drTR808Hat
+	drTR808OHat
+	drTR808Cymbal
+	drTR909Kick
+	drTR909Snare
+	drTR909Tom
+	drTR909Rim
+	drTR909Clap
+	drTR909Hat
+	drTR909OHat
+	drTR909Crash
+	drTR909Ride
+	drSDSKick
+	drSDSSnare
+	drSDSTom
 )
 
 var drumTypes = map[string]int{
@@ -359,6 +397,12 @@ var drumTypes = map[string]int{
 	"syntom":  drSynTom, "cowbell": drCowbell, "kick909": drKick909, "metal": drMetal, "tambourine": drTambourine,
 	"mkick": drModalKick, "mtom": drModalTom, "msnare": drModalSnare, "mhat": drModalHat, "mohat": drModalOHat,
 	"mcrash": drModalCrash, "mride": drModalRide,
+	"tr808kick": drTR808Kick, "tr808snare": drTR808Snare, "tr808tom": drTR808Tom, "tr808conga": drTR808Conga,
+	"tr808rim": drTR808Rim, "tr808clap": drTR808Clap, "tr808clave": drTR808Clave, "tr808maracas": drTR808Maracas,
+	"tr808cowbell": drTR808Cowbell, "tr808hat": drTR808Hat, "tr808ohat": drTR808OHat, "tr808cymbal": drTR808Cymbal,
+	"tr909kick": drTR909Kick, "tr909snare": drTR909Snare, "tr909tom": drTR909Tom, "tr909rim": drTR909Rim,
+	"tr909clap": drTR909Clap, "tr909hat": drTR909Hat, "tr909ohat": drTR909OHat, "tr909crash": drTR909Crash,
+	"tr909ride": drTR909Ride, "sdskick": drSDSKick, "sdssnare": drSDSSnare, "sdstom": drSDSTom,
 }
 
 // The waves of an oscillator.
@@ -480,6 +524,10 @@ var fontKeys = map[string]int{
 	"tamb": 54, "tambourine": 54, "mtl": 53, "metal": 53,
 	"mbd": 36, "mkick": 36, "mlt": 43, "mmt": 47, "mht": 50, "mtom": 47, "msn": 38, "msnare": 38,
 	"mhh": 42, "mhat": 42, "moh": 46, "mohat": 46, "mcr": 49, "mcrash": 49, "mrd": 51, "mride": 51,
+	"tr8bd": 36, "tr8sn": 38, "tr8lt": 43, "tr8mt": 47, "tr8ht": 50, "tr8lc": 64, "tr8mc": 63, "tr8hc": 62,
+	"tr8rs": 37, "tr8cp": 39, "tr8cl": 75, "tr8ma": 70, "tr8cb": 56, "tr8hh": 42, "tr8oh": 46, "tr8cy": 49,
+	"tr9bd": 36, "tr9sn": 38, "tr9lt": 43, "tr9mt": 47, "tr9ht": 50, "tr9rs": 37, "tr9cp": 39, "tr9hh": 42,
+	"tr9oh": 46, "tr9cr": 49, "tr9rd": 51, "sdsbd": 36, "sdssn": 38, "sdslt": 43, "sdsmt": 47, "sdsht": 50,
 }
 
 // fontProgs are the drums a bank plays on one of its instruments,

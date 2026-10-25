@@ -185,3 +185,60 @@ func TestModelledCymbalsRingBrightAndLong(t *testing.T) {
 		}
 	}
 }
+
+func TestAModelledDrumStillRingingIsStruckAgain(t *testing.T) {
+	c, err := (&Patch{Kind: "drums"}).compile("kit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	play := func(again bool) ([]float32, int) {
+		hs := newHits(4)
+		hs.play(c.kit["msn"], 0.8, 0, 0, 0, 0)
+		l, r := make([]float32, rate/5), make([]float32, rate/5)
+		hs.render(l[:rate/50], r[:rate/50], true)
+		if again {
+			hs.play(c.kit["msn"], 0.8, 0, 0, 0, 0)
+		}
+		on := 0
+		for i := range hs.hs {
+			if hs.hs[i].on {
+				on++
+			}
+		}
+		hs.render(l[rate/50:], r[rate/50:], true)
+		return l, on
+	}
+	once, _ := play(false)
+	twice, on := play(true)
+	if on != 1 {
+		t.Errorf("a snare struck again as it rings sounds as %d hits; want one", on)
+	}
+	if a, b := rms(once[rate/50:rate/20]), rms(twice[rate/50:rate/20]); b < 1.5*a {
+		t.Errorf("a snare struck again as it rings sounds at %.4f, and %.4f left alone; want it louder", b, a)
+	}
+}
+
+func TestAHardStrikeOnASoftRingingDrumSoundsAsAHardHit(t *testing.T) {
+	c, err := (&Patch{Kind: "drums"}).compile("kit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	peak := func(x []float32) (p float32) {
+		for _, s := range x {
+			p = max(p, abs32(s))
+		}
+		return p
+	}
+	for _, name := range []string{"mbd", "msn", "mmt"} {
+		fresh := renderKitHit(t, nil, name, 1, rate/10)
+		hs := newHits(4)
+		hs.play(c.kit[name], 0.2, 0, 0, 0, 0)
+		l, r := make([]float32, rate/5), make([]float32, rate/5)
+		hs.render(l[:rate/20], r[:rate/20], true)
+		hs.play(c.kit[name], 1, 0, 0, 0, 0)
+		hs.render(l[rate/20:], r[rate/20:], true)
+		if got, want := peak(l[rate/20:rate*3/20]), peak(fresh); got < 0.7*want || got > 1.3*want {
+			t.Errorf("%s struck hard as it rings from a soft hit peaks at %.3f, a hard hit alone at %.3f; want them alike", name, got, want)
+		}
+	}
+}

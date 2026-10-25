@@ -121,8 +121,8 @@ func kits() []Sound {
 // in the same kit, and holds their spectra alike, octave by octave.
 func TestEachKitPlaysAsItsSongsDo(t *testing.T) {
 	ks := kits()
-	if lib := len(slices.DeleteFunc(slices.Clone(ks), func(s Sound) bool { return s.Bank != Library })); lib != 9 {
-		t.Errorf("the library offers %d kits, not 9", lib)
+	if lib := len(slices.DeleteFunc(slices.Clone(ks), func(s Sound) bool { return s.Bank != Library })); lib != 12 {
+		t.Errorf("the library offers %d kits, not 12", lib)
 	}
 	for _, s := range ks {
 		for _, key := range kitTestNotes {

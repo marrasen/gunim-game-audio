@@ -200,27 +200,28 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 // drums names its kick sbd, a TR-909's kit bd9, a Simmons kit its toms
 // syn1, the highest, to syn3.
 var gmDrumNames = [128][]string{
-	35: kicks, 36: kicks, 37: {"rim"}, 38: snares, 39: claps, 40: snares,
+	35: kicks, 36: kicks, 37: rims, 38: snares, 39: claps, 40: snares,
 	41: lowToms, 42: hats, 43: lowToms, 44: hats, 45: midToms, 46: openHats,
 	47: midToms, 48: highToms, 49: crashes, 50: highToms, 51: rides, 52: crashes,
 	53: {"rd", "ride", "mtl", "metal", "nclk"}, 54: {"tamb", "tambourine"}, 55: crashes,
-	56: {"cb", "cowbell"}, 57: crashes, 59: rides,
-	69: shakers, 70: shakers, 75: {"rim"}, 82: shakers,
+	56: {"cb", "cowbell", "tr8cb"}, 57: crashes, 59: rides, 62: {"tr8hc"}, 63: {"tr8mc"}, 64: {"tr8lc"},
+	69: shakers, 70: shakers, 75: {"rim", "tr8cl"}, 82: shakers,
 }
 
 // The names of the drums of each role, for gmDrumNames.
 var (
-	kicks    = []string{"bd", "kick", "bd9", "kick909", "sbd", "nbd", "mbd"}
-	snares   = []string{"sn", "snare", "ssn", "nsn", "msn"}
-	claps    = []string{"cp", "clap", "scp", "ncp"}
-	hats     = []string{"hh", "hat", "shh", "nhh", "mhh"}
-	openHats = []string{"oh", "ohat", "soh", "noh", "moh"}
-	lowToms  = []string{"lt", "syn3", "stom", "ntom", "mlt"}
-	midToms  = []string{"mt", "tom", "syn2", "stom", "ntom", "mmt"}
-	highToms = []string{"ht", "syn1", "stom", "ntom", "mht"}
-	crashes  = []string{"cr", "crash", "mcr"}
-	rides    = []string{"rd", "ride", "mrd"}
-	shakers  = []string{"sh", "shaker"}
+	kicks    = []string{"bd", "kick", "bd9", "kick909", "sbd", "nbd", "mbd", "tr8bd", "tr9bd", "sdsbd"}
+	snares   = []string{"sn", "snare", "ssn", "nsn", "msn", "tr8sn", "tr9sn", "sdssn"}
+	claps    = []string{"cp", "clap", "scp", "ncp", "tr8cp", "tr9cp"}
+	rims     = []string{"rim", "tr8rs", "tr9rs"}
+	hats     = []string{"hh", "hat", "shh", "nhh", "mhh", "tr8hh", "tr9hh"}
+	openHats = []string{"oh", "ohat", "soh", "noh", "moh", "tr8oh", "tr9oh"}
+	lowToms  = []string{"lt", "syn3", "stom", "ntom", "mlt", "tr8lt", "tr9lt", "sdslt"}
+	midToms  = []string{"mt", "tom", "syn2", "stom", "ntom", "mmt", "tr8mt", "tr9mt", "sdsmt"}
+	highToms = []string{"ht", "syn1", "stom", "ntom", "mht", "tr8ht", "tr9ht", "sdsht"}
+	crashes  = []string{"cr", "crash", "mcr", "tr8cy", "tr9cr"}
+	rides    = []string{"rd", "ride", "mrd", "tr9rd"}
+	shakers  = []string{"sh", "shaker", "tr8ma"}
 )
 
 // kitDrum returns the name of the drum General MIDI's note key plays in

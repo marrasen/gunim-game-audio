@@ -89,23 +89,23 @@ const (
 // drumKind returns the kind of a drum of kind k.
 func drumKind(k int) string {
 	switch k {
-	case drKick, drSIDKick, drNESKick, drModalKick:
+	case drKick, drSIDKick, drNESKick, drModalKick, drTR808Kick, drTR909Kick, drSDSKick:
 		return Kick
-	case drSnare, drSIDSnare, drNESSnare, drModalSnare:
+	case drSnare, drSIDSnare, drNESSnare, drModalSnare, drTR808Snare, drTR909Snare, drSDSSnare:
 		return Snare
-	case drClap, drSIDClap, drNESClap:
+	case drClap, drSIDClap, drNESClap, drTR808Clap, drTR909Clap:
 		return Clap
-	case drHat, drSIDHat, drNESHat, drModalHat:
+	case drHat, drSIDHat, drNESHat, drModalHat, drTR808Hat, drTR909Hat:
 		return Hat
-	case drOHat, drSIDOHat, drNESOHat, drModalOHat:
+	case drOHat, drSIDOHat, drNESOHat, drModalOHat, drTR808OHat, drTR909OHat:
 		return OpenHat
-	case drRim, drNESMetal:
+	case drRim, drNESMetal, drTR808Rim, drTR808Clave, drTR909Rim:
 		return Rim
-	case drTom, drSIDTom, drNESTom, drModalTom:
+	case drTom, drSIDTom, drNESTom, drModalTom, drTR808Tom, drTR808Conga, drTR909Tom, drSDSTom:
 		return Tom
-	case drCrash, drRide, drModalCrash, drModalRide:
+	case drCrash, drRide, drModalCrash, drModalRide, drTR808Cymbal, drTR909Crash, drTR909Ride:
 		return Cymbal
-	case drShaker:
+	case drShaker, drTR808Maracas:
 		return Shaker
 	case drSnap:
 		return Snap
