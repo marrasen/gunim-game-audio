@@ -2,33 +2,45 @@
 	"Kind": "drums",
 	"Kit": {
 		"bd": {
-			"Decay": 1.2,
-			"Tone": 0.2
+			"Type": "tr808kick"
 		},
 		"sn": {
-			"Tune": 4,
-			"Tone": 0.5
+			"Type": "tr808snare"
 		},
 		"cp": {
-			"Tone": 0.1
+			"Type": "tr808clap"
+		},
+		"rim": {
+			"Type": "tr808rim"
 		},
 		"hh": {
-			"Tone": 0.2,
-			"Gain": 0.7
+			"Type": "tr808hat"
 		},
 		"oh": {
-			"Tone": 0.2,
-			"Gain": 0.6
+			"Type": "tr808ohat"
 		},
-		"cb": {},
 		"lt": {
-			"Tune": -12
+			"Type": "tr808tom"
 		},
 		"mt": {
-			"Tune": -5
+			"Type": "tr808tom"
 		},
 		"ht": {
-			"Tune": 2
+			"Type": "tr808tom"
+		},
+		"cr": {
+			"Type": "tr808cymbal"
+		},
+		"rd": {
+			"Type": "tr808cymbal",
+			"Decay": 0.5,
+			"Gain": 0.7
+		},
+		"cb": {
+			"Type": "tr808cowbell"
+		},
+		"sh": {
+			"Type": "tr808maracas"
 		}
 	}
 }

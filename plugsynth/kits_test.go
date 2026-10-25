@@ -121,8 +121,8 @@ func kits() []Sound {
 // in the same kit, and holds their spectra alike, octave by octave.
 func TestEachKitPlaysAsItsSongsDo(t *testing.T) {
 	ks := kits()
-	if lib := len(slices.DeleteFunc(slices.Clone(ks), func(s Sound) bool { return s.Bank != Library })); lib != 12 {
-		t.Errorf("the library offers %d kits, not 12", lib)
+	if lib := len(slices.DeleteFunc(slices.Clone(ks), func(s Sound) bool { return s.Bank != Library })); lib != 9 {
+		t.Errorf("the library offers %d kits, not 9", lib)
 	}
 	for _, s := range ks {
 		for _, key := range kitTestNotes {
@@ -160,10 +160,10 @@ func apart(a, b []float64) float64 {
 
 // TestTheKitsSoundApart plays the five drums of each kit of the library
 // and of General MIDI through the plugin, and holds every two kits
-// apart: some drum of one sounds 1.5 dB or more apart from the other's,
-// and 20 dB or more between a chip's kit, the Commodore 64's or the
-// NES's, whose drums are their own, and any other kit. Kits that only tune the same drums,
-// as the Linn and Hi-NRG kits, sound nearest.
+// apart: some drum of one sounds 4 dB or more apart from the other's,
+// and 12 dB or more between a chip's kit, the Commodore 64's or the
+// NES's, whose drums are their own, and any other kit. Kits of the same
+// machine, as TR-808 and General MIDI's TR-808 kit, sound nearest.
 func TestTheKitsSoundApart(t *testing.T) {
 	type kit struct {
 		name  string
@@ -190,13 +190,39 @@ func TestTheKitsSoundApart(t *testing.T) {
 				}
 			}
 			t.Logf("%s and %s: %.1f dB apart, on note %d", a.name, b.name, most, at)
-			least := 1.5
+			least := 4.0
 			if chip[a.name] != chip[b.name] {
-				least = 20
+				least = 12
 			}
 			if most < least {
 				t.Errorf("%s and %s sound alike: %.1f dB apart at most, on note %d", a.name, b.name, most, at)
 			}
+		}
+	}
+}
+
+// A song's kit of the library that moved to the new drums plays the
+// library's kit as it is now; a kit already on them, or of another
+// bank, plays as the song has it.
+func TestAKitOnTheOldDrumsMovesToTheNewOnes(t *testing.T) {
+	old := &synth.Patch{Kind: "drums", Kit: map[string]synth.Drum{"bd": {Decay: 1.2, Tone: 0.2}}}
+	for _, c := range []struct {
+		name string
+		st   State
+		want string
+	}{
+		{"an old TR-808", State{Bank: Library, Name: "TR-808", Patch: old}, "tr808kick"},
+		{"a TR-808 on the new drums", State{Bank: Library, Name: "TR-808",
+			Patch: &synth.Patch{Kind: "drums", Kit: map[string]synth.Drum{"bd": {Type: "mkick"}}}}, "mkick"},
+		{"a TR-808 of another bank", State{Bank: Songs, Name: "TR-808", Patch: old}, ""},
+		{"an old kit that stays", State{Bank: Library, Name: "NES kit", Patch: old}, ""},
+	} {
+		st, err := DecodeState(c.st.Encode())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := st.Patch.Kit["bd"].Type; got != c.want {
+			t.Errorf("%s plays its kick as %q, want %q", c.name, got, c.want)
 		}
 	}
 }

@@ -2,40 +2,61 @@
 	"Kind": "drums",
 	"Kit": {
 		"bd": {
-			"Tune": 2,
-			"Decay": 0.45,
+			"Type": "tr909kick",
+			"Decay": 0.8,
 			"Tone": 0.6
 		},
 		"sn": {
-			"Tune": 3,
-			"Tone": 0.6,
-			"Decay": 0.7
+			"Type": "tr909snare",
+			"Tone": 0.7
 		},
 		"cp": {
-			"Tone": 0.3
+			"Type": "tr808clap",
+			"Decay": 1.4
+		},
+		"rim": {
+			"Type": "tr808rim"
 		},
 		"hh": {
-			"Tone": 0.35,
-			"Gain": 0.7
+			"Type": "tr808hat",
+			"Tone": 0.7
 		},
 		"oh": {
-			"Tone": 0.35,
-			"Decay": 0.5,
-			"Gain": 0.55
+			"Type": "tr808ohat",
+			"Tone": 0.7
 		},
-		"cb": {
-			"Gain": 0.9
+		"lt": {
+			"Type": "sdstom",
+			"Decay": 1.2
+		},
+		"mt": {
+			"Type": "sdstom",
+			"Decay": 1.2
+		},
+		"ht": {
+			"Type": "sdstom",
+			"Decay": 1.2
 		},
 		"syn1": {
-			"Pan": -0.45,
-			"Tone": 0.4
+			"Type": "sdstom",
+			"Decay": 1.2
 		},
 		"syn2": {
-			"Tone": 0.4
+			"Type": "sdstom",
+			"Decay": 1.2
 		},
 		"syn3": {
-			"Pan": 0.45,
-			"Tone": 0.4
+			"Type": "sdstom",
+			"Decay": 1.2
+		},
+		"cb": {
+			"Type": "tr808cowbell"
+		},
+		"cr": {
+			"Type": "tr909crash"
+		},
+		"rd": {
+			"Type": "tr909ride"
 		}
 	}
 }

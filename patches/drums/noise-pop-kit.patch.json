@@ -2,21 +2,65 @@
 	"Kind": "drums",
 	"Kit": {
 		"bd": {
+			"Type": "mkick",
 			"Tune": -2,
-			"Decay": 0.6,
-			"Tone": 0.5
+			"Decay": 1.4,
+			"Tone": 0.45
 		},
 		"sn": {
-			"Tune": 1,
-			"Tone": 0.6,
-			"Decay": 0.9
+			"Type": "msnare",
+			"Tune": -1,
+			"Decay": 1.6,
+			"Tone": 0.4,
+			"Strike": 0.3
 		},
 		"lt": {
+			"Type": "mtom",
 			"Tune": -7,
-			"Decay": 0.45
+			"Decay": 1.6,
+			"Tone": 0.35
+		},
+		"mt": {
+			"Type": "mtom",
+			"Decay": 1.4,
+			"Tone": 0.4
+		},
+		"ht": {
+			"Type": "mtom",
+			"Decay": 1.4,
+			"Tone": 0.4
 		},
 		"tamb": {
+			"Type": "tambourine"
+		},
+		"hh": {
+			"Type": "mhat",
+			"Tone": 0.35,
+			"Decay": 0.8,
+			"Gain": 0.5
+		},
+		"oh": {
+			"Type": "mohat",
+			"Tone": 0.4,
+			"Gain": 0.5
+		},
+		"cp": {
+			"Type": "tr808clap",
+			"Tone": 0.3,
+			"Decay": 1.3
+		},
+		"cr": {
+			"Type": "mcrash",
+			"Decay": 1.4,
 			"Tone": 0.4
+		},
+		"rd": {
+			"Type": "mride",
+			"Tone": 0.4
+		},
+		"sh": {
+			"Type": "shaker",
+			"Gain": 0.6
 		}
 	}
 }

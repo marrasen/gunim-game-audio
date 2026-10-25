@@ -1,6 +1,9 @@
 package synth
 
-import "strconv"
+import (
+	"cmp"
+	"strconv"
+)
 
 // GMNames are the 128 instruments of General MIDI, by program number
 // from 0, as the standard names them.
@@ -954,32 +957,64 @@ func GMDrumName(key int) string { return gmDrums[key].name }
 
 // GMKit returns General MIDI's drum kit as a drums patch: each drum
 // named by its key, as "36" for the bass drum. kit is the drum
-// channel's program: 24, Electronic, plays syn-toms, and 25, TR-808, a
-// long, booming kick and ringing toms, as Roland's GS kits do; any
-// other plays the standard kit.
+// channel's program: 24, Electronic, plays a Simmons SDS-V's kick, snare
+// and toms, and 25, TR-808, a TR-808's drums, as Roland's GS kits do; any
+// other plays the standard kit, its drums modelled.
 func GMKit(kit int) *Patch {
 	p := &Patch{Kind: "drums", Kit: map[string]Drum{}, Poly: 24}
 	for k, d := range gmDrums {
 		dr := d.Drum
+		if t, ok := gmModelled[k]; ok {
+			dr.Type = t
+		}
 		switch kit {
 		case 24:
-			if dr.Type == "tom" && k <= 50 {
-				dr.Type = "syntom"
+			if t, ok := gmElectronic[k]; ok {
+				dr.Type = t
 			}
 			if k == 38 || k == 40 {
 				dr.Tone = 1
 			}
 		case 25:
-			switch {
-			case k == 35 || k == 36:
-				dr.Decay = 1.6
-			case dr.Type == "tom" && k <= 50:
-				dr.Decay = 0.6
-			case k == 39:
-				dr.Decay = 0.8
+			if t, ok := gm808[k]; ok {
+				dr.Type, dr.Tone, dr.Decay = t, 0, 0
 			}
+		}
+		if lv, ok := gmLevel[dr.Type]; ok {
+			dr.Gain = cmp.Or(dr.Gain, 1) * lv
 		}
 		p.Kit[strconv.Itoa(k)] = dr
 	}
 	return p
+}
+
+// gmLevel is the gain that sets each new drum as loud as the old drum General MIDI's kits played in its place.
+var gmLevel = map[string]float64{
+	"mkick": 1.96, "msnare": 0.93, "mtom": 1.77, "mhat": 0.93, "mohat": 1.59, "mcrash": 2.71, "mride": 4.96,
+	"sdskick": 1.11, "sdssnare": 1.11, "sdstom": 1.73,
+	"tr808kick": 1.3, "tr808snare": 1.14, "tr808rim": 1.26, "tr808clap": 1.04, "tr808tom": 2.29, "tr808hat": 1.04,
+	"tr808ohat": 1.07, "tr808cymbal": 3.07, "tr808cowbell": 1.25, "tr808conga": 1.03, "tr808maracas": 1.32,
+	"tr808clave": 0.69,
+}
+
+// gmModelled are the standard kit's modelled drums, by key.
+var gmModelled = map[int]string{
+	35: "mkick", 36: "mkick", 38: "msnare", 40: "msnare",
+	41: "mtom", 43: "mtom", 45: "mtom", 47: "mtom", 48: "mtom", 50: "mtom",
+	42: "mhat", 44: "mhat", 46: "mohat",
+	49: "mcrash", 52: "mcrash", 55: "mcrash", 57: "mcrash", 51: "mride", 59: "mride",
+}
+
+// gmElectronic are the Electronic kit's drums, by key, past the standard kit's.
+var gmElectronic = map[int]string{
+	35: "sdskick", 36: "sdskick", 38: "sdssnare", 40: "sdssnare",
+	41: "sdstom", 43: "sdstom", 45: "sdstom", 47: "sdstom", 48: "sdstom", 50: "sdstom",
+}
+
+// gm808 are the TR-808 kit's drums, by key, past the standard kit's.
+var gm808 = map[int]string{
+	35: "tr808kick", 36: "tr808kick", 37: "tr808rim", 38: "tr808snare", 39: "tr808clap", 40: "tr808snare",
+	41: "tr808tom", 43: "tr808tom", 45: "tr808tom", 47: "tr808tom", 48: "tr808tom", 50: "tr808tom",
+	42: "tr808hat", 44: "tr808hat", 46: "tr808ohat", 49: "tr808cymbal", 57: "tr808cymbal",
+	56: "tr808cowbell", 62: "tr808conga", 63: "tr808conga", 64: "tr808conga", 70: "tr808maracas", 75: "tr808clave",
 }

@@ -346,7 +346,7 @@
 				{
 					"Name": "TR-808",
 					"File": "drums/tr-808.patch.json",
-					"About": "Roland's TR-808 as made in code: a long, booming kick, snappy snare, claps and metallic hats."
+					"About": "Roland's TR-808 modelled on its circuits: a ringing kick, two-tone snare, six-square hats and cymbal, claps and cowbell. Its congas, clave and maracas play as tr8lc, tr8mc, tr8hc, tr8cl and tr8ma."
 				},
 				{
 					"Name": "Linn style",
@@ -361,12 +361,12 @@
 				{
 					"Name": "Simmons kit",
 					"File": "drums/simmons-kit.patch.json",
-					"About": "Electronic toms that dive, a snappy snare and a hard kick, as a Simmons SDS-V's."
+					"About": "A Simmons SDS-V modelled on its circuits: drums that bend down in pitch with a click and filtered noise, with modelled hats and cymbals."
 				},
 				{
 					"Name": "TR-909 techno",
 					"File": "drums/tr-909.patch.json",
-					"About": "A 909's kick falling fast with its click, an 808 snare and rim, crisp hats and a dark ride: play bd9."
+					"About": "Roland's TR-909 modelled on its circuits: a kick sweeping down with its click, a bright snare, claps, and grainy 6-bit hats and cymbals."
 				},
 				{
 					"Name": "Industrial kit",
@@ -387,21 +387,6 @@
 					"Name": "NES kit",
 					"File": "drums/nes-kit.patch.json",
 					"About": "The NES's drums, 60 frames a second: play nbd, nsn, nhh and the like."
-				},
-				{
-					"Name": "TR-808 circuits",
-					"File": "drums/tr-808-circuits.patch.json",
-					"About": "Roland's TR-808 modelled on its circuits: a ringing kick, two-tone snare, six-square hats and cymbal, claps and cowbell. Its congas, clave and maracas play as tr8lc, tr8mc, tr8hc, tr8cl and tr8ma."
-				},
-				{
-					"Name": "TR-909 circuits",
-					"File": "drums/tr-909-circuits.patch.json",
-					"About": "Roland's TR-909 modelled on its circuits: a kick sweeping down with its click, a bright snare, claps, and grainy 6-bit hats and cymbals."
-				},
-				{
-					"Name": "Simmons SDS-V circuits",
-					"File": "drums/simmons-sds-v-circuits.patch.json",
-					"About": "A Simmons SDS-V modelled on its circuits: drums that bend down in pitch with a click and filtered noise, with modelled hats and cymbals."
 				}
 			]
 		}

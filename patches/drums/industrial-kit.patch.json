@@ -2,31 +2,70 @@
 	"Kind": "drums",
 	"Kit": {
 		"bd": {
-			"Tune": -2,
-			"Decay": 0.7,
-			"Tone": 0.55
+			"Type": "tr909kick",
+			"Tune": -4,
+			"Decay": 1.4,
+			"Tone": 0.8
 		},
 		"sn": {
-			"Tune": -1,
-			"Tone": 0.7,
-			"Decay": 0.6
+			"Type": "sdssnare",
+			"Tune": -3,
+			"Decay": 1.3,
+			"Tone": 0.2
+		},
+		"cp": {
+			"Type": "tr909clap",
+			"Tone": 0.2,
+			"Decay": 1.2
+		},
+		"rim": {
+			"Type": "tr909rim",
+			"Tune": -5
 		},
 		"hh": {
-			"Tone": 0.5,
-			"Gain": 0.8
+			"Type": "tr909hat",
+			"Tone": 0.3
 		},
 		"oh": {
-			"Tone": 0.5,
-			"Decay": 0.35,
-			"Gain": 0.6
+			"Type": "tr909ohat",
+			"Tone": 0.3
+		},
+		"lt": {
+			"Type": "mtom",
+			"Tune": -4,
+			"Decay": 1.2,
+			"Strike": 0.4
+		},
+		"mt": {
+			"Type": "mtom",
+			"Tune": -4,
+			"Decay": 1.2,
+			"Strike": 0.4
+		},
+		"ht": {
+			"Type": "mtom",
+			"Tune": -4,
+			"Decay": 1.2,
+			"Strike": 0.4
 		},
 		"mtl": {
-			"Decay": 0.8,
-			"Tone": 0.6
+			"Type": "metal",
+			"Gain": 0.35
+		},
+		"cb": {
+			"Type": "metal",
+			"Tune": 5,
+			"Decay": 0.5,
+			"Gain": 0.35
 		},
 		"cr": {
-			"Tone": 0.4,
-			"Decay": 0.8
+			"Type": "mcrash",
+			"Decay": 1.4,
+			"Tone": 0.3
+		},
+		"rd": {
+			"Type": "mride",
+			"Tone": 0.3
 		}
 	}
 }
