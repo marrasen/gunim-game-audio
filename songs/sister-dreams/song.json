@@ -53,12 +53,21 @@
 		"sid": {
 			"Kind": "drums",
 			"Kit": {
-				"bd": {"Type": "sidkick"},
-				"sn": {"Type": "sidsnare", "Gain": 0.75},
-				"hh": {"Type": "sidhat", "Gain": 0.45},
-				"oh": {"Type": "sidohat", "Gain": 0.35},
-				"zap": {"Type": "sidzap", "Gain": 0.5},
-				"cp": {"Type": "sidclap"}
+				"bd": {"Type": "mkick", "Tune": 2, "Decay": 0.45, "Tone": 0.75, "Strike": 0.15},
+				"sn": {"Type": "msnare", "Tune": 2, "Decay": 0.6, "Tone": 0.85, "Gain": 0.75},
+				"rim": {"Type": "tr909rim", "Tune": -2, "Gain": 0.8},
+				"cp": {"Type": "tr909clap", "Decay": 0.8, "Tone": 0.4},
+				"hh": {"Type": "mhat", "Decay": 0.6, "Tone": 0.75, "Gain": 0.45},
+				"oh": {"Type": "mohat", "Decay": 0.6, "Tone": 0.7, "Gain": 0.35},
+				"lt": {"Type": "mtom", "Decay": 0.6, "Tone": 0.6},
+				"mt": {"Type": "mtom", "Decay": 0.6, "Tone": 0.6},
+				"ht": {"Type": "mtom", "Decay": 0.6, "Tone": 0.6},
+				"cr": {"Type": "mcrash", "Decay": 0.7, "Tone": 0.6},
+				"rd": {"Type": "mride", "Decay": 0.7, "Tone": 0.6},
+				"sh": {"Type": "tr808maracas", "Tone": 0.6, "Gain": 0.5},
+				"cb": {"Type": "tr808cowbell", "Tune": 2, "Gain": 0.7},
+				"tamb": {"Type": "tambourine", "Gain": 0.6},
+				"zap": {"Type": "sidzap", "Gain": 0.5}
 			}
 		},
 		"wind": {

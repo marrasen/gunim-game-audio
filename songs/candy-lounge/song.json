@@ -85,12 +85,21 @@
 		"kit": {
 			"Kind": "drums",
 			"Kit": {
-				"bd": {"Decay": 0.6, "Tone": 0.3, "Gain": 0.75},
-				"sn": {"Tone": 0.3, "Decay": 0.6, "Gain": 0.45},
-				"rim": {"Gain": 0.38, "Tone": 0.35, "Pan": 0.15},
-				"hh": {"Tone": 0.35, "Gain": 0.28},
-				"sh": {"Gain": 0.25, "Pan": -0.25},
-				"snap": {"Gain": 0.4, "Tone": 0.4}
+				"bd": {"Type": "mkick", "Tune": 2, "Decay": 0.45, "Tone": 0.75, "Gain": 0.75, "Strike": 0.15},
+				"sn": {"Type": "msnare", "Tune": 2, "Decay": 0.6, "Tone": 0.85, "Gain": 0.45},
+				"rim": {"Type": "tr909rim", "Tune": -2, "Gain": 0.38, "Pan": 0.15},
+				"cp": {"Type": "tr909clap", "Decay": 0.8, "Tone": 0.4},
+				"hh": {"Type": "mhat", "Decay": 0.6, "Tone": 0.75, "Gain": 0.28},
+				"oh": {"Type": "mohat", "Decay": 0.6, "Tone": 0.7, "Gain": 0.6},
+				"lt": {"Type": "mtom", "Decay": 0.6, "Tone": 0.6},
+				"mt": {"Type": "mtom", "Decay": 0.6, "Tone": 0.6},
+				"ht": {"Type": "mtom", "Decay": 0.6, "Tone": 0.6},
+				"cr": {"Type": "mcrash", "Decay": 0.7, "Tone": 0.6},
+				"rd": {"Type": "mride", "Decay": 0.7, "Tone": 0.6},
+				"sh": {"Type": "tr808maracas", "Tone": 0.6, "Gain": 0.25, "Pan": -0.25},
+				"cb": {"Type": "tr808cowbell", "Tune": 2, "Gain": 0.7},
+				"tamb": {"Type": "tambourine", "Gain": 0.6},
+				"snap": {"Tone": 0.4, "Gain": 0.4}
 			}
 		}
 	},

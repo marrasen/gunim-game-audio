@@ -113,16 +113,18 @@
 		"kit": {
 			"Kind": "drums",
 			"Kit": {
-				"bd": {"Tune": 2, "Decay": 0.45, "Tone": 0.6},
-				"sn": {"Tune": 3, "Tone": 0.6, "Decay": 0.7},
-				"cp": {"Tone": 0.3},
-				"hh": {"Tone": 0.35, "Gain": 0.7},
-				"oh": {"Tone": 0.35, "Decay": 0.5, "Gain": 0.55},
-				"syn1": {"Pan": -0.45, "Tone": 0.4},
-				"syn2": {"Tone": 0.4},
-				"syn3": {"Pan": 0.45, "Tone": 0.4},
-				"cb": {"Gain": 0.9},
-				"cr": {"Gain": 0.6, "Tone": 0.3}
+				"bd": {"Type": "tr909kick", "Decay": 0.8, "Tone": 0.6},
+				"sn": {"Type": "tr909snare", "Tone": 0.7},
+				"cp": {"Type": "tr808clap", "Decay": 1.4},
+				"rim": {"Type": "tr808rim"},
+				"hh": {"Type": "tr808hat", "Tone": 0.7, "Gain": 0.7},
+				"oh": {"Type": "tr808ohat", "Tone": 0.7, "Gain": 0.55},
+				"syn1": {"Type": "sdstom", "Decay": 1.2, "Pan": -0.45},
+				"syn2": {"Type": "sdstom", "Decay": 1.2},
+				"syn3": {"Type": "sdstom", "Decay": 1.2, "Pan": 0.45},
+				"cb": {"Type": "tr808cowbell", "Gain": 0.9},
+				"cr": {"Type": "tr909crash", "Gain": 0.6},
+				"rd": {"Type": "tr909ride"}
 			}
 		}
 	},
