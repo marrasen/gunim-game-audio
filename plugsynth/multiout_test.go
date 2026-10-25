@@ -340,3 +340,65 @@ func TestDrivenAsAHostDoesTheDrumsComeOutApart(t *testing.T) {
 		}
 	}
 }
+
+// Sounding foretells every block that sounds with no event of its own:
+// a host that stops running the synth as it says nothing sounds loses no
+// sound, the frames made and not yet given among it, the drums' own
+// outputs too. Each hit is cut short, its voice silenced at once 50
+// frames on, and in blocks of a frame the sound made ahead of the
+// frames given outlasts it: Sounding tells of that sound alone.
+func TestSoundingForetellsEverySoundingBlock(t *testing.T) {
+	for _, rate := range []float64{48000, 44100} {
+		for _, c := range []struct {
+			name      string
+			connected func(int) [synth.DrumParts]bool
+		}{{"unconnected", none}, {"connected", every}} {
+			pr, ok := synthOf(t, "Standard kit").Processor().(*processor)
+			if !ok {
+				t.Fatal("the synth's processor is not its own")
+			}
+			pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 1, Channels: 2})
+			main := [][]float32{make([]float32, 1), make([]float32, 1)}
+			auxOut := make([][][]float32, synth.DrumParts)
+			events := kitEvents()
+			sounding, buffered, next := false, 0, 0
+			for at := range 48000 {
+				b := plug.Block{Frames: 1, Out: main, AuxOut: auxOut}
+				for ; next < len(events) && events[next].Frame == at; next++ {
+					e := events[next]
+					e.Frame = 0
+					b.Events = append(b.Events, e)
+				}
+				on := c.connected(at)
+				for i := range auxOut {
+					auxOut[i] = nil
+					if on[i] {
+						auxOut[i] = [][]float32{make([]float32, 1), make([]float32, 1)}
+					}
+				}
+				pr.Process(&b)
+				for _, h := range kitHits {
+					if at == h.at+50 {
+						pr.cur.Silence()
+					}
+				}
+				heard := !quiet(main[0]) || !quiet(main[1])
+				for _, o := range auxOut {
+					for _, ch := range o {
+						heard = heard || !quiet(ch)
+					}
+				}
+				if heard && len(b.Events) == 0 && !sounding {
+					t.Fatalf("at %v Hz, %s, frame %d sounds, though Sounding said nothing would", rate, c.name, at)
+				}
+				sounding = pr.Sounding()
+				if sounding && !pr.cur.Sounding() && pr.prev == nil && !pr.aheadOn() && pr.next.Load() == nil {
+					buffered++
+				}
+			}
+			if buffered == 0 {
+				t.Errorf("at %v Hz, %s, Sounding never told of the sound made ahead alone", rate, c.name)
+			}
+		}
+	}
+}
