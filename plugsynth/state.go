@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/marrasen/gunim-game-audio/synth"
@@ -13,7 +14,8 @@ import (
 // State is the plugin's state, as [plug.Plugin]'s State writes it: the
 // sound playing, by its name and where it comes from, and its whole
 // patch, so a song keeps its sound as it was picked, whatever becomes
-// of the library. It is JSON:
+// of the library, but for a kit [DecodeState] moves to the new drums.
+// It is JSON:
 //
 //	{"Bank":"Library","Group":"Pads & strings","Name":"Juno pad","Patch":{"Osc":[…],…}}
 //
@@ -66,7 +68,36 @@ func DecodeState(b []byte) (State, error) {
 		}
 		checked.add(b)
 	}
-	return s, nil
+	return moved(s), nil
+}
+
+// movedKits are the library's drum kits that moved from the old drums to the modelled and circuit ones.
+var movedKits = []string{"TR-808", "Linn style", "Hi-NRG kit", "Simmons kit", "TR-909 techno", "Industrial kit", "Noise pop kit"}
+
+// moved returns s with the library's kit as it is now in place of a moved kit's that still plays the old drums.
+func moved(s State) State {
+	if s.Bank != Library || !slices.Contains(movedKits, s.Name) || !oldDrums(s.Patch) {
+		return s
+	}
+	for _, snd := range ownSounds() {
+		if snd.Bank == Library && snd.Name == s.Name {
+			s.Group, s.Patch = snd.Group, snd.Patch()
+		}
+	}
+	return s
+}
+
+// oldDrums reports whether drum kit p plays only the old drums, as a kit names them without a type.
+func oldDrums(p *synth.Patch) bool {
+	if p.Kind != "drums" {
+		return false
+	}
+	for _, d := range p.Kit {
+		if d.Type != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // checked are the states known to play, by their hashes: those the

@@ -2,6 +2,7 @@ package synth
 
 import (
 	"math"
+	"slices"
 )
 
 // metal are the frequencies of the six square waves a TR-808 sounds its
@@ -43,6 +44,10 @@ type hit struct {
 	sidVol float32
 	// part is the [DrumPart] an Instrument plays the hit into.
 	part uint8
+	// head is a modelled drum's head, cym a modelled cymbal, and cc a circuit-modelled drum's state.
+	head membrane
+	cym  plate
+	cc   circuit
 }
 
 // decay starts envelope i falling from 1 to 1/e over tau seconds.
@@ -161,6 +166,13 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 		h.end = secs(0.6 * decay)
 	case drRiser, drDown:
 		h.end = dur + secs(0.03)
+	case drModalHat, drModalOHat, drModalCrash, drModalRide, drTR909Hat, drTR909OHat, drTR909Crash, drTR909Ride:
+		h.cym.start(h, d.kind, exp2((float32(d.Tune)+tune)/12), tone, decay)
+		h.end = secs(longest(d.kind) * 8 * decay)
+	case drModalKick, drModalTom, drModalSnare:
+		h.head.start(h, d.kind, exp2((float32(d.Tune)+tune)/12), tone, decay)
+		hd := heads[d.kind]
+		h.end = secs(max(hd.ring, hd.buzzRing, hd.slapRing) * 8 * decay)
 	default:
 		if isChipDrum(d.kind) {
 			h.sid.reset()
@@ -171,6 +183,9 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 	}
 	for i := range h.ph {
 		h.ph[i] = float32(h.noise.float())
+	}
+	if isCircuit(d.kind) {
+		h.circuitStart(exp2((float32(d.Tune)+tune)/12), tone, decay)
 	}
 }
 
@@ -309,7 +324,20 @@ func (h *hit) render(l, r []float32, carry bool) {
 			s = h.hp.hp(bp) * (e[0] + 0.55*e[1]) * 3.2
 		case drRiser, drDown:
 			s = h.sweep(tone)
+		case drModalKick, drModalTom, drModalSnare:
+			if h.t%control == 0 && h.t > 0 {
+				h.head.retune()
+			}
+			s = h.head.step(h.t, h.noise)
+		case drModalHat, drModalOHat, drModalCrash, drModalRide, drTR909Hat, drTR909OHat, drTR909Crash, drTR909Ride:
+			if h.t%control == 0 && h.t > 0 {
+				h.cym.renorm()
+			}
+			s = h.cym.step(h.t, h.noise)
 		default:
+			if isCircuit(d.kind) {
+				s = h.circuitStep(tune, tone)
+			}
 			if isChipDrum(d.kind) {
 				dec := float32(d.Decay)
 				if dec <= 0 {
@@ -348,6 +376,25 @@ func (h *hit) render(l, r []float32, carry bool) {
 	}
 }
 
+// restrike strikes the modelled drum of hit h again, as hard as vel says, as it rings, as the hit numbered age.
+func (h *hit) restrike(vel float32, age uint64) {
+	if vel <= 0 {
+		return
+	}
+	if vel > h.vel {
+		h.head.soften(h.vel / vel)
+		h.vel = vel
+	}
+	decay := float32(h.d.Decay)
+	if decay <= 0 {
+		decay = 1
+	}
+	hd := heads[h.d.kind]
+	h.head.strike(h, h.d.kind, float32(h.d.Tone), vel, vel/h.vel, h.t)
+	h.end = max(h.end, h.t+int64(max(hd.ring, hd.buzzRing, hd.slapRing)*8*decay*rate))
+	h.age = age
+}
+
 // done reports whether the hit has played to its end, faded out from a
 // choke, or fallen silent.
 func (h *hit) done() bool { return h.t > h.end || h.fade < 1e-4 || h.silent() }
@@ -357,6 +404,12 @@ func (h *hit) done() bool { return h.t > h.end || h.fade < 1e-4 || h.silent() }
 func (h *hit) silent() bool {
 	if h.d.kind == drRiser || h.d.kind == drDown || isChipDrum(h.d.kind) || h.t < 4*clapGap {
 		return false
+	}
+	if isModal(h.d.kind) {
+		return h.head.quiet()
+	}
+	if isCymbal(h.d.kind) {
+		return h.cym.quiet()
 	}
 	for k := range h.env {
 		if h.mul[k] > 0 && h.env[k] > 0.002 {
@@ -467,6 +520,11 @@ func (h *hit) sweep(tone float32) float32 {
 	return (bp*1.8 + saw*(0.15+0.6*tone)) * a
 }
 
+// chokes are the open hats each closed hat chokes, by kind.
+var chokes = map[int][]int{
+	drHat: {drOHat, drModalOHat}, drModalHat: {drOHat, drModalOHat}, drTR808Hat: {drTR808OHat}, drTR909Hat: {drTR909OHat},
+}
+
 // hits are a track's drums sounding.
 type hits struct {
 	hs  []hit
@@ -476,12 +534,20 @@ type hits struct {
 func newHits(n int) *hits { return &hits{hs: make([]hit, n)} }
 
 // play sounds drum d, and returns the hit that sounds it. A closed hat
-// chokes an open one.
+// chokes an open one, and a modelled drum still ringing is struck again.
 func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *hit {
 	hh.age++
-	if d.kind == drHat {
+	if isModal(d.kind) {
 		for i := range hh.hs {
-			if hh.hs[i].on && hh.hs[i].d.kind == drOHat {
+			if h := &hh.hs[i]; h.on && h.d.name == d.name && h.d.kind == d.kind && h.tune == tune && h.fade == 1 {
+				h.restrike(vel, hh.age)
+				return h
+			}
+		}
+	}
+	if open, ok := chokes[d.kind]; ok {
+		for i := range hh.hs {
+			if k := hh.hs[i].d.kind; hh.hs[i].on && slices.Contains(open, k) {
 				hh.hs[i].choke = 0.997
 			}
 		}
