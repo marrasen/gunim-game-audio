@@ -988,12 +988,13 @@ func GMKit(kit int) *Patch {
 	return p
 }
 
-// gmLevel is the gain that sets each new drum as loud as the old drum General MIDI's kits played in its place.
+// gmLevel is the gain that sets each new drum as loud as the old drum General MIDI's kits played in its place, but
+// with its peak no more than 3 dB over the old drum's.
 var gmLevel = map[string]float64{
-	"mkick": 1.96, "msnare": 0.93, "mtom": 1.77, "mhat": 0.93, "mohat": 1.59, "mcrash": 2.71, "mride": 4.96,
-	"sdskick": 1.11, "sdssnare": 1.11, "sdstom": 1.73,
-	"tr808kick": 1.3, "tr808snare": 1.14, "tr808rim": 1.26, "tr808clap": 1.04, "tr808tom": 2.29, "tr808hat": 1.04,
-	"tr808ohat": 1.07, "tr808cymbal": 3.07, "tr808cowbell": 1.25, "tr808conga": 1.03, "tr808maracas": 1.32,
+	"mkick": 1.02, "msnare": 0.93, "mtom": 1.11, "mhat": 0.93, "mohat": 1.59, "mcrash": 1.4, "mride": 4.96,
+	"sdskick": 1.11, "sdssnare": 1.11, "sdstom": 1.47,
+	"tr808kick": 1.3, "tr808snare": 1.14, "tr808rim": 1.26, "tr808clap": 1.04, "tr808tom": 1.82, "tr808hat": 1.04,
+	"tr808ohat": 1.05, "tr808cymbal": 2.06, "tr808cowbell": 1.25, "tr808conga": 1.03, "tr808maracas": 1.32,
 	"tr808clave": 0.69,
 }
 
