@@ -132,8 +132,8 @@ func Test909CymbalsAreGrainyAllTheWayDown(t *testing.T) {
 	}
 }
 
-func TestGeneralMIDIsCongaNotesPlayThe808sCongas(t *testing.T) {
-	for key, want := range map[int]string{62: "tr8hc", 63: "tr8mc", 64: "tr8lc"} {
+func TestGeneralMIDIsLatinNotesPlayThe808s(t *testing.T) {
+	for key, want := range map[int]string{62: "tr8hc", 63: "tr8mc", 64: "tr8lc", 70: "tr8ma", 75: "tr8cl"} {
 		if got := kitDrum(nil, key); got != want {
 			t.Errorf("note %d plays %q; want %s", key, got, want)
 		}
