@@ -242,3 +242,24 @@ func TestAHardStrikeOnASoftRingingDrumSoundsAsAHardHit(t *testing.T) {
 		}
 	}
 }
+
+func TestAModelledDrumStruckSilentlyAgainStaysANumber(t *testing.T) {
+	c, err := (&Patch{Kind: "drums"}).compile("kit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"mbd", "msn", "mmt"} {
+		hs := newHits(4)
+		l, r := make([]float32, rate/5), make([]float32, rate/5)
+		for i, vel := range []float32{0, 0, 0.5} {
+			hs.play(c.kit[name], vel, 0, 0, 0, 0)
+			at := i * rate / 15
+			hs.render(l[at:at+rate/15], r[at:at+rate/15], true)
+		}
+		for i, s := range l {
+			if s != s || s > 1e30 || s < -1e30 {
+				t.Fatalf("%s struck at velocity 0 twice, then 0.5, gives %v at frame %d", name, s, i)
+			}
+		}
+	}
+}

@@ -378,6 +378,9 @@ func (h *hit) render(l, r []float32, carry bool) {
 
 // restrike strikes the modelled drum of hit h again, as hard as vel says, as it rings, as the hit numbered age.
 func (h *hit) restrike(vel float32, age uint64) {
+	if vel <= 0 {
+		return
+	}
 	if vel > h.vel {
 		h.head.soften(h.vel / vel)
 		h.vel = vel

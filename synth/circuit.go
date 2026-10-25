@@ -2,10 +2,13 @@ package synth
 
 import "math"
 
-// circuit is the state a circuit-modelled drum needs past a hit's own: two more filters and three more phases.
+// circuit is the state a circuit-modelled drum needs past a hit's own: two more filters, three more phases, and its
+// tom's or clap's settings.
 type circuit struct {
 	f2, f3 svf
 	ph     [3]float32
+	tom    tomCircuit
+	burst  clapTiming
 }
 
 // isCircuit reports whether drum kind k is modelled on a drum machine's circuits, its cymbals aside.
@@ -69,6 +72,7 @@ func (h *hit) circuitStart(tune, tone, decay float32) {
 	c := &h.cc
 	secs := func(s float32) int64 { return int64(s * rate) }
 	h.ph[0], h.ph[1], c.ph = 0, 0, [3]float32{}
+	c.burst = clapBurst[h.d.kind]
 	switch h.d.kind {
 	case drTR808Kick:
 		// The pitch bump of the pulse, the boom, and the click.
@@ -84,7 +88,8 @@ func (h *hit) circuitStart(tune, tone, decay float32) {
 		h.f1.set(1800, 0)
 		h.end = secs(1.2 * decay)
 	case drTR808Tom, drTR909Tom, drSDSTom:
-		tc := toms[h.d.kind]
+		h.cc.tom = toms[h.d.kind]
+		tc := &h.cc.tom
 		h.decay(0, tc.bendRing)
 		h.decay(1, tc.ring*decay/float32(math.Sqrt(float64(tune))))
 		h.decay(2, tc.noiseRing)
@@ -181,10 +186,10 @@ func (h *hit) circuitStart(tune, tone, decay float32) {
 }
 
 // clapBurst is how far apart a clap's bursts are, and how many it has, by kind.
-var clapBurst = map[int]struct {
-	gap   int64
-	count int64
-}{drTR808Clap: {rate * 11 / 1000, 3}, drTR909Clap: {rate * 9 / 1000, 4}}
+var clapBurst = map[int]clapTiming{drTR808Clap: {rate * 11 / 1000, 3}, drTR909Clap: {rate * 9 / 1000, 4}}
+
+// clapTiming is how far apart a clap's bursts come, in frames, and how many there are.
+type clapTiming struct{ gap, count int64 }
 
 // circuitStep returns a circuit-modelled drum's next frame, tuned by tune, as bright as tone says.
 func (h *hit) circuitStep(tune, tone float32) float32 {
@@ -205,7 +210,7 @@ func (h *hit) circuitStep(tune, tone float32) float32 {
 		_, _, hp := h.f1.step(h.noise.bipolar())
 		return softClip(body*0.9 + hp*e[2]*0.75)
 	case drTR808Tom, drTR909Tom, drSDSTom:
-		return h.tomStep(toms[h.d.kind], tune, tone)
+		return h.tomStep(&h.cc.tom, tune, tone)
 	case drTR808Conga:
 		return softClip(sin1(adv(&h.ph[0], 250*tune*(1+0.08*e[0]))) * e[1] * 1.1)
 	case drTR808Rim:
@@ -214,7 +219,7 @@ func (h *hit) circuitStep(tune, tone float32) float32 {
 		return softClip(hp*3) * 0.6
 	case drTR808Clap, drTR909Clap:
 		// Bursts of noise a few milliseconds apart, as the hands clap, then a tail of noise as their echo.
-		b := clapBurst[h.d.kind]
+		b := h.cc.burst
 		if h.t < b.count*b.gap && h.t%b.gap == 0 {
 			h.decay(0, 0.0035)
 		}
@@ -316,7 +321,7 @@ var toms = map[int]tomCircuit{
 }
 
 // tomStep returns the next frame of a tom of sound tc, tuned by tune, as bright as tone says.
-func (h *hit) tomStep(tc tomCircuit, tune, tone float32) float32 {
+func (h *hit) tomStep(tc *tomCircuit, tune, tone float32) float32 {
 	c, e := &h.cc, &h.env
 	hz := tc.hz * tune
 	p := adv(&h.ph[0], hz*(1+tc.bend*(0.4+0.6*h.vel)*e[0]))

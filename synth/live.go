@@ -205,7 +205,7 @@ var gmDrumNames = [128][]string{
 	47: midToms, 48: highToms, 49: crashes, 50: highToms, 51: rides, 52: crashes,
 	53: {"rd", "ride", "mtl", "metal", "nclk"}, 54: {"tamb", "tambourine"}, 55: crashes,
 	56: {"cb", "cowbell", "tr8cb"}, 57: crashes, 59: rides, 62: {"tr8hc"}, 63: {"tr8mc"}, 64: {"tr8lc"},
-	69: shakers, 70: {"tr8ma", "maracas"}, 75: {"tr8cl", "clave", "claves"}, 82: shakers,
+	69: shakers, 70: {"tr8ma", "maracas", "sh", "shaker"}, 75: {"tr8cl", "clave", "claves"}, 82: shakers,
 }
 
 // The names of the drums of each role, for gmDrumNames.
