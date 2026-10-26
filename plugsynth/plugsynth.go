@@ -28,9 +28,11 @@ package plugsynth
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+	"weak"
 
 	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim/audio/plug"
@@ -266,7 +268,9 @@ func newPlugin(h plug.Host) *plugin {
 		panic("plugsynth: " + err.Error())
 	}
 	p := &plugin{host: h, st: st, proc: newProcessor(snd)}
-	synths.Store(p, struct{}{})
+	wp := weak.Make(p)
+	synths.Store(wp, struct{}{})
+	runtime.AddCleanup(p, func(wp weak.Pointer[plugin]) { synths.Delete(wp) }, wp)
 	return p
 }
 
@@ -323,7 +327,7 @@ func (p *plugin) pick(s Sound) {
 }
 
 // Close implements [plug.Plugin].
-func (p *plugin) Close() { synths.Delete(p) }
+func (p *plugin) Close() { synths.Delete(weak.Make(p)) }
 
 // before is how many of the engine's frames, silent, the buffer holds
 // before its first: the cubic reads the one before where it reads, and

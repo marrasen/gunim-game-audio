@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"weak"
 
 	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/synth"
@@ -263,15 +264,17 @@ func keyOf(f *soundfont.Font, p soundfont.Preset, kit bool) float64 {
 }
 
 // synths are the synths open, for UseFont and DropFont to have those
-// playing a bank play it afresh.
-var synths sync.Map // *plugin → struct{}
+// playing a bank play it afresh. It holds them weakly: a synth let go
+// without Close leaves it as the collector takes it.
+var synths sync.Map // weak.Pointer[plugin] → struct{}
 
 // replay has each synth playing a sound of the bank of name play it
 // afresh, on the bank as it is registered now.
 func replay(name string) {
 	synths.Range(func(k, _ any) bool {
-		p, ok := k.(*plugin)
-		if !ok {
+		wp, _ := k.(weak.Pointer[plugin])
+		p := wp.Value()
+		if p == nil {
 			return true
 		}
 		st := p.sound()
