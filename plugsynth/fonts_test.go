@@ -3,7 +3,9 @@ package plugsynth
 import (
 	"bytes"
 	"math"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/marrasen/gunim-game-audio/internal/sftest"
 	"github.com/marrasen/gunim-game-audio/soundfont"
@@ -113,6 +115,26 @@ func TestASynthPlaysItsBankOnceTheBankComes(t *testing.T) {
 	if got := heardHz(t, p); math.Abs(got-523) > 10 {
 		t.Errorf("once its bank went, key 72 plays %.0f Hz, not General MIDI's piano's 523", got)
 	}
+}
+
+func TestASynthLetGoWithoutCloseIsNotKeptForItsBank(t *testing.T) {
+	// A host that drops a synth without closing it, as a view going
+	// away does, leaves nothing behind: the synth, its voices and its
+	// host are the collector's.
+	freed := make(chan struct{})
+	func() {
+		p, _ := newSynth(t)
+		runtime.AddCleanup(p, func(struct{}) { close(freed) }, struct{}{})
+	}()
+	for range 50 {
+		runtime.GC()
+		select {
+		case <-freed:
+			return
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	t.Fatal("a synth let go without Close was kept")
 }
 
 func TestARecordedSoundsPatchPageShowsItsLevelAndVoices(t *testing.T) {
