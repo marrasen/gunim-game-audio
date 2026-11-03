@@ -22,5 +22,6 @@
 	"Vowel": "a",
 	"Poly": 1,
 	"Glide": 0.03,
-	"Drift": 8
+	"Drift": 8,
+	"Gain": 1.04
 }

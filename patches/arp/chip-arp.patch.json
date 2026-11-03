@@ -15,5 +15,6 @@
 		"Chord": true,
 		"Hz": 50
 	},
-	"Poly": 1
+	"Poly": 1,
+	"Gain": 0.629
 }

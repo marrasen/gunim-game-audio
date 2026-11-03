@@ -36,5 +36,6 @@
 		"Time": 0.06
 	},
 	"Poly": 4,
-	"Drift": 3
+	"Drift": 3,
+	"Gain": 1.32
 }

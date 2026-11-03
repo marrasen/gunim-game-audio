@@ -12,5 +12,6 @@
 	},
 	"Vowel": "a",
 	"Singer": "alto",
-	"Poly": 1
+	"Poly": 1,
+	"Gain": 0.761
 }

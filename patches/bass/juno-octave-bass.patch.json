@@ -32,5 +32,6 @@
 	},
 	"Poly": 1,
 	"Drift": 3,
-	"Drive": 0.2
+	"Drive": 0.2,
+	"Gain": 1.03
 }
