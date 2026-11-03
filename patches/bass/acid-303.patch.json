@@ -28,5 +28,6 @@
 	"Glide": 0.06,
 	"Slide": true,
 	"Accent": 1.4,
-	"Drive": 0.3
+	"Drive": 0.3,
+	"Gain": 0.669
 }

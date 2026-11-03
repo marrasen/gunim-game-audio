@@ -24,5 +24,6 @@
 	],
 	"Poly": 1,
 	"Glide": 0.03,
-	"Drift": 5
+	"Drift": 5,
+	"Gain": 0.603
 }

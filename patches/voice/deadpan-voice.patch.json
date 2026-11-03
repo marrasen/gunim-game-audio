@@ -26,5 +26,6 @@
 	"Vocoder": true,
 	"Vowel": "a",
 	"Poly": 1,
-	"Drift": 2
+	"Drift": 2,
+	"Gain": 0.774
 }

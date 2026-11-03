@@ -25,5 +25,6 @@
 		"Sustain": 0.8,
 		"Release": 1.5
 	},
-	"Poly": 8
+	"Poly": 8,
+	"Gain": 0.318
 }

@@ -31,5 +31,6 @@
 		"Release": 0.05
 	},
 	"Poly": 4,
-	"Drift": 2
+	"Drift": 2,
+	"Gain": 2.11
 }
