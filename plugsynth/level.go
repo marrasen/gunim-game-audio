@@ -58,6 +58,9 @@ var (
 var (
 	levelKinds = map[string]string{
 		"Bass": LevelLow, "Pads & strings": LevelHeld, "Brass & stabs": LevelHeld, "Keys & bells": LevelKeys,
+		// General MIDI's families, and the groups of the recorded instruments.
+		"Piano": LevelKeys, "Organ": LevelKeys, "Strings": LevelHeld, "Ensemble": LevelHeld, "Brass": LevelHeld,
+		"Synth pad": LevelHeld,
 	}
 	levelOwn = map[string]string{
 		"Orchestra hit": LevelStabs, "Chord stab": LevelStabs,
@@ -65,6 +68,10 @@ var (
 		"Sung choir": LevelHeld, "Vocoder choir": LevelHeld,
 		"Wind sweep": LevelHeld, "Machine drone": LevelHeld,
 	}
+	// levelRecorded are the kinds of the recorded instruments that play another than their group's.
+	levelRecorded = map[string]string{"Concert Harp": LevelLine}
+	// levelShift moves a sound's phrase by that many semitones, into its range.
+	levelShift = map[string]float64{"Timpani": -24}
 )
 
 // Levelled says whether the sound is one of the library's sounds the levels set: any but a drum kit.
@@ -73,6 +80,9 @@ func Levelled(s Sound) bool { return s.Bank == Library && !s.kit() }
 // LevelKind returns the kind of level phrase the sound is measured by.
 func LevelKind(s Sound) string {
 	if k, ok := levelOwn[s.Name]; ok {
+		return k
+	}
+	if k, ok := levelRecorded[s.Name]; ok {
 		return k
 	}
 	if k, ok := levelKinds[s.Group]; ok {
@@ -142,6 +152,9 @@ func MeasureLevel(s Sound, rate int) (lufs, peak float64, err error) {
 		}
 	}
 	notes := levelPhrase(LevelKind(s))
+	for i := range notes {
+		notes[i].pitch += levelShift[s.Name]
+	}
 	frameOf := func(beats float64) int { return int(math.Round(beats * 60 / levelBPM * float64(rate))) }
 	ahead := int(lookAhead.Seconds() * float64(rate))
 	total := frameOf(levelBeats) + levelTail*rate
