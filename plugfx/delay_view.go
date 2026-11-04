@@ -276,24 +276,24 @@ func (t *taps) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 	}
 	for at := 0.0; at <= span+1e-9; at += step {
 		x := t.xOf(at)
-		p.RRect(geom.Rc(x, r.Min.Y, 1, r.Size().H), 0, paint.Solid(audioui.Faded(ink, 0.06)))
+		p.RRect(geom.Rc(x, r.Min.Y, 1, r.Size().H), 0, paint.Solid(paint.Faded(ink, 0.06)))
 		label := audioui.Shaped(unit(at), 9, false, true)
-		label.Paint(p, geom.Pt(min(x+3, r.Max.X-label.Advance), r.Max.Y+6), audioui.Faded(ink, 0.35))
+		label.Paint(p, geom.Pt(min(x+3, r.Max.X-label.Advance), r.Max.Y+6), paint.Faded(ink, 0.35))
 	}
-	p.RRect(geom.Rc(r.Min.X, mid, r.Size().W, 1), 0, paint.Solid(audioui.Faded(ink, 0.18)))
+	p.RRect(geom.Rc(r.Min.X, mid, r.Size().W, 1), 0, paint.Solid(paint.Faded(ink, 0.18)))
 	for _, db := range []float64{-12, -24, -36} {
 		for _, y := range []float32{mid - t.barOf(db), mid + t.barOf(db)} {
 			for x := r.Min.X; x < r.Max.X; x += 8 {
-				p.RRect(geom.Rc(x, y, 4, 1), 0, paint.Solid(audioui.Faded(ink, 0.07)))
+				p.RRect(geom.Rc(x, y, 4, 1), 0, paint.Solid(paint.Faded(ink, 0.07)))
 			}
 		}
 	}
 	side := audioui.Shaped("L", 9, true, false)
-	side.Paint(p, geom.Pt(r.Min.X, r.Min.Y), audioui.Faded(accent, 0.6))
+	side.Paint(p, geom.Pt(r.Min.X, r.Min.Y), paint.Faded(accent, 0.6))
 	side = audioui.Shaped("R", 9, true, false)
-	side.Paint(p, geom.Pt(r.Min.X, r.Max.Y-12), audioui.Faded(right, 0.6))
+	side.Paint(p, geom.Pt(r.Min.X, r.Max.Y-12), paint.Faded(right, 0.6))
 	// The sound going in, at 0.
-	p.RRect(geom.Rc(t.xOf(0)-1.5, mid-t.barOf(0), 3, 2*t.barOf(0)), 1.5, paint.Solid(audioui.Faded(ink, 0.35)))
+	p.RRect(geom.Rc(t.xOf(0)-1.5, mid-t.barOf(0), 3, 2*t.barOf(0)), 1.5, paint.Solid(paint.Faded(ink, 0.35)))
 	// The echoes, each darker by the filters, time round after time
 	// round, and glowing as they sound.
 	narrow := min(max(math.Log2(s.lowCut/20)/6.6+math.Log2(20000/s.highCut)/5.3, 0), 1)
@@ -314,10 +314,10 @@ func (t *taps) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 			}
 			a := (0.35 + 0.45*fade) * (0.85 + 0.15*glow) * (1 - 0.45*swept)
 			if glow > 0.05 {
-				p.ShadowRRect(geom.Rc(x-w/2, y, w, h), w/2, paint.Solid(audioui.Faded(col, 0)),
-					paint.Shadow{Blur: 12 * glow, Color: audioui.Faded(col, 0.35*glow*fade)})
+				p.ShadowRRect(geom.Rc(x-w/2, y, w, h), w/2, paint.Solid(paint.Faded(col, 0)),
+					paint.Shadow{Blur: 12 * glow, Color: paint.Faded(col, 0.35*glow*fade)})
 			}
-			p.RRect(geom.Rc(x-w/2, y, w, h), min(w/2, 3), paint.Solid(audioui.Faded(col, a)))
+			p.RRect(geom.Rc(x-w/2, y, w, h), min(w/2, 3), paint.Solid(paint.Faded(col, a)))
 		}
 		switch {
 		case e.stereo:
@@ -338,30 +338,30 @@ func (t *taps) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 		func(secs float64) float32 { return t.xOf(secs / beat) }, ink,
 		func(x float32, in, l, rt float64) {
 			if h := t.barOf(in); h > 0.5 {
-				p.RRect(geom.Rc(x, mid-h, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.3*fade)))
-				p.RRect(geom.Rc(x, mid+h-1, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.3*fade)))
+				p.RRect(geom.Rc(x, mid-h, 2, 1), 0, paint.Solid(paint.Faded(ink, 0.3*fade)))
+				p.RRect(geom.Rc(x, mid+h-1, 2, 1), 0, paint.Solid(paint.Faded(ink, 0.3*fade)))
 			}
 			if h := t.barOf(l); h > 0.5 {
-				p.RRect(geom.Rc(x, mid-h, 2, h), 0, paint.Solid(audioui.Faded(accent, 0.14*fade)))
-				p.RRect(geom.Rc(x, mid-h-1, 2, 2), 0, paint.Solid(audioui.Faded(accent, 0.9*fade)))
+				p.RRect(geom.Rc(x, mid-h, 2, h), 0, paint.Solid(paint.Faded(accent, 0.14*fade)))
+				p.RRect(geom.Rc(x, mid-h-1, 2, 2), 0, paint.Solid(paint.Faded(accent, 0.9*fade)))
 			}
 			if h := t.barOf(rt); h > 0.5 {
-				p.RRect(geom.Rc(x, mid, 2, h), 0, paint.Solid(audioui.Faded(right, 0.14*fade)))
-				p.RRect(geom.Rc(x, mid+h-1, 2, 2), 0, paint.Solid(audioui.Faded(right, 0.9*fade)))
+				p.RRect(geom.Rc(x, mid, 2, h), 0, paint.Solid(paint.Faded(right, 0.14*fade)))
+				p.RRect(geom.Rc(x, mid+h-1, 2, 2), 0, paint.Solid(paint.Faded(right, 0.9*fade)))
 			}
 		})
 	for k := 1; k <= 2; k++ {
 		lit := t.lit[k-1].Value()
 		at := t.handleAt(k)
-		handle(p, at, audioui.Faded(ink, 0.6+0.4*lit), lit)
+		handle(p, at, paint.Faded(ink, 0.6+0.4*lit), lit)
 		if lit > 0.05 {
 			words := t.handleText(k)
 			label := audioui.Shaped(words, 11, true, false)
-			label.Paint(p, geom.Pt(min(at.X+10, r.Max.X-label.Advance), at.Y-20), audioui.Faded(ink, lit))
+			label.Paint(p, geom.Pt(min(at.X+10, r.Max.X-label.Advance), at.Y-20), paint.Faded(ink, lit))
 		}
 	}
 	title := audioui.Shaped(t.titleText(), 13, true, false)
-	title.Paint(p, geom.Pt(panelInset+8, panelInset+4), audioui.Faded(ink, 0.8))
+	title.Paint(p, geom.Pt(panelInset+8, panelInset+4), paint.Faded(ink, 0.8))
 }
 
 // titleText says how far apart the echoes are, how loud they come back,
@@ -583,7 +583,7 @@ func (c *delayChip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ guni
 	}
 	const w = 28
 	words := audioui.Shaped(timeText(s), plugui.ChipTextSize, false, false)
-	words.PaintFaded(p, geom.Pt(w+4, (box.H-words.Height())/2), audioui.Faded(ink, plugui.ChipTextInk), box.W-w-4-30, 12)
+	words.PaintFaded(p, geom.Pt(w+4, (box.H-words.Height())/2), paint.Faded(ink, plugui.ChipTextInk), box.W-w-4-30, 12)
 	paintBars(p, th, geom.Rc(box.W-26, box.H/2-4, 26, 8), c.out.levels)
 }
 

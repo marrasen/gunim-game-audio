@@ -151,7 +151,7 @@ func (s *scope) pointAt(pos geom.Point) int {
 func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 	ink, accent := widget.Ink.Get(f.Theme), widget.Accent.Get(f.Theme)
 	defer p.Layer(paint.LayerOpts{Bounds: r, Clip: true, Opacity: 1})()
-	p.RRect(r, 6, paint.Solid(audioui.Faded(audioui.Ground.Get(f.Theme), 0.6)))
+	p.RRect(r, 6, paint.Solid(paint.Faded(audioui.Ground.Get(f.Theme), 0.6)))
 	pad := min(r.Size().H*0.12, 8)
 	cyc := r
 	if s.traced {
@@ -159,7 +159,7 @@ func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 	}
 	s.area = geom.Rect{Min: geom.Pt(cyc.Min.X, r.Min.Y+pad), Max: geom.Pt(cyc.Max.X, r.Max.Y-pad)}
 	top, bottom := s.area.Min.Y, s.area.Max.Y
-	p.RRect(geom.Rc(r.Min.X, s.yOf(0), r.Size().W, 1), 0, paint.Solid(audioui.Faded(ink, 0.12)))
+	p.RRect(geom.Rc(r.Min.X, s.yOf(0), r.Size().W, 1), 0, paint.Solid(paint.Faded(ink, 0.12)))
 	set := settingsOf(s.h, s.p)
 	w := cyc.Size().W
 	if s.edit && set.shape == Steps {
@@ -169,14 +169,14 @@ func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 		for i := range n {
 			y0, y1 := s.yOf(0), s.yOf(set.pat.steps[i])
 			p.RRect(geom.Rc(cyc.Min.X+bw*float32(i)+1, min(y0, y1), max(bw-2, 1), max(abs32(y1-y0), 1)), 2,
-				paint.Solid(audioui.Faded(accent, 0.28)))
+				paint.Solid(paint.Faded(accent, 0.28)))
 		}
 	}
 	// One cycle, from its start: the Phase setting is in the dot's
 	// place already. A random shape's cycles differ, so it draws the
 	// value it holds.
 	if randomShape(set.shape) {
-		p.RRect(geom.Rc(cyc.Min.X, s.yOf(s.value)-0.75, w, 1.5), 0, paint.Solid(audioui.Faded(ink, 0.35)))
+		p.RRect(geom.Rc(cyc.Min.X, s.yOf(s.value)-0.75, w, 1.5), 0, paint.Solid(paint.Faded(ink, 0.35)))
 	} else {
 		steps := max(int(w/2), 8)
 		set.phase = 0
@@ -185,7 +185,7 @@ func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 			x := float64(i) / float64(steps)
 			pt := geom.Pt(s.xOf(x), s.yOf(set.wave(x*0.9999)))
 			if i > 0 {
-				audioui.Segment(p, was, pt, 1.5, audioui.Faded(ink, 0.7))
+				audioui.Segment(p, was, pt, 1.5, paint.Faded(ink, 0.7))
 			}
 			was = pt
 		}
@@ -197,7 +197,7 @@ func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 			if i == s.hot {
 				rad = 5
 			}
-			p.RRect(geom.Rc(c.X-rad, c.Y-rad, 2*rad, 2*rad), rad, paint.Solid(audioui.Faded(accent, 0.9)))
+			p.RRect(geom.Rc(c.X-rad, c.Y-rad, 2*rad, 2*rad), rad, paint.Solid(paint.Faded(accent, 0.9)))
 		}
 	}
 	dot := geom.Pt(s.xOf(s.cycle), s.yOf(s.value))
@@ -208,13 +208,13 @@ func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 	// The trace, from the oldest at the left of its part to the
 	// newest, at the right edge.
 	tr := geom.Rect{Min: geom.Pt(cyc.Max.X+pad, r.Min.Y), Max: r.Max}
-	p.RRect(geom.Rc(tr.Min.X-pad/2, top, 1, bottom-top), 0, paint.Solid(audioui.Faded(ink, 0.12)))
+	p.RRect(geom.Rc(tr.Min.X-pad/2, top, 1, bottom-top), 0, paint.Solid(paint.Faded(ink, 0.12)))
 	n := len(s.trace)
 	for i := 1; i < n; i++ {
 		a, b := s.trace[(s.next+i-1)%n], s.trace[(s.next+i)%n]
 		x0 := tr.Min.X + tr.Size().W*float32(i-1)/float32(n-1)
 		x1 := tr.Min.X + tr.Size().W*float32(i)/float32(n-1)
-		audioui.Segment(p, geom.Pt(x0, s.yOf(float64(a))), geom.Pt(x1, s.yOf(float64(b))), 1.5, audioui.Faded(accent, 0.85))
+		audioui.Segment(p, geom.Pt(x0, s.yOf(float64(a))), geom.Pt(x1, s.yOf(float64(b))), 1.5, paint.Faded(accent, 0.85))
 	}
 }
 

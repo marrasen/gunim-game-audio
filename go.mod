@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/bodgit/sevenzip v1.6.5
 	github.com/jfreymuth/oggvorbis v1.0.5
-	github.com/marrasen/gunim v0.0.0-20261017081636-811567ce55d4
+	github.com/marrasen/gunim v0.0.0-20261104125451-b0e2af217fbb
 	github.com/ulikunitz/xz v0.5.17
 )
 
@@ -22,7 +22,7 @@ require (
 	github.com/jfreymuth/pulse v0.1.3 // indirect
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	github.com/klauspost/compress v1.19.0 // indirect
-	github.com/marrasen/oto/v3 v3.5.1-gunim.5 // indirect
+	github.com/marrasen/oto/v3 v3.5.1-gunim.6 // indirect
 	github.com/mewkiz/flac v1.0.14 // indirect
 	github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d // indirect
 	github.com/mewpkg/term v0.0.0-20241026122259-37a80af23985 // indirect

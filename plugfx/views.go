@@ -210,8 +210,8 @@ func paintGround(p *paint.Painter, th *theme.Live, box geom.Size) func() {
 func handle(p *paint.Painter, c geom.Point, col color.NRGBA, lit float32) {
 	r := 5 + 2*lit
 	if lit > 0.01 {
-		p.ShadowRRect(geom.Rc(c.X-r, c.Y-r, 2*r, 2*r), r, paint.Solid(audioui.Faded(col, 0)),
-			paint.Shadow{Blur: 10 * lit, Color: audioui.Faded(col, 0.5*lit)})
+		p.ShadowRRect(geom.Rc(c.X-r, c.Y-r, 2*r, 2*r), r, paint.Solid(paint.Faded(col, 0)),
+			paint.Shadow{Blur: 10 * lit, Color: paint.Faded(col, 0.5*lit)})
 	}
 	p.RRect(geom.Rc(c.X-r, c.Y-r, 2*r, 2*r), r, paint.Solid(col))
 }

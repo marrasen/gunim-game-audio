@@ -117,10 +117,10 @@ func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Chi
 		defer p.Layer(paint.LayerOpts{Bounds: geom.Rc(0, 0, room+2, box.H), Clip: true, Opacity: 1})()
 		if t < 1 && c.was != "" {
 			run := audioui.Shaped(c.was, chipText, false, false)
-			run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2-box.H*0.6*t), audioui.Faded(ink, 0.9*(1-t)), room, 18)
+			run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2-box.H*0.6*t), paint.Faded(ink, 0.9*(1-t)), room, 18)
 		}
 		run := audioui.Shaped(c.name, chipText, false, false)
-		run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2+box.H*0.6*(1-t)), audioui.Faded(ink, 0.9*t), room, 18)
+		run.PaintFaded(p, geom.Pt(0, (box.H-run.Height())/2+box.H*0.6*(1-t)), paint.Faded(ink, 0.9*t), room, 18)
 	}()
 	if c.out == nil {
 		return
@@ -329,9 +329,9 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	func() {
 		defer pt.Layer(paint.LayerOpts{Bounds: geom.Rc(x, nameY-4, room+4, 32), Clip: true, Opacity: 1})()
 		if t < 1 && v.was != "" {
-			audioui.Shaped(v.was, 20, true, false).PaintFaded(pt, geom.Pt(x, nameY-14*t), audioui.Faded(ink, 1-t), room, 24)
+			audioui.Shaped(v.was, 20, true, false).PaintFaded(pt, geom.Pt(x, nameY-14*t), paint.Faded(ink, 1-t), room, 24)
 		}
-		audioui.Shaped(v.st.Name, 20, true, false).PaintFaded(pt, geom.Pt(x, nameY+14*(1-t)), audioui.Faded(ink, t), room, 24)
+		audioui.Shaped(v.st.Name, 20, true, false).PaintFaded(pt, geom.Pt(x, nameY+14*(1-t)), paint.Faded(ink, t), room, 24)
 	}()
 	crumb := v.st.Bank
 	if v.st.Group != "" {
@@ -344,8 +344,8 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	if v.page() == PatchPage {
 		wide -= v.pages.editor.adds.size.W + addsGapX
 	}
-	bankIcon(pt, f, v.st.Bank, geom.Rc(x, crumbY+1, 12, 12), audioui.Faded(accent, 0.9))
-	audioui.Shaped(crumb, 11, false, false).PaintFaded(pt, geom.Pt(x+18, crumbY), audioui.Faded(ink, 0.6), wide-18, 20)
+	bankIcon(pt, f, v.st.Bank, geom.Rc(x, crumbY+1, 12, 12), paint.Faded(accent, 0.9))
+	audioui.Shaped(crumb, 11, false, false).PaintFaded(pt, geom.Pt(x+18, crumbY), paint.Faded(ink, 0.6), wide-18, 20)
 	if v.page() != SoundPage {
 		n := kids.Len()
 		for i := range n {
@@ -356,7 +356,7 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 		return
 	}
 	if v.aboutShown {
-		paintWrapped(pt, v.about(), geom.Pt(x, aboutY), d.Max.X-panelInset-x, 2, audioui.Faded(ink, 0.55))
+		paintWrapped(pt, v.about(), geom.Pt(x, aboutY), d.Max.X-panelInset-x, 2, paint.Faded(ink, 0.55))
 	}
 	paintFacts(pt, f, facts(v.st.Patch), geom.Pt(x, v.factsY(v.aboutShown)), d.Max.X-panelInset-x)
 	n := kids.Len()

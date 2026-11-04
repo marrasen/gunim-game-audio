@@ -197,24 +197,24 @@ func (g *decayGraph) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 	// time across.
 	for db := decayTop; db > decayBottom; db -= 12 {
 		y := g.yOf(float64(db))
-		p.RRect(geom.Rc(r.Min.X, y, r.Size().W, 1), 0, paint.Solid(audioui.Faded(ink, 0.06)))
+		p.RRect(geom.Rc(r.Min.X, y, r.Size().W, 1), 0, paint.Solid(paint.Faded(ink, 0.06)))
 		label := audioui.Shaped(strconv.Itoa(db), 9, false, true)
-		label.Paint(p, geom.Pt(r.Max.X-label.Advance, y+2), audioui.Faded(ink, 0.3))
+		label.Paint(p, geom.Pt(r.Max.X-label.Advance, y+2), paint.Faded(ink, 0.3))
 	}
 	span := float64(g.span.Value())
 	step := niceStep(span)
 	for t := 0.0; t <= span+1e-9; t += step {
 		x := g.xOf(t)
-		p.RRect(geom.Rc(x, r.Min.Y, 1, r.Size().H), 0, paint.Solid(audioui.Faded(ink, 0.06)))
+		p.RRect(geom.Rc(x, r.Min.Y, 1, r.Size().H), 0, paint.Solid(paint.Faded(ink, 0.06)))
 		label := audioui.Shaped(seconds(t), 9, false, true)
-		label.Paint(p, geom.Pt(min(x+3, r.Max.X-label.Advance), r.Max.Y+6), audioui.Faded(ink, 0.35))
+		label.Paint(p, geom.Pt(min(x+3, r.Max.X-label.Advance), r.Max.Y+6), paint.Faded(ink, 0.35))
 	}
 	pre, decay := g.v[PreDelayID]/1000, g.v[DecayID]
 	glow := g.glow.Value()
 	// The pre-delay, a band of silence.
-	p.RRect(geom.Rc(r.Min.X, r.Min.Y, g.xOf(pre)-r.Min.X, r.Size().H), 0, paint.Solid(audioui.Faded(ink, 0.04)))
+	p.RRect(geom.Rc(r.Min.X, r.Min.Y, g.xOf(pre)-r.Min.X, r.Size().H), 0, paint.Solid(paint.Faded(ink, 0.04)))
 	// The lows falling, filled, and the highs falling sooner.
-	fill := audioui.Faded(accent, 0.16+0.16*glow)
+	fill := paint.Faded(accent, 0.16+0.16*glow)
 	x0, x1 := g.xOf(pre), g.xOf(pre+decay*1.2)
 	for x := float32(math.Floor(float64(x0))); x < min(x1, r.Max.X); x++ {
 		db := -60 * (g.timeAt(max(x, x0)) - pre) / decay
@@ -236,30 +236,30 @@ func (g *decayGraph) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 			}
 		}
 	}
-	curve(decay, audioui.Faded(accent, 0.8+0.2*glow), 2)
-	curve(highDecay(decay, g.v[DampingID]), audioui.Faded(bright, 0.6+0.4*glow), 1.5)
+	curve(decay, paint.Faded(accent, 0.8+0.2*glow), 2)
+	curve(highDecay(decay, g.v[DampingID]), paint.Faded(bright, 0.6+0.4*glow), 1.5)
 	// The first reflections, a tick each, as loud as they come.
 	for i, t := range synth.ReverbEarly(g.v[SizeID]) {
 		x := g.xOf(pre + t)
 		y := g.yOf(-4 - 2*float64(i))
-		p.RRect(geom.Rc(x-1, y, 2, r.Max.Y-y), 1, paint.Solid(audioui.Faded(ink, 0.25+0.2*g.lit[handleSize-1].Value())))
+		p.RRect(geom.Rc(x-1, y, 2, r.Max.Y-y), 1, paint.Solid(paint.Faded(ink, 0.25+0.2*g.lit[handleSize-1].Value())))
 	}
 	// The sound from the last hit: going in, a faint line, and coming
 	// out, filled, so the tail falls along the decay as it sounds.
 	fade, _ := g.sw.shown()
 	g.sw.paint(p, r, g.timeAt, g.xOf, ink, func(x float32, in, l, rt float64) {
 		if y := g.yOf(max(l, rt)); y < r.Max.Y {
-			p.RRect(geom.Rc(x, y, 2, r.Max.Y-y), 0, paint.Solid(audioui.Faded(bright, 0.08*fade)))
-			p.RRect(geom.Rc(x, y-1, 2, 2), 0, paint.Solid(audioui.Faded(bright, 0.75*fade)))
+			p.RRect(geom.Rc(x, y, 2, r.Max.Y-y), 0, paint.Solid(paint.Faded(bright, 0.08*fade)))
+			p.RRect(geom.Rc(x, y-1, 2, 2), 0, paint.Solid(paint.Faded(bright, 0.75*fade)))
 		}
 		if y := g.yOf(in); y < r.Max.Y {
-			p.RRect(geom.Rc(x, y-0.5, 2, 1), 0, paint.Solid(audioui.Faded(ink, 0.2*fade)))
+			p.RRect(geom.Rc(x, y-0.5, 2, 1), 0, paint.Solid(paint.Faded(ink, 0.2*fade)))
 		}
 	})
 	// The -60 dB line, which the decay reaches.
 	y60 := g.yOf(-60)
 	for x := r.Min.X; x < r.Max.X; x += 8 {
-		p.RRect(geom.Rc(x, y60, 4, 1), 0, paint.Solid(audioui.Faded(ink, 0.25)))
+		p.RRect(geom.Rc(x, y60, 4, 1), 0, paint.Solid(paint.Faded(ink, 0.25)))
 	}
 	cols := [handles]color.NRGBA{ink, ink, accent, bright}
 	for k := 1; k <= handles; k++ {
@@ -268,16 +268,16 @@ func (g *decayGraph) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 		if at.X > r.Max.X+8 {
 			continue
 		}
-		handle(p, at, audioui.Faded(cols[k-1], 0.6+0.4*lit), lit)
+		handle(p, at, paint.Faded(cols[k-1], 0.6+0.4*lit), lit)
 		if lit > 0.05 {
 			words := g.handleText(k)
 			label := audioui.Shaped(words, 11, true, false)
 			lx := min(at.X+10, r.Max.X-label.Advance)
-			label.Paint(p, geom.Pt(lx, at.Y-20), audioui.Faded(cols[k-1], lit))
+			label.Paint(p, geom.Pt(lx, at.Y-20), paint.Faded(cols[k-1], lit))
 		}
 	}
 	title := audioui.Shaped(fmt.Sprintf("%s  ·  %s", seconds(decay), roomName(g.v[SizeID], decay)), 13, true, false)
-	title.Paint(p, geom.Pt(panelInset+8, panelInset+4), audioui.Faded(ink, 0.8))
+	title.Paint(p, geom.Pt(panelInset+8, panelInset+4), paint.Faded(ink, 0.8))
 }
 
 // handleText is what handle k shows as it is lit: its value.
@@ -476,7 +476,7 @@ func (c *reverbChip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 		prev = pt
 	}
 	words := audioui.Shaped(seconds(c.v[DecayID])+"  "+percent(c.v[MixID]), plugui.ChipTextSize, false, false)
-	words.PaintFaded(p, geom.Pt(w+6, (box.H-words.Height())/2), audioui.Faded(ink, plugui.ChipTextInk), box.W-w-6-30, 12)
+	words.PaintFaded(p, geom.Pt(w+6, (box.H-words.Height())/2), paint.Faded(ink, plugui.ChipTextInk), box.W-w-6-30, 12)
 	paintBars(p, th, geom.Rc(box.W-26, box.H/2-4, 26, 8), c.out.levels)
 }
 
