@@ -137,6 +137,35 @@ func TestASynthLetGoWithoutCloseIsNotKeptForItsBank(t *testing.T) {
 	t.Fatal("a synth let go without Close was kept")
 }
 
+// A General MIDI bank's Level turns its instruments, but not its kits, which it is not measured on. A recorded kit
+// has its own Level, and takes it.
+func TestABanksLevelTurnsAllButAGeneralMIDIKit(t *testing.T) {
+	half := math.Pow(10, -6.0/20)
+	useTestFont(t, Font{Name: "test-gm-level", Title: "Test GM Level", Level: -6})
+	square, ok := Find("Test GM Level", "Piano", "Square")
+	if !ok {
+		t.Fatal("no square")
+	}
+	if g := square.Patch().Gain; math.Abs(g-half) > 1e-9 {
+		t.Errorf("the instrument's gain is %v, not %v", g, half)
+	}
+	kit, ok := Find("Test GM Level", GMDrums, "Kit")
+	if !ok {
+		t.Fatal("no kit")
+	}
+	if g := kit.Patch().Gain; g != 0 {
+		t.Errorf("the General MIDI kit's gain is %v, not left as it is", g)
+	}
+	useTestFont(t, Font{Name: "test-kit-level", Title: "Test Kit Level", Group: "Drums", Kit: true, Level: -6})
+	rec, ok := Find(Recorded, "Drums", "Test Kit Level")
+	if !ok {
+		t.Fatal("no recorded kit")
+	}
+	if g := rec.Patch().Gain; math.Abs(g-half) > 1e-9 {
+		t.Errorf("the recorded kit's gain is %v, not %v", g, half)
+	}
+}
+
 func TestARecordedSoundsPatchPageShowsItsLevelAndVoices(t *testing.T) {
 	useTestFont(t, Font{Name: "test-page", Title: "Test Square", Group: "Synth"})
 	p, h := newSynth(t)

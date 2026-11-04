@@ -127,7 +127,7 @@ var Instruments = []Bank{
 	},
 	{
 		Name: "YDP Grand Piano", File: "YDP-GrandPiano.sf2", Group: "Piano",
-		Level:  -10,
+		Level:  -10.5,
 		URL:    "https://freepats.zenvoid.org/Piano/YDP-GrandPiano/YDP-GrandPiano-SF2-20160804.tar.bz2",
 		SHA256: "d243dc3e182a60df2a16e92828c1821cf3eb5748b45e2e2bdcfa9cf7af056026",
 		Size:   36737684, Unpacked: 118398836,
@@ -138,7 +138,7 @@ var Instruments = []Bank{
 	},
 	{
 		Name: "Upright Piano KW", File: "UprightPianoKW.sf2", Group: "Piano",
-		Level:  -13,
+		Level:  -13.5,
 		URL:    "https://freepats.zenvoid.org/Piano/UprightPianoKW/UprightPianoKW-SF2-20220221.7z",
 		SHA256: "17c084c6e4205233dc49b34e4bc44a9b2d7c7a2c02b04729ecda77079b07c826",
 		Size:   28832466, Unpacked: 57377848,
@@ -292,7 +292,7 @@ var Instruments = []Bank{
 	},
 	{
 		Name: "Recorder", File: "Recorder.sf2", Group: "Winds",
-		Level:  -9.5,
+		Level:  -12.5,
 		URL:    "https://freepats.zenvoid.org/Wind/Recorder1/Recorder-SF2-20201205.7z",
 		SHA256: "60258c60fcef9e398aca22749cdbeaba792b8fa7c9115e63ceef3aff5d4bd1c0",
 		Size:   8289356, Unpacked: 8554576,

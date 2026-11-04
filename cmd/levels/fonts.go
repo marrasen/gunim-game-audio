@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"go/format"
 	"log"
@@ -16,6 +17,7 @@ import (
 	"github.com/marrasen/gunim-game-audio/plugsynth"
 	"github.com/marrasen/gunim-game-audio/soundfont"
 	"github.com/marrasen/gunim-game-audio/soundfont/fontcache"
+	"github.com/marrasen/gunim-game-audio/synth"
 )
 
 // bankLevel is a bank measured: its sounds' loudness at 0 dB, their median, and the loudest true peak.
@@ -57,7 +59,9 @@ func measureBank(b soundfont.Bank, verbose bool) (bankLevel, bool) {
 	}
 	// A sound reads its samples on a goroutine as it starts; read them all first, so the render hears them.
 	for _, p := range f.Presets {
-		f.Preload(p.Bank, p.Program)
+		if p.Bank != synth.DrumBank {
+			f.Preload(p.Bank, p.Program)
+		}
 	}
 	name := b.Key()
 	if b.Group == "" {
@@ -67,7 +71,7 @@ func measureBank(b soundfont.Bank, verbose bool) (bankLevel, bool) {
 	defer plugsynth.DropFont(name)
 	var sounds []plugsynth.Sound
 	for _, s := range plugsynth.Sounds() {
-		if s.Group == plugsynth.GMDrums || b.Kit {
+		if s.Group == plugsynth.GMDrums {
 			continue
 		}
 		// One bank is used at a time, so the recorded instruments are b's.
@@ -76,15 +80,18 @@ func measureBank(b soundfont.Bank, verbose bool) (bankLevel, bool) {
 		}
 	}
 	if len(sounds) == 0 {
-		return bankLevel{}, false
+		log.Fatalf("%s has no sounds to measure", b.Name)
 	}
 	res := measureSounds(sounds)
 	bl := bankLevel{bank: b, peak: math.Inf(-1), lowest: math.Inf(1), most: math.Inf(-1)}
 	var ls []float64
 	for i, r := range res {
-		if r.err != nil {
-			log.Printf("%s: %v", sounds[i].Name, r.err)
+		if errors.Is(r.err, plugsynth.ErrSilent) {
+			log.Print(r.err)
 			continue
+		}
+		if r.err != nil {
+			log.Fatal(r.err)
 		}
 		if verbose {
 			fmt.Printf("  %-28s %-24s %-6s %7.1f %7.1f\n", sounds[i].Name, sounds[i].Group, plugsynth.LevelKind(sounds[i]),
@@ -95,7 +102,7 @@ func measureBank(b soundfont.Bank, verbose bool) (bankLevel, bool) {
 		bl.lowest, bl.most = min(bl.lowest, r.lufs), max(bl.most, r.lufs)
 	}
 	if len(ls) == 0 {
-		return bankLevel{}, false
+		log.Fatalf("%s plays nothing", b.Name)
 	}
 	slices.Sort(ls)
 	bl.n = len(ls)
@@ -107,11 +114,12 @@ func measureBank(b soundfont.Bank, verbose bool) (bankLevel, bool) {
 // from the others, so only its median goes to the target. A recorded instrument is one sound, and its peak may come
 // first.
 func wantLevel(b soundfont.Bank, median, peak float64) float64 {
-	want := plugsynth.LevelTarget - median
+	want := math.Round(2*(plugsynth.LevelTarget-median)) / 2
 	if b.Group != "" {
-		want = min(want, plugsynth.LevelPeak-peak)
+		// Rounded down, so the peak stays under LevelPeak.
+		want = min(want, math.Floor(2*(plugsynth.LevelPeak-peak))/2)
 	}
-	return math.Round(2*want) / 2
+	return want
 }
 
 // setLevels returns the source of banks.go with each bank named in levels set to its Level. It formats what it

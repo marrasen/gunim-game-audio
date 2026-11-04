@@ -13,9 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
-	"sync"
 
 	"github.com/marrasen/gunim-game-audio/plugsynth"
 )
@@ -48,18 +46,7 @@ func main() {
 			sounds = append(sounds, s)
 		}
 	}
-	res := make([]result, len(sounds))
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
-	for i, s := range sounds {
-		wg.Go(func() {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			r := &res[i]
-			r.lufs, r.peak, r.err = plugsynth.MeasureLevel(s, rate)
-		})
-	}
-	wg.Wait()
+	res := measureSounds(sounds)
 	fmt.Printf("Target %.1f LUFS. Each sound plays its level phrase.\n\n", plugsynth.LevelTarget)
 	fmt.Printf("%-22s %-6s %8s %8s %8s %8s\n", "sound", "kind", "now", "peak", "gain", "set")
 	for i, s := range sounds {
