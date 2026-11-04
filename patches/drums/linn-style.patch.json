@@ -75,5 +75,6 @@
 			"Type": "tambourine",
 			"Gain": 0.6
 		}
-	}
+	},
+	"Gain": 1.1
 }

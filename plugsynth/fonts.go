@@ -36,9 +36,9 @@ type Font struct {
 	// percussion, a sound to a key.
 	Kit bool
 	// Level is how many decibels its sounds are turned by, for it to
-	// play about as loud as the others: all but the kits of a General
-	// MIDI bank.
-	Level float64
+	// play about as loud as the others, and KitLevel the same for the
+	// kits of a General MIDI bank.
+	Level, KitLevel float64
 	// About says what it is, and Credit who made it: a sound of a bank
 	// of one instrument says both.
 	About, Credit string
@@ -169,9 +169,12 @@ func resound() {
 // fontPatch is the patch that plays program prog of bank of f.
 func fontPatch(f Font, bank, prog int, kit bool) *synth.Patch {
 	p := &synth.Patch{SoundFont: f.Name, Bank: bank, Program: prog, FontKit: kit && bank != synth.DrumBank, Poly: 32}
-	// A General MIDI bank's Level is measured on its instruments, so it leaves the bank's kits as they are.
-	if f.Level != 0 && (!kit || f.Group != "") {
-		p.Gain = math.Pow(10, f.Level/20)
+	level := f.Level
+	if kit && f.Group == "" {
+		level = f.KitLevel
+	}
+	if level != 0 {
+		p.Gain = math.Pow(10, level/20)
 	}
 	return p
 }

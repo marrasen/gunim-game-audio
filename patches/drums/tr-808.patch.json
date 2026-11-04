@@ -42,5 +42,6 @@
 		"sh": {
 			"Type": "tr808maracas"
 		}
-	}
+	},
+	"Gain": 1.06
 }

@@ -27,8 +27,14 @@ var Banks = []Bank{
 	},
 }
 `
-	got, err := setLevels([]byte(src), map[string]float64{"New": -3.5, "Old": -7})
+	got, err := setLevels([]byte(src), "Level", map[string]float64{"New": -3.5, "Old": -7})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err = setLevels(got, "KitLevel", map[string]float64{"New": -2}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = setLevels(got, "KitLevel", map[string]float64{"New": -4}); err != nil {
 		t.Fatal(err)
 	}
 	want := `package x
@@ -36,8 +42,9 @@ var Banks = []Bank{
 var Banks = []Bank{
 	{
 		Name: "New", File: "new.sf2",
-		Level: -3.5,
-		URL:   "u",
+		Level:    -3.5,
+		KitLevel: -4,
+		URL:      "u",
 	},
 	{
 		Name: "Old", File: "old.sf2",
@@ -56,7 +63,7 @@ var Banks = []Bank{
 }
 
 func TestSetLevelsRefusesABankItCannotFind(t *testing.T) {
-	_, err := setLevels([]byte("package x\n"), map[string]float64{"Gone": -1})
+	_, err := setLevels([]byte("package x\n"), "Level", map[string]float64{"Gone": -1})
 	if err == nil || !strings.Contains(err.Error(), "Gone") {
 		t.Fatalf("got %v", err)
 	}
