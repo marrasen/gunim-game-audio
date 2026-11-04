@@ -38,7 +38,7 @@ func screen(p *paint.Painter, r geom.Rect) {
 // trace draws a line through pts, with a glow, as a scope's beam.
 func trace(p *paint.Painter, pts []geom.Point, c color.NRGBA) {
 	for i := 1; i < len(pts); i++ {
-		audioui.Segment(p, pts[i-1], pts[i], 4, audioui.Faded(c, 0.18))
+		audioui.Segment(p, pts[i-1], pts[i], 4, paint.Faded(c, 0.18))
 	}
 	for i := 1; i < len(pts); i++ {
 		audioui.Segment(p, pts[i-1], pts[i], 1.6, c)
@@ -220,7 +220,7 @@ func (te *tableEdit) Paint(p *paint.Painter, _ gunim.Frame, box geom.Size, _ gun
 	h := r.Size().H - 8
 	for i, v := range steps {
 		bh := max(float32(v)/15*h, 1)
-		p.RRect(geom.Rc(r.Min.X+4+float32(i)*w, r.Max.Y-4-bh, max(w-1, 1), bh), 1, paint.Solid(audioui.Faded(scopeInk, 0.85)))
+		p.RRect(geom.Rc(r.Min.X+4+float32(i)*w, r.Max.Y-4-bh, max(w-1, 1), bh), 1, paint.Solid(paint.Faded(scopeInk, 0.85)))
 	}
 }
 

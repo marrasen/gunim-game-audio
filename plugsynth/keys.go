@@ -341,15 +341,15 @@ func (k *keys) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 				}
 				if pass == 0 {
 					body := r.Inset(geom.Insets{Left: 1, Right: 1})
-					p.RRect(body, 4, paint.Solid(audioui.Mix(audioui.Faded(ink, 0.82+0.1*hv), accent, lit)))
+					p.RRect(body, 4, paint.Solid(anim.MixColor(paint.Faded(ink, 0.82+0.1*hv), accent, lit)))
 					if n%12 == 0 {
 						run := audioui.Shaped(keyName(n), 9, true, false)
-						run.Paint(p, geom.Pt(r.Min.X+(r.Size().W-run.Advance)/2, r.Max.Y-run.Height()-4), audioui.Faded(ground, 0.6))
+						run.Paint(p, geom.Pt(r.Min.X+(r.Size().W-run.Advance)/2, r.Max.Y-run.Height()-4), paint.Faded(ground, 0.6))
 					}
 					continue
 				}
-				p.ShadowRRect(r, 3, paint.Solid(audioui.Mix(audioui.Mix(ground, ink, 0.12*hv), accent, lit)),
-					paint.Shadow{Blur: 4, Offset: geom.Pt(0, 2), Color: audioui.Faded(ground, 0.6)})
+				p.ShadowRRect(r, 3, paint.Solid(anim.MixColor(anim.MixColor(ground, ink, 0.12*hv), accent, lit)),
+					paint.Shadow{Blur: 4, Offset: geom.Pt(0, 2), Color: paint.Faded(ground, 0.6)})
 			}
 		}
 	}()
@@ -460,8 +460,8 @@ func paintFacts(p *paint.Painter, f gunim.Frame, words []string, at geom.Point, 
 			return
 		}
 		r := geom.Rc(x, at.Y, cw, 20)
-		p.RRect(r, 10, paint.Solid(audioui.Faded(ink, 0.07)))
-		run.Paint(p, geom.Pt(x+8, at.Y+(20-run.Height())/2), audioui.Faded(ink, 0.7))
+		p.RRect(r, 10, paint.Solid(paint.Faded(ink, 0.07)))
+		run.Paint(p, geom.Pt(x+8, at.Y+(20-run.Height())/2), paint.Faded(ink, 0.7))
 		x += cw + 6
 	}
 }

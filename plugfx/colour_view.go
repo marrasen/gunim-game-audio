@@ -218,7 +218,7 @@ func (c *unitCard) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gu
 	a := min(max(c.appear.Value(), 0), 1)
 	lift := c.lift.Value()
 	if lift > 0.01 {
-		p.ShadowRRect(geom.Rect{Max: box.Point()}, widget.CardRadius.Get(th), paint.Solid(audioui.Faded(widget.Ink.Get(th), 0)),
+		p.ShadowRRect(geom.Rect{Max: box.Point()}, widget.CardRadius.Get(th), paint.Solid(paint.Faded(widget.Ink.Get(th), 0)),
 			paint.Shadow{Blur: 18 * lift, Offset: geom.Pt(0, 6*lift), Color: color.NRGBA{A: uint8(120 * lift)}})
 	}
 	ctr := geom.Pt(box.W/2, box.H/2)
@@ -231,7 +231,7 @@ func (c *unitCard) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gu
 		k.Paint(p)
 	}
 	col := kindColor(th, c.unit.Kind)
-	p.RRect(geom.Rc(plugui.SectionPad, 3, box.W-2*plugui.SectionPad-removeSize, 2), 1, paint.Solid(audioui.Faded(col, 0.8)))
+	p.RRect(geom.Rc(plugui.SectionPad, 3, box.W-2*plugui.SectionPad-removeSize, 2), 1, paint.Solid(paint.Faded(col, 0.8)))
 }
 
 // Transition implements [gunim.Transitioner]: the card grows in as it
@@ -359,7 +359,7 @@ func (a *addCard) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gun
 	defer p.Layer(paint.LayerOpts{Bounds: geom.Rect{Max: box.Point()}, Opacity: min(max(a.appear.Value(), 0), 1)})()
 	plugui.PaintGlass(p, th, geom.Rect{Max: box.Point()}, widget.CardRadius.Get(th))
 	name := audioui.Shaped("ADD", 10, true, false)
-	name.Paint(p, geom.Pt(plugui.SectionPad, (plugui.SectionHead-name.Height())/2+2), audioui.Faded(widget.Ink.Get(th), 0.55))
+	name.Paint(p, geom.Pt(plugui.SectionPad, (plugui.SectionHead-name.Height())/2+2), paint.Faded(widget.Ink.Get(th), 0.55))
 	for k := range kids.All {
 		k.Paint(p)
 	}
@@ -709,8 +709,8 @@ func (pn *chainPanel) Paint(p *paint.Painter, f gunim.Frame, _ geom.Size, kids g
 		}
 		y := a.Min.Y + plugui.SectionHead + plugui.KnobH/2
 		x := a.Max.X + cardGap/2
-		audioui.Segment(p, geom.Pt(x-5, y-5), geom.Pt(x+1, y), 1.5, audioui.Faded(ink, 0.4))
-		audioui.Segment(p, geom.Pt(x+1, y), geom.Pt(x-5, y+5), 1.5, audioui.Faded(ink, 0.4))
+		audioui.Segment(p, geom.Pt(x-5, y-5), geom.Pt(x+1, y), 1.5, paint.Faded(ink, 0.4))
+		audioui.Segment(p, geom.Pt(x+1, y), geom.Pt(x-5, y+5), 1.5, paint.Faded(ink, 0.4))
 	}
 	// The card dragged over the others.
 	var dragged gunim.Child
@@ -874,16 +874,16 @@ func (s *spectrum) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim
 	defer paintGround(p, th, box)()
 	for _, hz := range []float64{50, 100, 200, 500, 1000, 2000, 5000, 10000} {
 		x := s.xOf(hz)
-		p.RRect(geom.Rc(x, panelInset+34, 1, s.foot-panelInset-34), 0, paint.Solid(audioui.Faded(ink, 0.06)))
+		p.RRect(geom.Rc(x, panelInset+34, 1, s.foot-panelInset-34), 0, paint.Solid(paint.Faded(ink, 0.06)))
 		label := audioui.Shaped(shortHz(hz), 9, false, true)
-		label.Paint(p, geom.Pt(x+4, panelInset+36), audioui.Faded(ink, 0.35))
+		label.Paint(p, geom.Pt(x+4, panelInset+36), paint.Faded(ink, 0.35))
 	}
 	n := len(s.freqs)
 	step := math.Pow(viewHigh/viewLow, 0.5/float64(n-1))
 	for i, fz := range s.freqs {
 		x0, x1 := s.xOf(float64(fz)/step), s.xOf(float64(fz)*step)
 		if y := s.yOf(s.isS[i]); y < s.foot {
-			p.RRect(geom.Rc(x0, y, x1-x0+0.5, s.foot-y), 0, paint.Solid(audioui.Faded(accent, 0.16)))
+			p.RRect(geom.Rc(x0, y, x1-x0+0.5, s.foot-y), 0, paint.Solid(paint.Faded(accent, 0.16)))
 		}
 	}
 	plugui.Darken(p, geom.Rect{Max: box.Point()}, 1)
@@ -894,15 +894,15 @@ func (s *spectrum) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim
 		x := s.xOf(float64(fz))
 		in, o := geom.Pt(x, s.yOf(s.wasS[i])), geom.Pt(x, s.yOf(s.isS[i]))
 		if i > 0 {
-			audioui.Segment(p, prevI, in, 1, audioui.Faded(ink, 0.35))
-			audioui.Segment(p, prevO, o, 1.5, audioui.Faded(accent, 0.8))
+			audioui.Segment(p, prevI, in, 1, paint.Faded(ink, 0.35))
+			audioui.Segment(p, prevO, o, 1.5, paint.Faded(accent, 0.8))
 		}
 		prevI, prevO = in, o
 	}
 	title := audioui.Shaped("Colour", 13, true, false)
-	title.Paint(p, geom.Pt(panelInset+8, panelInset+4), audioui.Faded(ink, 0.8))
+	title.Paint(p, geom.Pt(panelInset+8, panelInset+4), paint.Faded(ink, 0.8))
 	legend := audioui.Shaped("in  ·  out", 10, false, false)
-	legend.Paint(p, geom.Pt(panelInset+8+title.Advance+14, panelInset+7), audioui.Faded(ink, 0.45))
+	legend.Paint(p, geom.Pt(panelInset+8+title.Advance+14, panelInset+7), paint.Faded(ink, 0.45))
 }
 
 // Access implements [gunim.Accessible].
@@ -937,7 +937,7 @@ func (c *colourChip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 	ink := widget.Ink.Get(th)
 	if len(c.units) == 0 {
 		words := audioui.Shaped("Empty chain", plugui.ChipTextSize, false, false)
-		words.Paint(p, geom.Pt(0, (box.H-words.Height())/2), audioui.Faded(ink, 0.4))
+		words.Paint(p, geom.Pt(0, (box.H-words.Height())/2), paint.Faded(ink, 0.4))
 		return
 	}
 	defer p.Layer(paint.LayerOpts{Bounds: geom.Rect{Max: box.Point()}, Clip: true, Opacity: 1})()
@@ -947,12 +947,12 @@ func (c *colourChip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gun
 		col := kindColor(th, u.Kind)
 		words := audioui.Shaped(unitTitle(u, c.v), 10, true, false)
 		w := words.Advance + 10
-		p.RRect(geom.Rc(x, (box.H-h)/2, w, h), h/2, paint.Solid(audioui.Faded(col, 0.22)))
+		p.RRect(geom.Rc(x, (box.H-h)/2, w, h), h/2, paint.Solid(paint.Faded(col, 0.22)))
 		words.Paint(p, geom.Pt(x+5, (box.H-words.Height())/2), col)
 		x += w
 		if i+1 < len(c.units) {
 			arrow := audioui.Shaped("›", 11, true, false)
-			arrow.Paint(p, geom.Pt(x+3, (box.H-arrow.Height())/2), audioui.Faded(ink, 0.45))
+			arrow.Paint(p, geom.Pt(x+3, (box.H-arrow.Height())/2), paint.Faded(ink, 0.45))
 			x += arrow.Advance + 6
 		}
 	}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/marrasen/gunim/anim"
 	"github.com/marrasen/gunim/audio/plug"
-	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/geom"
 	"github.com/marrasen/gunim/paint"
 )
@@ -250,7 +249,7 @@ func (s *sweep) paint(p *paint.Painter, r geom.Rect, secsAt func(x float32) floa
 		x := xOf(s.length())
 		if x >= r.Min.X && x <= r.Max.X {
 			fade, _ := s.shown()
-			p.RRect(geom.Rc(x-0.5, r.Min.Y, 1, r.Size().H), 0, paint.Solid(audioui.Faded(col, 0.35*fade)))
+			p.RRect(geom.Rc(x-0.5, r.Min.Y, 1, r.Size().H), 0, paint.Solid(paint.Faded(col, 0.35*fade)))
 		}
 	}
 }

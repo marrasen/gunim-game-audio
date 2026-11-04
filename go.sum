@@ -34,10 +34,10 @@ github.com/jfreymuth/vorbis v1.0.2 h1:m1xH6+ZI4thH927pgKD8JOH4eaGRm18rEE9/0WKjvN
 github.com/jfreymuth/vorbis v1.0.2/go.mod h1:DoftRo4AznKnShRl1GxiTFCseHr4zR9BN3TWXyuzrqQ=
 github.com/klauspost/compress v1.19.0 h1:sXLILfc9jV2QYWkzFOPWStmcUVH2RHEB1JCdY2oVvCQ=
 github.com/klauspost/compress v1.19.0/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
-github.com/marrasen/gunim v0.0.0-20261017081636-811567ce55d4 h1:c8pASEnd+gWlMvaYm8Kb92kDsVeCj96C7LJz0XVyJtk=
-github.com/marrasen/gunim v0.0.0-20261017081636-811567ce55d4/go.mod h1:EnaqqAd8J60E6mgBiFqIq/MC0vwLAiG3PQb1acEgTK8=
-github.com/marrasen/oto/v3 v3.5.1-gunim.5 h1:plT8vA7YvC94GQ5FgcVFntrnSoN7DpRQOeauDBqjA8Y=
-github.com/marrasen/oto/v3 v3.5.1-gunim.5/go.mod h1:9Kr9SPGrjo18cdaKxjd2kaf99e1Ln2CUKgbJP5TpiBU=
+github.com/marrasen/gunim v0.0.0-20261104125451-b0e2af217fbb h1:vfeKO+mpPMaf4l0p0FBlETxuevhTouMXi5YJTzG9zUQ=
+github.com/marrasen/gunim v0.0.0-20261104125451-b0e2af217fbb/go.mod h1:AzLPD9hpdpMEGgJatqmEb7rnzd+FWI1CKbIsFZHyluI=
+github.com/marrasen/oto/v3 v3.5.1-gunim.6 h1:RVtgy3ATA8B5EV2hHwNQL2/w4eeionZKoJBkyooyCAc=
+github.com/marrasen/oto/v3 v3.5.1-gunim.6/go.mod h1:9Kr9SPGrjo18cdaKxjd2kaf99e1Ln2CUKgbJP5TpiBU=
 github.com/mewkiz/flac v1.0.14 h1:hyRGAM8NCKznoPmIi9zz2jyO+nfmxY2ErqBnHZ+gxh4=
 github.com/mewkiz/flac v1.0.14/go.mod h1:HfPYDA+oxjyuqMu2V+cyKcxF51KM6incpw5eZXmfA6k=
 github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d h1:IL2tii4jXLdhCeQN69HNzYYW1kl0meSG0wt5+sLwszU=
