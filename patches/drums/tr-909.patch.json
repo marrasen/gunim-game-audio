@@ -2,37 +2,48 @@
 	"Kind": "drums",
 	"Kit": {
 		"bd": {
-			"Type": "tr909kick"
+			"Type": "tr909kick",
+			"Gain": 1.25
 		},
 		"sn": {
-			"Type": "tr909snare"
+			"Type": "tr909snare",
+			"Gain": 1.25
 		},
 		"cp": {
-			"Type": "tr909clap"
+			"Type": "tr909clap",
+			"Gain": 1.25
 		},
 		"rim": {
-			"Type": "tr909rim"
+			"Type": "tr909rim",
+			"Gain": 1.25
 		},
 		"hh": {
-			"Type": "tr909hat"
+			"Type": "tr909hat",
+			"Gain": 1.25
 		},
 		"oh": {
-			"Type": "tr909ohat"
+			"Type": "tr909ohat",
+			"Gain": 1.25
 		},
 		"lt": {
-			"Type": "tr909tom"
+			"Type": "tr909tom",
+			"Gain": 1.25
 		},
 		"mt": {
-			"Type": "tr909tom"
+			"Type": "tr909tom",
+			"Gain": 1.25
 		},
 		"ht": {
-			"Type": "tr909tom"
+			"Type": "tr909tom",
+			"Gain": 1.25
 		},
 		"cr": {
-			"Type": "tr909crash"
+			"Type": "tr909crash",
+			"Gain": 1.25
 		},
 		"rd": {
-			"Type": "tr909ride"
+			"Type": "tr909ride",
+			"Gain": 1.25
 		}
 	}
 }

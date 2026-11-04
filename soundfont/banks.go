@@ -30,9 +30,10 @@ type Bank struct {
 	// sound to a key.
 	Kit bool
 	// Level is how many decibels to turn the bank by for it to play as
-	// loud as the rest of the library. `go run ./cmd/levels -fonts -write`
-	// measures it and sets it, on all but the kits.
-	Level float64
+	// loud as the rest of the library, and KitLevel the same for the
+	// kits of a General MIDI bank. `go run ./cmd/levels -fonts -write`
+	// measures them and sets them.
+	Level, KitLevel float64
 	// About says what was recorded, and Credit who made it, to show
 	// where it plays, as its licence asks.
 	About, Credit string
@@ -73,6 +74,7 @@ var Banks = []Bank{
 	{
 		Name: "MuseScore General", File: "MuseScore_General.sf3",
 		Level:      -7,
+		KitLevel:   -5.5,
 		URL:        "https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General.sf3",
 		LicenseURL: "https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General_License.md",
 		License:    "MIT", Size: 39900972,
@@ -83,6 +85,7 @@ var Banks = []Bank{
 	{
 		Name: "GeneralUser GS", File: "GeneralUser-GS.sf2",
 		Level:      -3.5,
+		KitLevel:   -2,
 		URL:        "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/main/GeneralUser-GS.sf2",
 		LicenseURL: "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/main/documentation/LICENSE.txt",
 		License:    "GeneralUser GS License v2.0", Size: 32319396,
@@ -160,7 +163,7 @@ var Instruments = []Bank{
 	},
 	{
 		Name: "MuldjordKit", File: "MuldjordKit.sf2", Group: "Drums", Kit: true,
-		Level:  -11,
+		Level:  -5,
 		URL:    "https://github.com/freepats/muldjordkit/releases/download/2020-10-18/MuldjordKit-SF2-20201018.7z",
 		SHA256: "aef4c9e0a96f9a899a7838f65ff07565f6af247bbb4ff31e24dba3331a671a96",
 		Size:   54877940, Unpacked: 219362048,
@@ -171,7 +174,7 @@ var Instruments = []Bank{
 	},
 	{
 		Name: "World Percussion", File: "WorldPercussion.sf2", Group: "Drums", Kit: true,
-		Level:  -4.5,
+		Level:  -1,
 		URL:    "https://github.com/freepats/world-percussion/releases/download/2020-09-05/WorldPercussion-SF2-20200905.7z",
 		SHA256: "5d72c35572259804091657e094fb094c4ee45ffd4bc37f1708878ef6cfeeb129",
 		Size:   5100075, Unpacked: 9256408,

@@ -1,12 +1,26 @@
 {
 	"Kind": "drums",
 	"Kit": {
-		"sbd": {},
-		"ssn": {},
-		"scp": {},
-		"shh": {},
-		"soh": {},
-		"stom": {},
-		"szap": {}
+		"sbd": {
+			"Gain": 0.969
+		},
+		"ssn": {
+			"Gain": 0.969
+		},
+		"scp": {
+			"Gain": 0.969
+		},
+		"shh": {
+			"Gain": 0.969
+		},
+		"soh": {
+			"Gain": 0.969
+		},
+		"stom": {
+			"Gain": 0.969
+		},
+		"szap": {
+			"Gain": 0.969
+		}
 	}
 }

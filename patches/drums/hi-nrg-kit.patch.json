@@ -4,59 +4,74 @@
 		"bd": {
 			"Type": "tr909kick",
 			"Decay": 0.8,
-			"Tone": 0.6
+			"Tone": 0.6,
+			"Gain": 1.08
 		},
 		"sn": {
 			"Type": "tr909snare",
-			"Tone": 0.7
+			"Tone": 0.7,
+			"Gain": 1.08
 		},
 		"cp": {
 			"Type": "tr808clap",
-			"Decay": 1.4
+			"Decay": 1.4,
+			"Gain": 1.08
 		},
 		"rim": {
-			"Type": "tr808rim"
+			"Type": "tr808rim",
+			"Gain": 1.08
 		},
 		"hh": {
 			"Type": "tr808hat",
-			"Tone": 0.7
+			"Tone": 0.7,
+			"Gain": 1.08
 		},
 		"oh": {
 			"Type": "tr808ohat",
-			"Tone": 0.7
+			"Tone": 0.7,
+			"Gain": 1.08
 		},
 		"lt": {
 			"Type": "sdstom",
-			"Decay": 1.2
+			"Decay": 1.2,
+			"Gain": 1.08
 		},
 		"mt": {
 			"Type": "sdstom",
-			"Decay": 1.2
+			"Decay": 1.2,
+			"Gain": 1.08
 		},
 		"ht": {
 			"Type": "sdstom",
-			"Decay": 1.2
+			"Decay": 1.2,
+			"Gain": 1.08
 		},
 		"syn1": {
 			"Type": "sdstom",
-			"Decay": 1.2
+			"Decay": 1.2,
+			"Gain": 1.08
 		},
 		"syn2": {
 			"Type": "sdstom",
-			"Decay": 1.2
+			"Decay": 1.2,
+			"Gain": 1.08
 		},
 		"syn3": {
 			"Type": "sdstom",
-			"Decay": 1.2
+			"Decay": 1.2,
+			"Gain": 1.08
 		},
 		"cb": {
-			"Type": "tr808cowbell"
+			"Type": "tr808cowbell",
+			"Gain": 1.08
 		},
 		"cr": {
-			"Type": "tr909crash"
+			"Type": "tr909crash",
+			"Gain": 1.08
 		},
 		"rd": {
-			"Type": "tr909ride"
+			"Type": "tr909ride",
+			"Gain": 1.08
 		}
 	}
 }

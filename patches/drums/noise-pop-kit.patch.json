@@ -5,62 +5,71 @@
 			"Type": "mkick",
 			"Tune": -2,
 			"Decay": 1.4,
-			"Tone": 0.45
+			"Tone": 0.45,
+			"Gain": 1.12
 		},
 		"sn": {
 			"Type": "msnare",
 			"Tune": -1,
 			"Decay": 1.6,
 			"Tone": 0.4,
-			"Strike": 0.3
+			"Strike": 0.3,
+			"Gain": 1.12
 		},
 		"lt": {
 			"Type": "mtom",
 			"Tune": -7,
 			"Decay": 1.6,
-			"Tone": 0.35
+			"Tone": 0.35,
+			"Gain": 1.12
 		},
 		"mt": {
 			"Type": "mtom",
 			"Decay": 1.4,
-			"Tone": 0.4
+			"Tone": 0.4,
+			"Gain": 1.12
 		},
 		"ht": {
 			"Type": "mtom",
 			"Decay": 1.4,
-			"Tone": 0.4
+			"Tone": 0.4,
+			"Gain": 1.12
 		},
 		"tamb": {
-			"Type": "tambourine"
+			"Type": "tambourine",
+			"Gain": 1.12
 		},
 		"hh": {
 			"Type": "mhat",
 			"Tone": 0.35,
 			"Decay": 0.8,
-			"Gain": 0.5
+			"Gain": 0.56
 		},
 		"oh": {
 			"Type": "mohat",
 			"Tone": 0.4,
-			"Gain": 0.5
+			"Gain": 0.56
 		},
 		"cp": {
 			"Type": "tr808clap",
 			"Tone": 0.3,
-			"Decay": 1.3
+			"Decay": 1.3,
+			"Gain": 1.12
 		},
 		"cr": {
 			"Type": "mcrash",
 			"Decay": 1.4,
-			"Tone": 0.4
+			"Tone": 0.4,
+			"Gain": 1.12
 		},
 		"rd": {
 			"Type": "mride",
-			"Tone": 0.4
+			"Tone": 0.4,
+			"Gain": 1.12
 		},
 		"sh": {
 			"Type": "shaker",
-			"Gain": 0.6
+			"Gain": 0.672
 		}
 	}
 }

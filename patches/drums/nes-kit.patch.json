@@ -1,12 +1,26 @@
 {
 	"Kind": "drums",
 	"Kit": {
-		"nbd": {},
-		"nsn": {},
-		"ncp": {},
-		"nhh": {},
-		"noh": {},
-		"ntom": {},
-		"nclk": {}
+		"nbd": {
+			"Gain": 0.903
+		},
+		"nsn": {
+			"Gain": 0.903
+		},
+		"ncp": {
+			"Gain": 0.903
+		},
+		"nhh": {
+			"Gain": 0.903
+		},
+		"noh": {
+			"Gain": 0.903
+		},
+		"ntom": {
+			"Gain": 0.903
+		},
+		"nclk": {
+			"Gain": 0.903
+		}
 	}
 }

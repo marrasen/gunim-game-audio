@@ -6,74 +6,82 @@
 			"Tune": 2,
 			"Decay": 0.45,
 			"Tone": 0.75,
-			"Strike": 0.15
+			"Strike": 0.15,
+			"Gain": 1.1
 		},
 		"sn": {
 			"Type": "msnare",
 			"Tune": 2,
 			"Decay": 0.6,
-			"Tone": 0.85
+			"Tone": 0.85,
+			"Gain": 1.1
 		},
 		"rim": {
 			"Type": "tr909rim",
 			"Tune": -2,
-			"Gain": 0.8
+			"Gain": 0.88
 		},
 		"cp": {
 			"Type": "tr909clap",
 			"Tone": 0.4,
-			"Decay": 0.8
+			"Decay": 0.8,
+			"Gain": 1.1
 		},
 		"hh": {
 			"Type": "mhat",
 			"Tone": 0.75,
 			"Decay": 0.6,
-			"Gain": 0.7
+			"Gain": 0.77
 		},
 		"oh": {
 			"Type": "mohat",
 			"Tone": 0.7,
 			"Decay": 0.6,
-			"Gain": 0.6
+			"Gain": 0.66
 		},
 		"lt": {
 			"Type": "mtom",
 			"Decay": 0.6,
-			"Tone": 0.6
+			"Tone": 0.6,
+			"Gain": 1.1
 		},
 		"mt": {
 			"Type": "mtom",
 			"Decay": 0.6,
-			"Tone": 0.6
+			"Tone": 0.6,
+			"Gain": 1.1
 		},
 		"ht": {
 			"Type": "mtom",
 			"Decay": 0.6,
-			"Tone": 0.6
+			"Tone": 0.6,
+			"Gain": 1.1
 		},
 		"cr": {
 			"Type": "mcrash",
 			"Decay": 0.7,
-			"Tone": 0.6
+			"Tone": 0.6,
+			"Gain": 1.1
 		},
 		"rd": {
 			"Type": "mride",
 			"Decay": 0.7,
-			"Tone": 0.6
+			"Tone": 0.6,
+			"Gain": 1.1
 		},
 		"sh": {
 			"Type": "tr808maracas",
 			"Tone": 0.6,
-			"Gain": 0.5
+			"Gain": 0.55
 		},
 		"cb": {
 			"Type": "tr808cowbell",
 			"Tune": 2,
-			"Gain": 0.7
+			"Gain": 0.77
 		},
 		"tamb": {
 			"Type": "tambourine",
-			"Gain": 0.6
+			"Gain": 0.66
 		}
 	}
 }

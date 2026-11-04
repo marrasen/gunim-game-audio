@@ -2,45 +2,57 @@
 	"Kind": "drums",
 	"Kit": {
 		"bd": {
-			"Type": "tr808kick"
+			"Type": "tr808kick",
+			"Gain": 1.06
 		},
 		"sn": {
-			"Type": "tr808snare"
+			"Type": "tr808snare",
+			"Gain": 1.06
 		},
 		"cp": {
-			"Type": "tr808clap"
+			"Type": "tr808clap",
+			"Gain": 1.06
 		},
 		"rim": {
-			"Type": "tr808rim"
+			"Type": "tr808rim",
+			"Gain": 1.06
 		},
 		"hh": {
-			"Type": "tr808hat"
+			"Type": "tr808hat",
+			"Gain": 1.06
 		},
 		"oh": {
-			"Type": "tr808ohat"
+			"Type": "tr808ohat",
+			"Gain": 1.06
 		},
 		"lt": {
-			"Type": "tr808tom"
+			"Type": "tr808tom",
+			"Gain": 1.06
 		},
 		"mt": {
-			"Type": "tr808tom"
+			"Type": "tr808tom",
+			"Gain": 1.06
 		},
 		"ht": {
-			"Type": "tr808tom"
+			"Type": "tr808tom",
+			"Gain": 1.06
 		},
 		"cr": {
-			"Type": "tr808cymbal"
+			"Type": "tr808cymbal",
+			"Gain": 1.06
 		},
 		"rd": {
 			"Type": "tr808cymbal",
 			"Decay": 0.5,
-			"Gain": 0.7
+			"Gain": 0.742
 		},
 		"cb": {
-			"Type": "tr808cowbell"
+			"Type": "tr808cowbell",
+			"Gain": 1.06
 		},
 		"sh": {
-			"Type": "tr808maracas"
+			"Type": "tr808maracas",
+			"Gain": 1.06
 		}
 	}
 }

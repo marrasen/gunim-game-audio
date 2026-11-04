@@ -10,7 +10,7 @@ import (
 	"github.com/marrasen/gunim/audio/plug"
 )
 
-// The library's sounds stand equally loud: each patch's Gain is set so it plays its level phrase at LevelTarget,
+// The library's sounds stand equally loud: each patch's Gain, or each drum's in a kit, is set so it plays its level phrase at LevelTarget,
 // or its true peak at LevelPeak where that comes first.
 // The phrases are Hej Jätte!'s level phrases, so the two synths' sounds stand as loud as each other. Every phrase
 // plays at 120 BPM over Am, F, C and G, a bar each, every note at velocity 0.8 and held for 90% of its step, then
@@ -48,6 +48,9 @@ const (
 	LevelLine = "line"
 	// LevelKeys strikes the chord on beats one and three, under a line of quarters.
 	LevelKeys = "keys"
+	// LevelDrums plays a kit: a kick on beats one and three, a snare on two and four, under eighths on a closed hat.
+	// A kit without those three plays eighths through its keys, spread over them where it has more than eighths.
+	LevelDrums = "drums"
 )
 
 // levelChords are the phrases' chords, Am, F, C and G, their tones around A3, and levelRoots their roots around
@@ -78,13 +81,20 @@ var (
 	levelShift = map[string]float64{
 		"Timpani": -24, "Finger Bass YR": -3, "Recorder": 12, "Recorder N1": 12, "Recorder N2": 12,
 	}
+	// levelKit are General MIDI's keys of a kick, a snare and a closed hat, and levelKits those of the recorded kits
+	// that play them on others.
+	levelKit  = [3]float64{36, 38, 42}
+	levelKits = map[string][3]float64{"MuldjordKit": {48, 50, 52}}
 )
 
-// Levelled says whether the sound is one of the library's sounds the levels set: any but a drum kit.
-func Levelled(s Sound) bool { return s.Bank == Library && !s.kit() }
+// Levelled says whether the sound is one of the library's sounds the levels set.
+func Levelled(s Sound) bool { return s.Bank == Library }
 
 // LevelKind returns the kind of level phrase the sound is measured by.
 func LevelKind(s Sound) string {
+	if s.kit() {
+		return LevelDrums
+	}
 	if k, ok := levelOwn[s.Name]; ok {
 		return k
 	}
@@ -140,6 +150,48 @@ func levelPhrase(kind string) []levelNote {
 	return out
 }
 
+// levelDrumNotes returns the notes of the kit s's level phrase.
+func levelDrumNotes(s Sound) []levelNote {
+	keys := levelKit
+	if k, ok := levelKits[s.Name]; ok && s.Bank == Recorded {
+		keys = k
+	}
+	var walk []float64
+	if f, ok := fontNamed(s.patch.SoundFont); ok {
+		var has []float64
+		for k := range 128 {
+			if len(f.Font.Regions(s.patch.Bank, s.patch.Program, k, 100)) > 0 {
+				has = append(has, float64(k))
+			}
+		}
+		for _, k := range keys {
+			if !slices.Contains(has, k) {
+				walk = has
+			}
+		}
+	}
+	var out []levelNote
+	note := func(at, pitch float64) {
+		out = append(out, levelNote{at: at, length: 0.5 * levelGate, pitch: pitch})
+	}
+	for e := range 2 * levelBeats {
+		at := float64(e) / 2
+		if len(walk) > 0 {
+			key := e % len(walk)
+			if len(walk) > 2*levelBeats {
+				key = e * len(walk) / (2 * levelBeats)
+			}
+			note(at, walk[key])
+			continue
+		}
+		note(at, keys[2])
+		if e%2 == 0 {
+			note(at, keys[e/2%2])
+		}
+	}
+	return out
+}
+
 // MeasureLevel renders the sound playing its level phrase at rate and returns its loudness, in LUFS, and its
 // true peak, in dBFS.
 func MeasureLevel(s Sound, rate int) (lufs, peak float64, err error) {
@@ -157,7 +209,12 @@ func MeasureLevel(s Sound, rate int) (lufs, peak float64, err error) {
 			changes = append(changes, plug.Change{ID: prm.ID, Value: prm.Default})
 		}
 	}
-	notes := levelPhrase(LevelKind(s))
+	var notes []levelNote
+	if s.kit() {
+		notes = levelDrumNotes(s)
+	} else {
+		notes = levelPhrase(LevelKind(s))
+	}
 	if s.Bank == Recorded {
 		for i := range notes {
 			notes[i].pitch += levelShift[s.Name]
