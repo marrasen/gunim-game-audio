@@ -2,8 +2,12 @@ package plugsynth
 
 import (
 	"flag"
+	"github.com/marrasen/gunim-game-audio/soundfont"
+	"maps"
 	"math"
 	"math/rand/v2"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -54,6 +58,11 @@ func TestTheLevelKindsNameTheLibrarysSounds(t *testing.T) {
 		s, ok := Named(name)
 		if !ok || !Levelled(s) {
 			t.Errorf("levelOwn names %q, no sound of the library", name)
+		}
+	}
+	for _, name := range slices.Concat(slices.Collect(maps.Keys(levelRecorded)), slices.Collect(maps.Keys(levelShift))) {
+		if !slices.ContainsFunc(soundfont.Instruments, func(b soundfont.Bank) bool { return strings.HasPrefix(name, b.Name) }) {
+			t.Errorf("%q names no recorded instrument", name)
 		}
 	}
 	for _, s := range Sounds() {

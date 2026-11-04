@@ -1,6 +1,7 @@
 package plugsynth
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -22,6 +23,9 @@ const LevelTarget = -13.0
 // reaches it before LevelTarget, and stands quieter. The synth has no limiter: this is Hej Jätte!'s rule, whose
 // limiter at -1 dB is given at most 3 dB past where a sound's peak reaches -1.5 dBFS.
 const LevelPeak = 1.5
+
+// ErrSilent is what [MeasureLevel] returns for a sound that plays nothing on its level phrase.
+var ErrSilent = errors.New("plays nothing on its level phrase")
 
 // The rules every level phrase keeps.
 const (
@@ -58,12 +62,21 @@ var (
 var (
 	levelKinds = map[string]string{
 		"Bass": LevelLow, "Pads & strings": LevelHeld, "Brass & stabs": LevelHeld, "Keys & bells": LevelKeys,
+		// General MIDI's families, and the groups of the recorded instruments.
+		"Piano": LevelKeys, "Organ": LevelKeys, "Strings": LevelHeld, "Ensemble": LevelHeld, "Brass": LevelHeld,
+		"Synth pad": LevelHeld,
 	}
 	levelOwn = map[string]string{
 		"Orchestra hit": LevelStabs, "Chord stab": LevelStabs,
 		"Tubular bells": LevelLine, "Glockenspiel": LevelLine,
 		"Sung choir": LevelHeld, "Vocoder choir": LevelHeld,
 		"Wind sweep": LevelHeld, "Machine drone": LevelHeld,
+	}
+	// levelRecorded are the kinds of the recorded instruments that play another than their group's, by sound.
+	levelRecorded = map[string]string{"Concert Harp": LevelLine}
+	// levelShift moves a recorded instrument's phrase by that many semitones, into the keys it plays.
+	levelShift = map[string]float64{
+		"Timpani": -24, "Finger Bass YR": -3, "Recorder": 12, "Recorder N1": 12, "Recorder N2": 12,
 	}
 )
 
@@ -73,6 +86,9 @@ func Levelled(s Sound) bool { return s.Bank == Library && !s.kit() }
 // LevelKind returns the kind of level phrase the sound is measured by.
 func LevelKind(s Sound) string {
 	if k, ok := levelOwn[s.Name]; ok {
+		return k
+	}
+	if k, ok := levelRecorded[s.Name]; ok && s.Bank == Recorded {
 		return k
 	}
 	if k, ok := levelKinds[s.Group]; ok {
@@ -142,6 +158,11 @@ func MeasureLevel(s Sound, rate int) (lufs, peak float64, err error) {
 		}
 	}
 	notes := levelPhrase(LevelKind(s))
+	if s.Bank == Recorded {
+		for i := range notes {
+			notes[i].pitch += levelShift[s.Name]
+		}
+	}
 	frameOf := func(beats float64) int { return int(math.Round(beats * 60 / levelBPM * float64(rate))) }
 	ahead := int(lookAhead.Seconds() * float64(rate))
 	total := frameOf(levelBeats) + levelTail*rate
@@ -183,7 +204,7 @@ func MeasureLevel(s Sound, rate int) (lufs, peak float64, err error) {
 	}
 	lufs, ok := loud.Integrated()
 	if !ok {
-		return 0, 0, fmt.Errorf("%s plays nothing", s.Name)
+		return 0, 0, fmt.Errorf("%s: %w", s.Name, ErrSilent)
 	}
 	return lufs, 20 * math.Log10(tp.Peak()), nil
 }
