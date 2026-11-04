@@ -86,3 +86,60 @@ func TestWantLevel(t *testing.T) {
 		}
 	}
 }
+
+// Every drum is turned, whether it has a Gain of its own or not, and the rest of the file stays as it is.
+func TestTurnedKitTurnsEveryDrum(t *testing.T) {
+	src := `{
+	"Kind": "drums",
+	"Kit": {
+		"bd": {
+			"Type": "kick"
+		},
+		"sn": {
+			"Type": "snare",
+			"Gain": 0.5
+		},
+		"hh": {
+			"Gain": 0.8,
+			"Type": "hat"
+		},
+		"cp": {}
+	}
+}
+`
+	got, err := turnedKit([]byte(src), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{
+	"Kind": "drums",
+	"Kit": {
+		"bd": {
+			"Type": "kick",
+			"Gain": 2
+		},
+		"sn": {
+			"Type": "snare",
+			"Gain": 1
+		},
+		"hh": {
+			"Gain": 1.6,
+			"Type": "hat"
+		},
+		"cp": {
+			"Gain": 2
+		}
+	}
+}
+`
+	if string(got) != want {
+		t.Fatalf("got:\n%s", got)
+	}
+}
+
+func TestTurnedKitRefusesAKitItCannotReadAll(t *testing.T) {
+	src := `{"Kit": {"bd": {"Type": "kick"}}}`
+	if _, err := turnedKit([]byte(src), 2); err == nil {
+		t.Fatal("no error")
+	}
+}

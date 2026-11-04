@@ -60,7 +60,7 @@ func TestTheLevelKindsNameTheLibrarysSounds(t *testing.T) {
 			t.Errorf("levelOwn names %q, no sound of the library", name)
 		}
 	}
-	for _, name := range slices.Concat(slices.Collect(maps.Keys(levelRecorded)), slices.Collect(maps.Keys(levelShift))) {
+	for _, name := range slices.Concat(slices.Collect(maps.Keys(levelRecorded)), slices.Collect(maps.Keys(levelShift)), slices.Collect(maps.Keys(levelKits))) {
 		if !slices.ContainsFunc(soundfont.Instruments, func(b soundfont.Bank) bool { return strings.HasPrefix(name, b.Name) }) {
 			t.Errorf("%q names no recorded instrument", name)
 		}

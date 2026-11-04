@@ -24,6 +24,7 @@ import (
 type bankLevel struct {
 	bank         soundfont.Bank
 	name         string
+	kits         bool
 	median, peak float64
 	lowest, most float64
 	n            int
@@ -82,16 +83,20 @@ func measureBank(b soundfont.Bank, verbose bool) []bankLevel {
 	if len(sounds) == 0 {
 		log.Fatalf("%s has no sounds to measure", b.Name)
 	}
-	out := []bankLevel{measured(b, b.Name, sounds, verbose)}
+	out := []bankLevel{measured(b, false, sounds, verbose)}
 	if len(kits) > 0 {
-		out = append(out, measured(b, b.Name+" kits", kits, verbose))
+		out = append(out, measured(b, true, kits, verbose))
 	}
 	return out
 }
 
-// measured measures the sounds of bank b and the Level they want.
-func measured(b soundfont.Bank, name string, sounds []plugsynth.Sound, verbose bool) bankLevel {
-	bl := bankLevel{bank: b, name: name, peak: math.Inf(-1), lowest: math.Inf(1), most: math.Inf(-1)}
+// measured measures the sounds of bank b, its instruments or its kits, and the Level they want.
+func measured(b soundfont.Bank, kits bool, sounds []plugsynth.Sound, verbose bool) bankLevel {
+	name := b.Name
+	if kits {
+		name += " kits"
+	}
+	bl := bankLevel{bank: b, name: name, kits: kits, peak: math.Inf(-1), lowest: math.Inf(1), most: math.Inf(-1)}
 	var ls, wants []float64
 	for i, r := range measureSounds(sounds) {
 		if errors.Is(r.err, plugsynth.ErrSilent) {
@@ -117,11 +122,10 @@ func measured(b soundfont.Bank, name string, sounds []plugsynth.Sound, verbose b
 	slices.Sort(wants)
 	bl.n = len(ls)
 	bl.median = ls[len(ls)/2]
-	switch {
-	case name != b.Name:
+	if kits {
 		// A bank's kits are alike but for a few odd ones, so the middle kit sets their Level, to its target or its peak.
 		bl.level = math.Floor(2*wants[len(wants)/2]) / 2
-	default:
+	} else {
 		bl.level = wantLevel(b, bl.median, bl.peak)
 	}
 	return bl
@@ -177,7 +181,7 @@ func fonts(verbose, write bool) {
 	levels, kits := map[string]float64{}, map[string]float64{}
 	for _, bl := range out {
 		now := bl.bank.Level
-		if bl.name != bl.bank.Name {
+		if bl.kits {
 			now = bl.bank.KitLevel
 			kits[bl.bank.Name] = bl.level
 		} else {

@@ -5,68 +5,78 @@
 			"Type": "tr909kick",
 			"Tune": -4,
 			"Decay": 1.4,
-			"Tone": 0.8
+			"Tone": 0.8,
+			"Gain": 1.09
 		},
 		"sn": {
 			"Type": "sdssnare",
 			"Tune": -3,
 			"Decay": 1.3,
-			"Tone": 0.2
+			"Tone": 0.2,
+			"Gain": 1.09
 		},
 		"cp": {
 			"Type": "tr909clap",
 			"Tone": 0.2,
-			"Decay": 1.2
+			"Decay": 1.2,
+			"Gain": 1.09
 		},
 		"rim": {
 			"Type": "tr909rim",
-			"Tune": -5
+			"Tune": -5,
+			"Gain": 1.09
 		},
 		"hh": {
 			"Type": "tr909hat",
-			"Tone": 0.3
+			"Tone": 0.3,
+			"Gain": 1.09
 		},
 		"oh": {
 			"Type": "tr909ohat",
-			"Tone": 0.3
+			"Tone": 0.3,
+			"Gain": 1.09
 		},
 		"lt": {
 			"Type": "mtom",
 			"Tune": -4,
 			"Decay": 1.2,
-			"Strike": 0.4
+			"Strike": 0.4,
+			"Gain": 1.09
 		},
 		"mt": {
 			"Type": "mtom",
 			"Tune": -4,
 			"Decay": 1.2,
-			"Strike": 0.4
+			"Strike": 0.4,
+			"Gain": 1.09
 		},
 		"ht": {
 			"Type": "mtom",
 			"Tune": -4,
 			"Decay": 1.2,
-			"Strike": 0.4
+			"Strike": 0.4,
+			"Gain": 1.09
 		},
 		"mtl": {
 			"Type": "metal",
-			"Gain": 0.35
+			"Gain": 0.382
 		},
 		"cb": {
 			"Type": "metal",
 			"Tune": 5,
 			"Decay": 0.5,
-			"Gain": 0.35
+			"Gain": 0.382
 		},
 		"cr": {
 			"Type": "mcrash",
 			"Decay": 1.4,
-			"Tone": 0.3
+			"Tone": 0.3,
+			"Gain": 1.09
 		},
 		"rd": {
 			"Type": "mride",
-			"Tone": 0.3
+			"Tone": 0.3,
+			"Gain": 1.09
 		}
-	},
-	"Gain": 1.09
+	}
 }

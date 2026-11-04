@@ -28,7 +28,7 @@ type result struct {
 }
 
 func main() {
-	write := flag.Bool("write", false, "set each patch's Gain in patches/ so it plays at the target")
+	write := flag.Bool("write", false, "set each patch's Gain in patches/, or each drum's in a kit, so it plays at the target")
 	fontsToo := flag.Bool("fonts", false, "measure the fetched SoundFont banks instead, each at 0 dB, and print the Level each wants; with -write, set it")
 	verbose := flag.Bool("v", false, "with -fonts, print every sound measured")
 	flag.Parse()
@@ -54,8 +54,10 @@ func main() {
 		if r.err != nil {
 			log.Fatal(r.err)
 		}
+		// A kit's hits are not turned by the patch's Gain: each drum has its own. Its gain here is what they are all
+		// turned by, from where they stand.
 		g := s.Patch().Gain
-		if g == 0 {
+		if g == 0 || plugsynth.LevelKind(s) == plugsynth.LevelDrums {
 			g = 1
 		}
 		to := round3(g * math.Pow(10, min(plugsynth.LevelTarget-r.lufs, plugsynth.LevelPeak-r.peak)/20))
@@ -67,7 +69,12 @@ func main() {
 		if !ok {
 			log.Fatalf("%s has no file in patches/library.json", s.Name)
 		}
-		if err := setGain(file, to); err != nil {
+		if plugsynth.LevelKind(s) == plugsynth.LevelDrums {
+			err = turnKit(file, to)
+		} else {
+			err = setGain(file, to)
+		}
+		if err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -107,6 +114,62 @@ var topGain = regexp.MustCompile(`(?m)^\t"Gain": [0-9.eE+-]+`)
 
 // setGain writes g as the Gain of the patch in file, in place of its own or after its last field, leaving the
 // rest of the file as it is.
+// drumEntry matches one drum of a patch's Kit, as a patch file is laid out: its name and its lines.
+var drumEntry = regexp.MustCompile(`(?m)^\t\t"\w+": \{\n((?:\t\t\t.*\n)+)\t\t\},?\n`)
+
+// emptyDrum matches a drum of a patch's Kit that sets nothing.
+var emptyDrum = regexp.MustCompile(`(?m)^(\t\t"\w+": )\{\}(,?)$`)
+
+// drumGain matches a drum's own Gain.
+var drumGain = regexp.MustCompile(`(?m)^\t\t\t"Gain": ([0-9.eE+-]+)(,?)$`)
+
+// turnKit multiplies the Gain of every drum of the kit in file by by.
+func turnKit(file string, by float64) error {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	out, err := turnedKit(b, by)
+	if err != nil {
+		return fmt.Errorf("%s: %w", file, err)
+	}
+	return os.WriteFile(file, out, 0o644)
+}
+
+// turnedKit returns the patch file src with the Gain of every drum of its kit multiplied by by.
+func turnedKit(src []byte, by float64) ([]byte, error) {
+	var p struct{ Kit map[string]json.RawMessage }
+	if err := json.Unmarshal(src, &p); err != nil {
+		return nil, err
+	}
+	n := 0
+	out := drumEntry.ReplaceAllFunc(src, func(m []byte) []byte {
+		n++
+		if g := drumGain.FindSubmatch(m); g != nil {
+			old, err := strconv.ParseFloat(string(g[1]), 64)
+			if err != nil {
+				return m
+			}
+			field := fmt.Appendf(nil, "\t\t\t\"Gain\": %s$2", strconv.FormatFloat(round3(old*by), 'g', -1, 64))
+			return drumGain.ReplaceAll(m, field)
+		}
+		field := fmt.Appendf(nil, ",\n\t\t\t\"Gain\": %s\n\t\t}", strconv.FormatFloat(round3(by), 'g', -1, 64))
+		return regexp.MustCompile(`\n\t\t\}`).ReplaceAllLiteral(m, field)
+	})
+	out = emptyDrum.ReplaceAllFunc(out, func(m []byte) []byte {
+		n++
+		field := fmt.Appendf(nil, "$1{\n\t\t\t\"Gain\": %s\n\t\t}$2", strconv.FormatFloat(round3(by), 'g', -1, 64))
+		return emptyDrum.ReplaceAll(m, field)
+	})
+	if n != len(p.Kit) {
+		return nil, fmt.Errorf("found %d drums of %d", n, len(p.Kit))
+	}
+	if !json.Valid(out) {
+		return nil, fmt.Errorf("turning the kit broke the file")
+	}
+	return out, nil
+}
+
 func setGain(file string, g float64) error {
 	b, err := os.ReadFile(file)
 	if err != nil {

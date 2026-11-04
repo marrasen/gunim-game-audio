@@ -10,7 +10,7 @@ import (
 	"github.com/marrasen/gunim/audio/plug"
 )
 
-// The library's sounds stand equally loud: each patch's Gain is set so it plays its level phrase at LevelTarget,
+// The library's sounds stand equally loud: each patch's Gain, or each drum's in a kit, is set so it plays its level phrase at LevelTarget,
 // or its true peak at LevelPeak where that comes first.
 // The phrases are Hej Jätte!'s level phrases, so the two synths' sounds stand as loud as each other. Every phrase
 // plays at 120 BPM over Am, F, C and G, a bar each, every note at velocity 0.8 and held for 90% of its step, then
@@ -49,7 +49,7 @@ const (
 	// LevelKeys strikes the chord on beats one and three, under a line of quarters.
 	LevelKeys = "keys"
 	// LevelDrums plays a kit: a kick on beats one and three, a snare on two and four, under eighths on a closed hat.
-	// A kit without those three plays eighths through all its keys.
+	// A kit without those three plays eighths through its keys, spread over them where it has more than eighths.
 	LevelDrums = "drums"
 )
 
@@ -177,7 +177,11 @@ func levelDrumNotes(s Sound) []levelNote {
 	for e := range 2 * levelBeats {
 		at := float64(e) / 2
 		if len(walk) > 0 {
-			note(at, walk[e%len(walk)])
+			key := e % len(walk)
+			if len(walk) > 2*levelBeats {
+				key = e * len(walk) / (2 * levelBeats)
+			}
+			note(at, walk[key])
 			continue
 		}
 		note(at, keys[2])
@@ -205,9 +209,11 @@ func MeasureLevel(s Sound, rate int) (lufs, peak float64, err error) {
 			changes = append(changes, plug.Change{ID: prm.ID, Value: prm.Default})
 		}
 	}
-	notes := levelPhrase(LevelKind(s))
+	var notes []levelNote
 	if s.kit() {
 		notes = levelDrumNotes(s)
+	} else {
+		notes = levelPhrase(LevelKind(s))
 	}
 	if s.Bank == Recorded {
 		for i := range notes {
