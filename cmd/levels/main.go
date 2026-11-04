@@ -1,6 +1,7 @@
 // Command levels measures how loud each sound of the patch library plays its level phrase, as
 // [plugsynth.MeasureLevel] does, and with -write sets each patch's Gain so it plays at
-// [plugsynth.LevelTarget], or its true peak at [plugsynth.LevelPeak] where that comes first. Run it from the module's root, where patches/ is.
+// [plugsynth.LevelTarget], or its true peak at [plugsynth.LevelPeak] where that comes first. With -fonts it does the
+// same for the fetched SoundFont banks, whose Levels are in soundfont/banks.go. Run it from the module's root.
 package main
 
 import (
@@ -12,9 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
-	"sync"
 
 	"github.com/marrasen/gunim-game-audio/plugsynth"
 )
@@ -30,7 +29,13 @@ type result struct {
 
 func main() {
 	write := flag.Bool("write", false, "set each patch's Gain in patches/ so it plays at the target")
+	fontsToo := flag.Bool("fonts", false, "measure the fetched SoundFont banks instead, each at 0 dB, and print the Level each wants; with -write, set it")
+	verbose := flag.Bool("v", false, "with -fonts, print every sound measured")
 	flag.Parse()
+	if *fontsToo {
+		fonts(*verbose, *write)
+		return
+	}
 	files, err := patchFiles("patches")
 	if err != nil {
 		log.Fatal(err)
@@ -41,18 +46,7 @@ func main() {
 			sounds = append(sounds, s)
 		}
 	}
-	res := make([]result, len(sounds))
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
-	for i, s := range sounds {
-		wg.Go(func() {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			r := &res[i]
-			r.lufs, r.peak, r.err = plugsynth.MeasureLevel(s, rate)
-		})
-	}
-	wg.Wait()
+	res := measureSounds(sounds)
 	fmt.Printf("Target %.1f LUFS. Each sound plays its level phrase.\n\n", plugsynth.LevelTarget)
 	fmt.Printf("%-22s %-6s %8s %8s %8s %8s\n", "sound", "kind", "now", "peak", "gain", "set")
 	for i, s := range sounds {
