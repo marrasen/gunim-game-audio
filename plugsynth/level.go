@@ -201,6 +201,11 @@ func MeasureLevel(s Sound, rate int) (lufs, peak float64, err error) {
 		return 0, 0, fmt.Errorf("%s: %w", s.Name, err)
 	}
 	p := pl.Processor()
+	// A phrase's level is that of one draw of its notes' phases: the same
+	// one every time it is measured, whatever frames a song plays it on.
+	if q, ok := p.(*processor); ok {
+		q.unseeded = true
+	}
 	const block = 256
 	p.Prepare(plug.Setup{Rate: float64(rate), MaxBlock: block, Channels: 2, Offline: true})
 	var changes []plug.Change

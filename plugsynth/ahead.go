@@ -98,7 +98,7 @@ func (p *processor) hear(u plug.Upcoming) {
 		}
 		x := &a.notes[i]
 		x.pitch, x.vel, x.lands, x.turn = u.Pitch, min(max(u.Velocity, 0), 1), lands, u.Turn
-		x.seed = noteSeed(p.song+int64(u.Frame), u.Pitch, u.Group, u.Turn)
+		x.seed = p.seedOf(int64(u.Frame), u.Pitch, u.Group, u.Turn)
 		if x.swell != 0 {
 			// The swell glides to where the note lands now.
 			p.pre.Bend(x.swell, x.pitch-x.swellPitch)
