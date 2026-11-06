@@ -14,6 +14,10 @@ import (
 // read.
 var ErrTooLong = errors.New("soundfont: a sample too long to read")
 
+// mostPairs is how many pairings of a preset's zones with its
+// instruments' Zones looks through before it stops.
+const mostPairs = 1 << 24
+
 // A Zone is a sample a preset plays and the keys and velocities that
 // play it, for a program that reads the whole of a preset, not a note.
 type Zone struct {
@@ -29,10 +33,11 @@ type Zone struct {
 
 // Zones returns each zone of p, in the bank's order. A hostile bank can
 // hold a great many, as each of a preset's zones pairs with each of its
-// instrument's, so it builds them as they are asked for and the caller
-// may stop.
+// instrument's, so it builds them as they are asked for, the caller may
+// stop, and it stops itself past far more pairings than a real bank has.
 func (f *Font) Zones(p *Preset) iter.Seq[Zone] {
 	return func(yield func(Zone) bool) {
+		pairs := 0
 		for i := range p.zones {
 			pz := &p.zones[i]
 			if pz.link < 0 || pz.link >= len(f.instruments) {
@@ -40,6 +45,9 @@ func (f *Font) Zones(p *Preset) iter.Seq[Zone] {
 			}
 			in := &f.instruments[pz.link]
 			for j := range in.zones {
+				if pairs++; pairs > mostPairs {
+					return
+				}
 				iz := &in.zones[j]
 				z := Zone{KeyLo: max(pz.keyLo, iz.keyLo), KeyHi: min(pz.keyHi, iz.keyHi),
 					VelLo: max(pz.velLo, iz.velLo), VelHi: min(pz.velHi, iz.velHi)}

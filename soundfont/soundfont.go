@@ -270,6 +270,10 @@ func chunks(b []byte, fn func(id string, body []byte) error) error {
 	return nil
 }
 
+// mostZoneMods is how many modulators a zone keeps. Working out a region
+// compares them pair by pair, so a hostile bank must not hold thousands.
+const mostZoneMods = 256
+
 // readHydra reads the presets, instruments and samples, the "hydra" of
 // nine lists that point into each other.
 func (f *Font) readHydra(p map[string][]byte) error {
@@ -318,7 +322,7 @@ func (f *Font) readHydra(p map[string][]byte) error {
 				}
 			}
 			m0, m1 := u16(bags[k], 2), u16(bags[k+1], 2)
-			for m := m0; m < m1 && m < len(mods); m++ {
+			for m := m0; m < m1 && m < len(mods) && m-m0 < mostZoneMods; m++ {
 				r := mods[m]
 				z.mods = append(z.mods, mod{src: uint16(u16(r, 0)), dest: uint16(u16(r, 2)), amount: int16(u16(r, 4)),
 					amtSrc: uint16(u16(r, 6)), trans: uint16(u16(r, 8))})
