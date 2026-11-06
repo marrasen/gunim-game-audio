@@ -41,6 +41,8 @@ type Font struct {
 	data []byte
 	// byKey finds a preset by bank and program.
 	byKey map[int]*Preset
+	// release gives back the file's mapping, nil for a bank held in memory.
+	release func() error
 }
 
 // A Preset is an instrument of the bank as a MIDI program plays it: by
@@ -126,20 +128,7 @@ func (s *Sample) decode() {
 	defer s.done.Store(true)
 	d := s.f.data
 	if !s.vorbis {
-		lo, hi := max(s.Start, 0), min(s.End, len(d)/2)
-		if lo >= hi {
-			return
-		}
-		if b := d[2*lo : 2*hi]; littleEndian && uintptr(unsafe.Pointer(&b[0]))%2 == 0 {
-			// The bank's bytes are the frames already: a large bank
-			// is held once, not twice.
-			s.frames = unsafe.Slice((*int16)(unsafe.Pointer(&b[0])), hi-lo)
-			return
-		}
-		s.frames = make([]int16, hi-lo)
-		for i := range s.frames {
-			s.frames[i] = int16(binary.LittleEndian.Uint16(d[2*(lo+i):]))
-		}
+		s.frames = pcm(d, max(s.Start, 0), min(s.End, len(d)/2))
 		return
 	}
 	lo, hi := max(s.Start, 0), min(s.End, len(d))
@@ -158,6 +147,23 @@ func (s *Sample) decode() {
 	}
 }
 
+// pcm returns frames lo to hi of the 16-bit samples in d, nil for none.
+func pcm(d []byte, lo, hi int) []int16 {
+	if lo >= hi {
+		return nil
+	}
+	if b := d[2*lo : 2*hi]; littleEndian && uintptr(unsafe.Pointer(&b[0]))%2 == 0 {
+		// The bank's bytes are the frames already: a large bank
+		// is held once, not twice.
+		return unsafe.Slice((*int16)(unsafe.Pointer(&b[0])), hi-lo)
+	}
+	frames := make([]int16, hi-lo)
+	for i := range frames {
+		frames[i] = int16(binary.LittleEndian.Uint16(d[2*(lo+i):]))
+	}
+	return frames
+}
+
 // littleEndian says the machine keeps an int16's low byte first, as an
 // SF2 does.
 var littleEndian = binary.NativeEndian.Uint16([]byte{1, 0}) == 1
@@ -166,11 +172,19 @@ var littleEndian = binary.NativeEndian.Uint16([]byte{1, 0}) == 1
 // the file, mapped into memory, and are read as they are first played,
 // so a bank of a gigabyte opens at once and costs only what it plays.
 func Open(path string) (*Font, error) {
-	b, err := mapFile(path)
+	b, release, err := mapFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return readBank(b)
+	f, err := readBank(b)
+	if err != nil {
+		if release != nil {
+			err = errors.Join(err, release())
+		}
+		return nil, err
+	}
+	f.release = release
+	return f, nil
 }
 
 // Read reads an SF2 or an SF3 bank.
