@@ -532,12 +532,18 @@ func sortStrings(s []string) {
 type rng struct{ s uint64 }
 
 func newRand(seed uint64) *rng {
-	r := &rng{s: seed*0x9e3779b97f4a7c15 + 0x2545f4914f6cdd1d}
+	r := &rng{}
+	r.seed(seed)
+	return r
+}
+
+// seed starts r again from seed, as newRand does.
+func (r *rng) seed(seed uint64) {
+	r.s = seed*0x9e3779b97f4a7c15 + 0x2545f4914f6cdd1d
 	if r.s == 0 {
 		r.s = 1
 	}
 	r.next()
-	return r
 }
 
 func (r *rng) next() uint64 {

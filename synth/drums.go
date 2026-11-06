@@ -529,6 +529,8 @@ var chokes = map[int][]int{
 type hits struct {
 	hs  []hit
 	age uint64
+	// seed, where set, starts the next hit's random numbers afresh.
+	seed uint64
 }
 
 func newHits(n int) *hits { return &hits{hs: make([]hit, n)} }
@@ -540,6 +542,7 @@ func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *
 	if isModal(d.kind) {
 		for i := range hh.hs {
 			if h := &hh.hs[i]; h.on && h.d.name == d.name && h.d.kind == d.kind && h.tune == tune && h.fade == 1 {
+				hh.seeded(h)
 				h.restrike(vel, hh.age)
 				return h
 			}
@@ -562,8 +565,18 @@ func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *
 			best = i
 		}
 	}
+	hh.seeded(&hh.hs[best])
 	hh.hs[best].start(d, vel, pan, pitch, dur, tune, hh.age)
 	return &hh.hs[best]
+}
+
+// seeded starts h's random numbers afresh from the seed set for the hit
+// to come, if one is, and takes it.
+func (hh *hits) seeded(h *hit) {
+	if hh.seed != 0 && h.noise != nil {
+		h.noise.seed(hh.seed)
+	}
+	hh.seed = 0
 }
 
 // render adds the hits' sound to l and r, each ending as carry says,

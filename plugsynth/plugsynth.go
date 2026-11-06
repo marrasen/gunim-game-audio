@@ -342,6 +342,8 @@ const before = 4
 // the event takes effect there. The host's frame j reads the engine at
 // (j-delay)*step, delay frames back, which it has always made by then.
 type processor struct {
+	// song is where the block playing starts in the song.
+	song int64
 	// cur is the sound playing, and prev the one played before it,
 	// ringing out; next is a sound SetState made, for the next block to
 	// take. pre plays cur's sound ahead of the notes.
@@ -502,6 +504,7 @@ func (p *processor) keepTail() {
 // Process implements [plug.Processor]: each change and each note takes
 // effect from its frame on.
 func (p *processor) Process(b *plug.Block) {
+	p.song = b.Position.Song
 	swapped := p.adopt()
 	p.connect(b)
 	p.prune(int64(math.Ceil(p.engineAt(p.at))))
@@ -689,6 +692,23 @@ func (p *processor) take(c plug.Change) {
 	p.pre.SetKnobs(p.knobs)
 }
 
+// noteSeed returns the seed of a note of the music, at the frame song in
+// the song, of its pitch and its lane, group: what makes it the note it
+// is, whatever else the song holds, so taking one note out leaves the
+// sound of those after it as it was. A note of no turn is played live,
+// and takes none. It is never 0 for a note of the music.
+func noteSeed(song int64, pitch float64, group int32, turn int64) uint64 {
+	if turn == 0 {
+		return 0
+	}
+	h := uint64(14695981039346656037)
+	for _, w := range [...]uint64{uint64(song), math.Float64bits(pitch), uint64(uint32(group))} {
+		h = (h ^ w) * 1099511628211
+		h ^= h >> 29
+	}
+	return h | 1
+}
+
 // play plays a note's event on the sound playing: its bend, and its
 // mod wheel and pressure, which the patch answers as its
 // [synth.Patch.Responses] say.
@@ -696,7 +716,7 @@ func (p *processor) play(e plug.Event) {
 	switch e.Kind {
 	case plug.NoteOn:
 		p.landed(e.Note)
-		p.cur.NoteOnTurn(e.Note, e.Pitch, e.Velocity, e.Group, e.Turn)
+		p.cur.NoteOnSeeded(e.Note, e.Pitch, e.Velocity, e.Group, e.Turn, noteSeed(p.song+int64(e.Frame), e.Pitch, e.Group, e.Turn))
 	case plug.NoteOff:
 		p.cur.NoteOff(e.Note)
 	case plug.Expression:

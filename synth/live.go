@@ -265,6 +265,16 @@ func (in *Instrument) NoteOn(id int32, pitch, vel float64, group int32) {
 // reaches it. A turn of 0 counts the notes struck since the last
 // Silence instead, as for notes played live.
 func (in *Instrument) NoteOnTurn(id int32, pitch, vel float64, group int32, turn int64) {
+	in.NoteOnSeeded(id, pitch, vel, group, turn, 0)
+}
+
+// NoteOnSeeded is NoteOnTurn for a note whose random numbers start from
+// seed: the phases its oscillators start at, its drift, its noise. A note
+// struck with a seed sounds the same whichever notes were struck before
+// it and have rung out, so taking one note out of a song leaves the
+// sound of those after it as it was. A seed of 0 goes on from the
+// numbers the voice stands at, as for notes played live.
+func (in *Instrument) NoteOnSeeded(id int32, pitch, vel float64, group int32, turn int64, seed uint64) {
 	vel = min(max(vel, 0), 1)
 	if i := in.find(id); i >= 0 {
 		in.let(i)
@@ -272,7 +282,7 @@ func (in *Instrument) NoteOnTurn(id int32, pitch, vel float64, group int32, turn
 	if in.n == maxLive {
 		in.let(0)
 	}
-	n := note{pitch: float32(pitch), vel: float32(vel), res: -1}
+	n := note{pitch: float32(pitch), vel: float32(vel), res: -1, seed: seed}
 	if vs := in.p.vowels; len(vs) > 0 {
 		i := in.vowels
 		if turn > 0 {
@@ -293,6 +303,7 @@ func (in *Instrument) NoteOnTurn(id int32, pitch, vel float64, group int32, turn
 		// A drum rings out by itself; the note is kept, voiceless, for
 		// Pass to hand on.
 		if key := int(math.Round(pitch)); key >= 0 && key <= 127 && in.kit[key] != nil {
+			in.hs.seed = seed
 			h := in.hs.play(*in.kit[key], float32(vel), 0, float32(pitch), rate/2, 0)
 			h.part = drumParts[key]
 		}
@@ -651,7 +662,7 @@ func (in *Instrument) Pass(to *Instrument) {
 			}
 			continue
 		}
-		to.NoteOnTurn(h.id, float64(h.n.pitch), float64(h.n.vel), h.group, h.turn)
+		to.NoteOnSeeded(h.id, float64(h.n.pitch), float64(h.n.vel), h.group, h.turn, h.n.seed)
 		if h.bend != 0 {
 			to.Bend(h.id, float64(h.bend))
 		}
