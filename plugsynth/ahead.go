@@ -36,6 +36,8 @@ type aheadNote struct {
 	// lands is the engine's frame it lands on, and turn its turn, as
 	// its NoteOn will carry it.
 	lands, turn int64
+	// seed is the seed of the note, for what sounds ahead of it to go by.
+	seed uint64
 	// swell is pre's note swelling into it, and ghost its grace note, or
 	// 0; swellPitch is the pitch the swell started at, and ghosted says
 	// its grace note has sounded.
@@ -96,6 +98,7 @@ func (p *processor) hear(u plug.Upcoming) {
 		}
 		x := &a.notes[i]
 		x.pitch, x.vel, x.lands, x.turn = u.Pitch, min(max(u.Velocity, 0), 1), lands, u.Turn
+		x.seed = p.seedOf(int64(u.Frame), u.Pitch, u.Group, u.Turn)
 		if x.swell != 0 {
 			// The swell glides to where the note lands now.
 			p.pre.Bend(x.swell, x.pitch-x.swellPitch)
@@ -180,7 +183,7 @@ func (p *processor) steer(at int64) {
 			x.swell = 0
 		case swell && x.swell == 0 && at >= x.lands-p.swell && at < x.lands:
 			x.swell, x.swellPitch = p.ahead.newID(), x.pitch
-			p.pre.NoteOnTurn(x.swell, x.pitch, x.vel*p.aheadVel, 0, x.turn)
+			p.pre.NoteOnSeeded(x.swell, x.pitch, x.vel*p.aheadVel, 0, x.turn, x.seed)
 			p.pre.Fade(x.swell, p.rise(x, at), 0)
 		}
 		if x.swell != 0 {
@@ -189,7 +192,7 @@ func (p *processor) steer(at int64) {
 		half := p.ghost / 2
 		if p.ghost > 0 && !x.ghosted && at >= x.lands-p.ghost && at < x.lands-half {
 			x.ghost, x.ghosted = p.ahead.newID(), true
-			p.pre.NoteOnTurn(x.ghost, x.pitch, x.vel*ghostLevel*p.aheadVel, 0, x.turn)
+			p.pre.NoteOnSeeded(x.ghost, x.pitch, x.vel*ghostLevel*p.aheadVel, 0, x.turn, x.seed)
 		}
 		if x.ghost != 0 && at >= x.lands-half {
 			p.pre.NoteOff(x.ghost)

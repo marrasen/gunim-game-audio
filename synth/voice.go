@@ -32,6 +32,9 @@ type note struct {
 	// arpeggio steps through, nchord of them.
 	chord  [8]int8
 	nchord int
+	// seed, where set, starts the voice's random numbers afresh for the
+	// note, so what it plays owes nothing to the notes before it.
+	seed uint64
 }
 
 // voice plays a note of a synth or pluck patch.
@@ -112,6 +115,9 @@ func newVoice(seed uint64) *voice {
 
 // start plays n on patch p.
 func (v *voice) start(p *patch, n note, age uint64) {
+	if n.seed != 0 {
+		v.noise.seed(n.seed)
+	}
 	retrig := !v.on || v.p != p || p.poly > 1 || v.amp.stage == envRelease || v.amp.idle()
 	if v.p != p {
 		v.on = false
@@ -137,6 +143,17 @@ func (v *voice) start(p *patch, n note, age uint64) {
 			v.fr.reset()
 			v.gl.reset()
 			v.gr.reset()
+			v.body[0].reset()
+			v.body[1].reset()
+			for i := range v.form.f {
+				v.form.f[i].reset()
+			}
+			for i := range v.voc.f {
+				v.voc.f[i].reset()
+			}
+			for i := range v.sng.f {
+				v.sng.f[i].reset()
+			}
 			v.amp.v, v.fenv.v = 0, 0
 			for i := range v.phase {
 				for u := range v.phase[i] {
