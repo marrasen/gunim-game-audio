@@ -83,9 +83,13 @@ type plate struct {
 	band [nBands]svf
 	// Each band's envelope is lvl times a less b, where a keeps ka of itself a frame and b keeps kb.
 	a, b, ka, kb, lvl [nBands]float32
-	// Each partial turns by c and s a frame.
+	// bandOff says a band has fallen past hearing, and no longer runs.
+	bandOff [nBands]bool
+	// The first np partials still sound. Each turns by c and s a frame, as loud as pl times its band pb's envelope.
 	re, im, c, s [nPartials]float32
 	pl           [nPartials]float32
+	pb           [nPartials]uint8
+	np           int
 	metal        float32
 	// The splash is as loud as splash, and keeps splashKeep of itself a frame.
 	splash, splashKeep float32
@@ -110,17 +114,21 @@ func (m *plate) start(h *hit, k int, tune, tone, decay float32) {
 		m.ka[b] = float32(math.Exp(-1 / (float64(cy.ring[b]*decay) * rate)))
 		m.kb[b] = float32(math.Exp(-1 / (float64(max(cy.rise[b], 1e-4)) * rate)))
 		m.a[b], m.b[b] = 1, 1
+		m.bandOff[b] = false
 	}
-	for i, p := range cymPartials {
+	m.np = 0
+	for _, p := range cymPartials {
 		w := 2 * math.Pi * float64(p.hz*tune*jitter(0.003)) / rate
 		if w > 0.85*math.Pi {
-			m.c[i], m.s[i], m.pl[i] = 0, 0, 0
 			continue
 		}
+		i := m.np
+		m.np++
 		m.c[i], m.s[i] = float32(math.Cos(w)), float32(math.Sin(w))
 		ph := 2 * math.Pi * h.noise.float()
 		m.re[i], m.im[i] = float32(math.Cos(ph)), float32(math.Sin(ph))
 		m.pl[i] = p.lvl * jitter(0.1)
+		m.pb[i] = uint8(p.band)
 	}
 	m.metal = cy.metal
 	m.splash, m.splashKeep = cy.splash*h.vel, 0
@@ -134,9 +142,26 @@ func (m *plate) start(h *hit, k int, tune, tone, decay float32) {
 	m.crush = cy.crush * cy.gain
 }
 
-// renorm keeps each partial turning at an even level.
+// renorm keeps each partial turning at an even level, and lets go of the bands and partials that have fallen past
+// hearing. A long cymbal's top bands fall silent long before its low ones, and a hit runs every partial for each frame.
 func (m *plate) renorm() {
-	for i := range nPartials {
+	if m.splash <= cymQuiet {
+		for b := range nBands {
+			// The envelope is a less b, and b falls the slower where a
+			// short decay has a falling faster than the band swells.
+			m.bandOff[b] = m.lvl[b]*max(m.a[b], m.b[b]) <= cymQuiet
+		}
+		for i := 0; i < m.np; {
+			if !m.bandOff[m.pb[i]] {
+				i++
+				continue
+			}
+			m.np--
+			n := m.np
+			m.re[i], m.im[i], m.c[i], m.s[i], m.pl[i], m.pb[i] = m.re[n], m.im[n], m.c[n], m.s[n], m.pl[n], m.pb[n]
+		}
+	}
+	for i := range m.np {
 		r := m.re[i]*m.re[i] + m.im[i]*m.im[i]
 		k := (3 - r) / 2
 		m.re[i] *= k
@@ -157,16 +182,18 @@ func (m *plate) step(t int64, noise *rng) float32 {
 		env[b] += m.splash * splashShape[b]
 		m.a[b] *= m.ka[b]
 		m.b[b] *= m.kb[b]
-		_, bp, _ := m.band[b].step(n)
-		s += bp * env[b]
+		if !m.bandOff[b] {
+			_, bp, _ := m.band[b].step(n)
+			s += bp * env[b]
+		}
 	}
 	m.splash *= m.splashKeep
 	var p float32
-	for i := range nPartials {
+	for i := range m.np {
 		re, im := m.re[i], m.im[i]
 		m.re[i] = m.c[i]*re - m.s[i]*im
 		m.im[i] = m.s[i]*re + m.c[i]*im
-		p += m.im[i] * m.pl[i] * env[cymPartials[i].band]
+		p += m.im[i] * m.pl[i] * env[m.pb[i]]
 	}
 	s += p * m.metal / 4
 	if m.clickLevel > 0 {
@@ -186,13 +213,16 @@ func (m *plate) step(t int64, noise *rng) float32 {
 	return s
 }
 
-// quiet reports whether every band and the splash have fallen past hearing, -66 dB.
+// cymQuiet is how loud a cymbal's band or splash is past hearing, -66 dB.
+const cymQuiet = 0.0005
+
+// quiet reports whether every band and the splash have fallen past hearing.
 func (m *plate) quiet() bool {
-	if m.splash > 0.0005 {
+	if m.splash > cymQuiet {
 		return false
 	}
 	for b := range nBands {
-		if m.lvl[b]*m.a[b] > 0.0005 {
+		if m.lvl[b]*m.a[b] > cymQuiet {
 			return false
 		}
 	}
