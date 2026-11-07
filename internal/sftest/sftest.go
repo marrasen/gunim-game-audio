@@ -12,7 +12,20 @@ import (
 // a release of about a tenth of a second and the pan hard right. A drum
 // kit, program 0 of bank 128, plays the same instrument on keys 36 to 38
 // only.
-func Build() []byte {
+func Build() []byte { return build(nil) }
+
+// BuildLow returns the same bank with an sm24 chunk of low bytes, n of
+// them, on a whole bank's samples: 146.
+func BuildLow(n int) []byte {
+	low := make([]byte, n)
+	for i := range low {
+		low[i] = byte(i + 1)
+	}
+	return build(low)
+}
+
+// build returns the bank with low as its sm24 chunk, where it isn't nil.
+func build(low []byte) []byte {
 	le := func(b *bytes.Buffer, v ...any) {
 		for _, x := range v {
 			_ = binary.Write(b, binary.LittleEndian, x)
@@ -75,6 +88,9 @@ func Build() []byte {
 	le(&shdr, uint32(0), uint32(0), uint32(0), uint32(0), uint32(0), uint8(0), int8(0), uint16(0), uint16(0))
 	info := list("INFO", chunk("ifil", []byte{2, 0, 1, 0}), chunk("INAM", []byte("Test Bank\x00")))
 	sdta := list("sdta", chunk("smpl", smpl.Bytes()))
+	if low != nil {
+		sdta = list("sdta", chunk("smpl", smpl.Bytes()), chunk("sm24", low))
+	}
 	pdta := list("pdta", chunk("phdr", phdr.Bytes()), chunk("pbag", pbag.Bytes()), chunk("pmod", pmod.Bytes()),
 		chunk("pgen", pgen.Bytes()), chunk("inst", inst.Bytes()), chunk("ibag", ibag.Bytes()), chunk("imod", imod.Bytes()),
 		chunk("igen", igen.Bytes()), chunk("shdr", shdr.Bytes()))

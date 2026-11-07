@@ -43,6 +43,12 @@ type Font struct {
 	byKey map[int]*Preset
 	// release gives back the file's mapping, nil for a bank held in memory.
 	release func() error
+	// low is the bank's sm24 chunk, the low byte of each 24-bit frame, nil
+	// for none.
+	low []byte
+	// LostLow says the bank holds an sm24 chunk of the wrong length, which
+	// is left out as the format says, so its 24-bit samples read as 16.
+	LostLow bool
 }
 
 // A Preset is an instrument of the bank as a MIDI program plays it: by
@@ -224,8 +230,11 @@ func readBank(b []byte) (*Font, error) {
 			})
 		case "sdta":
 			return chunks(items, func(id string, v []byte) error {
-				if id == "smpl" {
+				switch id {
+				case "smpl":
 					f.data = v
+				case "sm24":
+					f.low = v
 				}
 				return nil
 			})
@@ -243,6 +252,9 @@ func readBank(b []byte) (*Font, error) {
 	}
 	if pdta == nil {
 		return nil, errors.New("soundfont: no presets")
+	}
+	if n := len(f.data) / 2; f.low != nil && len(f.low) != n && len(f.low) != n+n&1 {
+		f.low, f.LostLow = nil, true
 	}
 	if err := f.readHydra(pdta); err != nil {
 		return nil, err
@@ -438,6 +450,9 @@ type Region struct {
 	// Exclusive is its class: a note of a class cuts off the notes of the
 	// same class playing, as a closed hi-hat an open one; 0 for none.
 	Exclusive int
+	// KeyToHold and KeyToDecay are the timecents each key under 60 adds
+	// to its volume envelope's hold and decay.
+	KeyToHold, KeyToDecay float64
 }
 
 // Env is an envelope: Delay, Attack, Hold, Decay and Release in seconds,
@@ -587,6 +602,7 @@ func (f *Font) region(key, vel int, ig, iz, pg, pz *zone) Region {
 	r.ModLFOToPitch, r.ModLFOToFilter, r.ModLFOToVolume = g(gModLFOToPitch), g(gModLFOToFilter), g(gModLFOToVolume)/10
 	r.Reverb, r.Chorus = min(max(g(gReverb)/1000, 0), 1), min(max(g(gChorus)/1000, 0), 1)
 	r.Exclusive = int(inst(gExclusive))
+	r.KeyToHold, r.KeyToDecay = g(gKeyToVolEnvHold), g(gKeyToVolEnvDecay)
 	return r
 }
 

@@ -27,8 +27,11 @@ type Zone struct {
 	// Region is how it plays at its root, or its nearest key to that,
 	// and at velocity 127, where a bank's velocity moves nothing.
 	Region
-	// HalfGain is its Gain at velocity 64.
-	HalfGain float64
+	// HalfGain and HalfCutoff are its Gain and Cutoff at velocity 64.
+	HalfGain, HalfCutoff float64
+	// Modulators is how many modulators its zones list of their own,
+	// which Region holds only as far as the key and velocity move them.
+	Modulators int
 }
 
 // Zones returns each zone of p, in the bank's order. A hostile bank can
@@ -59,7 +62,9 @@ func (f *Font) Zones(p *Preset) iter.Seq[Zone] {
 					key = min(max(f.region(z.KeyLo, 127, &in.global, iz, &p.global, pz).Root, z.KeyLo), z.KeyHi)
 				}
 				z.Region = f.region(key, 127, &in.global, iz, &p.global, pz)
-				z.HalfGain = f.region(key, 64, &in.global, iz, &p.global, pz).Gain
+				half := f.region(key, 64, &in.global, iz, &p.global, pz)
+				z.HalfGain, z.HalfCutoff = half.Gain, half.Cutoff
+				z.Modulators = len(in.global.mods) + len(iz.mods) + len(p.global.mods) + len(pz.mods)
 				if !yield(z) {
 					return
 				}
@@ -114,12 +119,23 @@ func (s *Sample) Decode(limit int) ([]int16, error) {
 	}
 }
 
+// Low returns the low byte of each of the sample's frames, nil where
+// the bank holds only 16 bits or the sample is Ogg Vorbis. A frame's 24
+// bits are its value from Decode, shifted up 8 bits, or'd with its low
+// byte.
+func (s *Sample) Low() []byte {
+	if d := s.f.low; !s.vorbis && d != nil && s.Start >= 0 && s.Start < s.End && s.End <= len(d) {
+		return d[s.Start:s.End]
+	}
+	return nil
+}
+
 // Close releases the file Open mapped, so it can be moved or removed.
 // Nothing read from the bank may be used after it: not its samples, nor
 // frames Frames or Decode returned. A bank held in memory has nothing
 // to release.
 func (f *Font) Close() error {
-	f.data = nil
+	f.data, f.low = nil, nil
 	release := f.release
 	f.release = nil
 	if release == nil {

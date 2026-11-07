@@ -101,3 +101,43 @@ func TestADamagedFileIsLetGo(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestASampleHandsOverItsLowBytes(t *testing.T) {
+	f, err := Read(bytes.NewReader(sftest.BuildLow(146)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := f.Regions(0, 0, 60, 100)[0].Sample
+	if low := s.Low(); len(low) != 100 || f.LostLow {
+		t.Fatalf("%d low bytes, lost %v", len(low), f.LostLow)
+	}
+	f, err = Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if low := f.Regions(0, 0, 60, 100)[0].Sample.Low(); low != nil || f.LostLow {
+		t.Fatalf("a 16-bit bank has %d low bytes, lost %v", len(low), f.LostLow)
+	}
+}
+
+func TestLowBytesOfTheWrongLengthAreLost(t *testing.T) {
+	f, err := Read(bytes.NewReader(sftest.BuildLow(10)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if low := f.Regions(0, 0, 60, 100)[0].Sample.Low(); low != nil || !f.LostLow {
+		t.Fatalf("%d low bytes, lost %v", len(low), f.LostLow)
+	}
+}
+
+func TestAZoneSaysWhatMovesItAsItPlays(t *testing.T) {
+	f, err := Read(bytes.NewReader(sftest.Build()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	z := slices.Collect(f.Zones(f.Preset(0, 0)))[0]
+	if z.HalfCutoff >= z.Cutoff {
+		t.Errorf("the default modulator leaves the cutoff at %v, against %v", z.HalfCutoff, z.Cutoff)
+	}
+	z.KeyToDecay, z.KeyToHold, z.Modulators = 0, 0, 0
+}
