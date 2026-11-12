@@ -127,7 +127,10 @@ const (
 	// where the song is, in a render as in playback. A new rate or note
 	// value takes the phase where it falls at that place in the song.
 	// While the song stands still, as [plug.Position.Still] says, the
-	// LFO holds where it stood.
+	// LFO holds where the song stands.
+	//
+	// A free LFO counts the seconds from [plug.Position.Song], as a
+	// synced one does where the host knows no tempo.
 	//
 	// The Rate mod input can't keep that: the LFO runs
 	// ahead of the song, or behind it, by what the input did. It keeps
@@ -396,10 +399,6 @@ type processor struct {
 	lead float64
 	// playing says the last block was played, to tell the play start.
 	playing bool
-	// still says the last block's song stood still, and stillFrame is
-	// the frame it stood still at.
-	still      bool
-	stillFrame int64
 	// struck says an LFO counted from the song counts from a hit.
 	struck bool
 	// hits counts the hits, for HitsID.
@@ -483,10 +482,6 @@ func (p *processor) Process(b *plug.Block) {
 		p.rejoin()
 	}
 	p.playing = pos.Playing
-	if pos.Still && !p.still {
-		p.stillFrame = pos.Frame
-	}
-	p.still = pos.Still
 	var outs [4][]float32
 	for i := range outs {
 		outs[i] = b.ControlOutput(i)
@@ -540,16 +535,16 @@ func (p *processor) beat(pos plug.Position, f, n int) float64 {
 	if pos.Tempo > 0 {
 		return pos.BeatAt(f, n, p.rate)
 	}
-	return float64(p.songFrame(pos, f)) / p.rate * fallbackTempo / 60
+	return float64(songFrame(pos, f)) / p.rate * fallbackTempo / 60
 }
 
 // songFrame returns where in the song frame f of the block at pos
-// falls: where the song stood still, while it stands still.
-func (p *processor) songFrame(pos plug.Position, f int) int64 {
+// falls, by Position.Song: where the song stands, while it stands still.
+func songFrame(pos plug.Position, f int) int64 {
 	if pos.Still {
-		return p.stillFrame
+		return pos.Song
 	}
-	return pos.Frame + int64(f)
+	return pos.Song + int64(f)
 }
 
 // perFrame returns how many cycles pass from frame f of a block n
@@ -577,7 +572,7 @@ func (p *processor) at(pos plug.Position, f, n int) float64 {
 		return p.cycles
 	}
 	if !p.s.sync {
-		return float64(p.songFrame(pos, f))/p.rate*p.s.rate + p.lead
+		return float64(songFrame(pos, f))/p.rate*p.s.rate + p.lead
 	}
 	return p.beat(pos, f, n)/p.s.beats + p.lead
 }

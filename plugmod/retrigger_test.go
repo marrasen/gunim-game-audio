@@ -170,7 +170,7 @@ func song(pr *processor, pos plug.Position, kv []float64, at ...int) []float32 {
 func TestAHitWinsOverTheSongUntilTheSongJumps(t *testing.T) {
 	const hit = 10
 	at := func(f int64) plug.Position {
-		return plug.Position{Frame: f, Tempo: 120, EndTempo: 120, Beat: float64(f) / rate * 2}
+		return plug.Position{Frame: f, Song: f, Tempo: 120, EndTempo: 120, Beat: float64(f) / rate * 2}
 	}
 	for _, shape := range []int{Saw, SmoothRandom} {
 		for sync := range 2 {
@@ -342,7 +342,7 @@ func TestPrepareAfterHitsPlaysTheRandomValuesOfTheSeed(t *testing.T) {
 			for _, playing := range []bool{false, true} {
 				kv := []float64{float64(ShapeID), float64(shape), float64(StartID), float64(start), float64(SyncID), 0,
 					float64(RateID), 300, float64(SeedID), 5, float64(JitterID), 0.3}
-				pos := plug.Position{Frame: 6400, Playing: playing}
+				pos := plug.Position{Frame: 6400, Song: 6400, Playing: playing}
 				pr := newLFO(t)
 				pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 64})
 				song(pr, pos, kv, 3, 20, 41)

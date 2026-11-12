@@ -122,7 +122,7 @@ func TestTheStepsPlayInTurn(t *testing.T) {
 	}
 	pr := &p.proc
 	pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 4})
-	bl := newBlock(4, plug.Position{Frame: rate / 4}) // 0.25 s at 1 Hz: the second step
+	bl := newBlock(4, plug.Position{Frame: rate / 4, Song: rate / 4}) // 0.25 s at 1 Hz: the second step
 	bl.b.Changes = changes(float64(ShapeID), Steps, float64(SyncID), 0, float64(RateID), 1)
 	pr.Process(&bl.b)
 	if got := bl.outs[MainOut][0]; got != -1 {
@@ -130,7 +130,7 @@ func TestTheStepsPlayInTurn(t *testing.T) {
 	}
 	// Synced to a bar, from the song: two and a half beats in is the
 	// third step.
-	bl = newBlock(4, plug.Position{Frame: 60000, Playing: true, Tempo: 120, Beat: 2.5})
+	bl = newBlock(4, plug.Position{Frame: 60000, Song: 60000, Playing: true, Tempo: 120, Beat: 2.5})
 	bl.b.Changes = changes(float64(SyncID), 1, float64(NoteID), 3, float64(StartID), FromSong)
 	pr.Process(&bl.b)
 	if got := bl.outs[MainOut][0]; got != 0.5 {

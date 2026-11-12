@@ -211,10 +211,10 @@ func (m tempoMap) position(f int64) plug.Position {
 			beat += float64(end-m.at[i]) * m.tempo[i] / 60 / rate
 		}
 		if i+1 >= len(m.at) || f < m.at[i+1] {
-			return plug.Position{Frame: f, Playing: true, Tempo: m.tempo[i], Beat: beat}
+			return plug.Position{Frame: f, Song: f, Playing: true, Tempo: m.tempo[i], Beat: beat}
 		}
 	}
-	return plug.Position{Frame: f, Playing: true}
+	return plug.Position{Frame: f, Song: f, Playing: true}
 }
 
 // run runs pr from frame from to frame to in blocks of size frames,
@@ -299,12 +299,13 @@ func TestASyncedLFOIsTheSameHoweverTheSongIsPlayed(t *testing.T) {
 // blocks standing still.
 func stand(pr *processor, blocks int, ch []plug.Change) []float32 {
 	at := int64(3 * rate / 2)
-	play := newBlock(100, plug.Position{Frame: at - 100, Playing: true, Tempo: 120, Beat: 3 - 100*2.0/rate})
+	song := at
+	play := newBlock(100, plug.Position{Frame: at - 100, Song: song - 100, Playing: true, Tempo: 120, Beat: 3 - 100*2.0/rate})
 	play.b.Changes = ch
 	pr.Process(&play.b)
 	out := make([]float32, 0, 100*blocks)
 	for range blocks {
-		bl := newBlock(100, plug.Position{Frame: at, Playing: true, Still: true, Tempo: 120, Beat: 3})
+		bl := newBlock(100, plug.Position{Frame: at, Song: song, Playing: true, Still: true, Tempo: 120, Beat: 3})
 		pr.Process(&bl.b)
 		out = append(out, bl.outs[MainOut]...)
 		at += 100
@@ -548,7 +549,7 @@ func runMap(pr *processor, m *tempo.Map, end int64, size int, ch []plug.Change) 
 				n = e - f
 			}
 		}
-		bl := newBlock(int(n), plug.Position{Frame: f, Playing: true, Beat: m.QuartersAtFrame(f, rate),
+		bl := newBlock(int(n), plug.Position{Frame: f, Song: f, Playing: true, Beat: m.QuartersAtFrame(f, rate),
 			Tempo: m.BPMAtFrame(f, rate), EndTempo: m.BPMReachingFrame(f+n, rate)})
 		if f == 0 {
 			bl.b.Changes = ch
@@ -667,7 +668,7 @@ func TestAModdedLFOFromTheSongStartsInStepAgain(t *testing.T) {
 	ch := changes(float64(ShapeID), Saw, float64(SyncID), 0, float64(RateID), 10)
 	at := int64(0)
 	block := func(c []plug.Change, in [][]float32) []float32 {
-		bl := newBlock(100, plug.Position{Frame: at, Playing: true})
+		bl := newBlock(100, plug.Position{Frame: at, Song: at, Playing: true})
 		bl.b.Changes, bl.b.ControlIn = c, in
 		pr.Process(&bl.b)
 		at += 100
