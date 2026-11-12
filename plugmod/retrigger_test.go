@@ -335,3 +335,31 @@ func TestAHitFlashesTheBoltOfThePanelAndThePanelRestsAgain(t *testing.T) {
 		t.Errorf("the chip moves at a hit, a bolt lit %v", c.sc.flash.Value())
 	}
 }
+
+func TestPrepareAfterHitsPlaysTheRandomValuesOfTheSeed(t *testing.T) {
+	for _, shape := range []int{SampleHold, SmoothRandom} {
+		for start, from := range Starts {
+			for _, playing := range []bool{false, true} {
+				kv := []float64{float64(ShapeID), float64(shape), float64(StartID), float64(start), float64(SyncID), 0,
+					float64(RateID), 300, float64(SeedID), 5, float64(JitterID), 0.3}
+				pos := plug.Position{Frame: 6400, Playing: playing}
+				pr := newLFO(t)
+				pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 64})
+				song(pr, pos, kv, 3, 20, 41)
+				pr.Prepare(plug.Setup{Rate: rate, MaxBlock: 64})
+				if pr.s.draw != 0 || pr.struck {
+					t.Fatalf("from %s: prepared again after hits, the LFO keeps draw %d, struck %v", from, pr.s.draw, pr.struck)
+				}
+				fresh := newLFO(t)
+				fresh.Prepare(plug.Setup{Rate: rate, MaxBlock: 64})
+				got, want := song(pr, pos, kv), song(fresh, pos, kv)
+				for f := range got {
+					if got[f] != want[f] {
+						t.Fatalf("shape %d from %s, playing %v: frame %d is %v, want %v as a new LFO plays", shape, from,
+							playing, f, got[f], want[f])
+					}
+				}
+			}
+		}
+	}
+}
