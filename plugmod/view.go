@@ -1,19 +1,36 @@
 package plugmod
 
 import (
+	"image/color"
 	"strconv"
 	"time"
 
 	"github.com/marrasen/gunim"
 	"github.com/marrasen/gunim/access"
+	"github.com/marrasen/gunim/anim"
 	"github.com/marrasen/gunim/audio/plug"
 	"github.com/marrasen/gunim/audio/plug/plugui"
 	"github.com/marrasen/gunim/audioui"
 	"github.com/marrasen/gunim/geom"
+	"github.com/marrasen/gunim/icon"
 	"github.com/marrasen/gunim/input"
 	"github.com/marrasen/gunim/paint"
+	"github.com/marrasen/gunim/theme"
 	"github.com/marrasen/gunim/widget"
 )
+
+// Hit is the colour of the scope's bolt as a hit flashes it.
+var Hit = theme.Color("plug.lfo.hit", color.NRGBA{R: 0xff, G: 0xc8, B: 0x3d, A: 0xff})
+
+const (
+	// boltSide is how big the scope's bolt is.
+	boltSide = 14
+	// flashTop is how lit a flash gets before it starts to fade.
+	flashTop = 0.85
+)
+
+// boltFill is Lucide's zap, filled.
+var boltFill = &icon.Icon{Name: "lfo-bolt", Path: icon.Zap.Path, Fill: icon.Zap.Path}
 
 // View implements [plug.Viewer]: a scope of the wave and its rate in a
 // chip; the scope over the controls in a panel; and in full, a taller
@@ -66,7 +83,8 @@ const traceLen = 180
 // where the LFO is in it, and, where it keeps a trace, what the main
 // output put out over the last frames of the window, the newest at the
 // right. Where it edits, it draws the Steps shape's steps as bars under
-// the wave, and the Shaper's points on it.
+// the wave, and the Shaper's points on it, and a bolt in its corner
+// that flashes at each hit on the Retrigger input.
 type scope struct {
 	h plug.Host
 	p *plugin
@@ -85,10 +103,18 @@ type scope struct {
 	area geom.Rect
 	// hot is the point under the pointer, or -1.
 	hot int
+	// hits is the count of hits as last read, flash how lit the bolt
+	// is, and rising says a flash is on its way up.
+	hits   float64
+	flash  *anim.Float
+	rising bool
+	// live is the theme of the last paint, for the flash's springs.
+	live *theme.Live
 }
 
 func newScope(h plug.Host, p *plugin, traced, edit bool) *scope {
-	s := &scope{h: h, p: p, traced: traced, edit: edit, hot: -1, value: h.Param(ValueID), cycle: h.Param(CycleID)}
+	s := &scope{h: h, p: p, traced: traced, edit: edit, hot: -1, value: h.Param(ValueID), cycle: h.Param(CycleID),
+		hits: h.Param(HitsID), flash: anim.NewFloat(0)}
 	if traced {
 		s.trace = make([]float32, traceLen)
 		for i := range s.trace {
@@ -98,13 +124,35 @@ func newScope(h plug.Host, p *plugin, traced, edit bool) *scope {
 	return s
 }
 
-// step takes what the LFO reports, a frame of the window, and says
-// whether the scope moves: the dot, or the trace while it holds more
-// than one value.
-func (s *scope) step() bool {
+// spring returns the theme's spring t, or def before the first paint.
+func (s *scope) spring(t theme.Token[anim.Spring], def anim.Spring) anim.Spring {
+	if s.live == nil {
+		return def
+	}
+	return t.Get(s.live)
+}
+
+// step takes what the LFO reports, a frame of the window dt long, and
+// says whether the scope moves: the dot, the bolt's flash, or the trace
+// while it holds more than one value.
+func (s *scope) step(dt time.Duration) bool {
 	v, c := s.h.Param(ValueID), s.h.Param(CycleID)
 	moved := v != s.value || c != s.cycle
 	s.value, s.cycle = v, c
+	if hits := s.h.Param(HitsID); hits != s.hits {
+		s.hits = hits
+		if s.edit {
+			s.flash.Animate(1, s.spring(widget.Quick, anim.Snappy))
+			s.rising = true
+		}
+	}
+	if s.flash.Step(dt) || s.rising {
+		moved = true
+	}
+	if s.rising && s.flash.Value() >= flashTop {
+		s.rising = false
+		s.flash.Animate(0, s.spring(widget.Settle, anim.Gentle))
+	}
 	if !s.traced {
 		return moved
 	}
@@ -150,6 +198,7 @@ func (s *scope) pointAt(pos geom.Point) int {
 // paint draws the scope in r.
 func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 	ink, accent := widget.Ink.Get(f.Theme), widget.Accent.Get(f.Theme)
+	s.live = f.Theme
 	defer p.Layer(paint.LayerOpts{Bounds: r, Clip: true, Opacity: 1})()
 	p.RRect(r, 6, paint.Solid(paint.Faded(audioui.Ground.Get(f.Theme), 0.6)))
 	pad := min(r.Size().H*0.12, 8)
@@ -202,6 +251,16 @@ func (s *scope) paint(p *paint.Painter, f gunim.Frame, r geom.Rect) {
 	}
 	dot := geom.Pt(s.xOf(s.cycle), s.yOf(s.value))
 	p.RRect(geom.Rc(dot.X-3, dot.Y-3, 6, 6), 3, paint.Solid(accent))
+	if flash := min(max(s.flash.Value(), 0), 1); flash > 0.01 {
+		// The bolt, in the cycle's top right corner, with a glow.
+		tint := Hit.Get(f.Theme)
+		mid := geom.Pt(cyc.Max.X-boltSide/2-6, r.Min.Y+boltSide/2+6)
+		glow := boltSide/2 + 1 + 3*flash
+		p.RRect(geom.Rc(mid.X-glow, mid.Y-glow, 2*glow, 2*glow), glow, paint.Solid(paint.Faded(tint, 0.28*flash)))
+		b := geom.Rc(mid.X-boltSide/2, mid.Y-boltSide/2, boltSide, boltSide)
+		p.Mask(icon.Stroke{Icon: boltFill, Width: 0.6, Progress: 1}, b, paint.Faded(tint, flash))
+		p.Mask(icon.Stroke{Icon: icon.Zap, Width: 1.8, Progress: 1}, b, paint.Faded(tint, flash))
+	}
 	if !s.traced {
 		return
 	}
@@ -259,7 +318,7 @@ func (c *chip) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, kids gunim.
 }
 
 // Step implements [gunim.Animator]: the dot moves as the LFO plays.
-func (c *chip) Step(time.Duration) bool { return c.sc.step() }
+func (c *chip) Step(dt time.Duration) bool { return c.sc.step(dt) }
 
 // Access implements [gunim.Accessible]: the chip reads as the LFO's
 // shape, with the Pulse's width, and rate.
@@ -543,8 +602,9 @@ func (v *panel) Paint(pt *paint.Painter, f gunim.Frame, box geom.Size, kids guni
 	}
 }
 
-// Step implements [gunim.Animator]: the scope moves as the LFO plays.
-func (v *panel) Step(time.Duration) bool { return v.sc.step() }
+// Step implements [gunim.Animator]: the scope moves as the LFO plays,
+// and its bolt flashes at a hit.
+func (v *panel) Step(dt time.Duration) bool { return v.sc.step(dt) }
 
 // Follow implements [plug.Follower]: the knobs glide to their
 // parameters set elsewhere, unless held, the selectors follow, and the

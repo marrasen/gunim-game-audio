@@ -164,7 +164,7 @@ func TestThePortsAreInTheirGroups(t *testing.T) {
 		ports []plug.ControlPort
 		group string
 	}{
-		{Descriptor.ControlOut, "LFO"}, {Descriptor.ControlIn, "Mod"},
+		{Descriptor.ControlOut, "LFO"}, {Descriptor.ControlIn[:RetriggerIn], "Mod"},
 	} {
 		if len(c.ports) != 4 {
 			t.Errorf("the %s group has %d ports, want 4", c.group, len(c.ports))
