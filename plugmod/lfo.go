@@ -62,6 +62,8 @@ const (
 const (
 	ValueID uint32 = iota + 20
 	CycleID
+	// HitsID counts the hits on the Retrigger input, wrapping at 256.
+	HitsID
 )
 
 // The shapes, by ShapeID's value.
@@ -110,6 +112,13 @@ const (
 	// OffsetIn adds m to the offset, within -1 to 1.
 	OffsetIn
 )
+
+// RetriggerIn is the trigger input's index. A hit starts the wave again
+// at the Phase setting on the hit's frame, with new values for the random
+// shapes and the jitter. An LFO counted from the song then counts from
+// the hit, running on while the song stands still, until the next Prepare
+// or Reset or until Position.Playing turns on.
+const RetriggerIn = OffsetIn + 1
 
 // Where the phase counts from, by StartID's value.
 const (
@@ -192,6 +201,7 @@ var Descriptor = plug.Descriptor{
 		{Name: "Depth mod", Min: -1, Max: 1, Group: "Mod"},
 		{Name: "Phase mod", Min: -1, Max: 1, Group: "Mod"},
 		{Name: "Offset mod", Min: -1, Max: 1, Group: "Mod"},
+		{Name: "Retrigger", Max: 1, Trigger: true},
 	},
 	ControlOut: []plug.ControlPort{
 		{Name: "LFO", Min: -1, Max: 1, Group: "LFO"},
@@ -226,6 +236,7 @@ var Descriptor = plug.Descriptor{
 		{ID: WidthID, Name: "Width", Max: 1, Default: 0.25, Flags: plug.Automatable, Format: percent},
 		{ID: ValueID, Name: "Value", Min: -1, Max: 1, Flags: plug.ReadOnly | plug.Hidden},
 		{ID: CycleID, Name: "Cycle", Max: 1, Flags: plug.ReadOnly | plug.Hidden},
+		{ID: HitsID, Name: "Hits", Max: 255, Flags: plug.ReadOnly | plug.Hidden},
 	},
 	New: func(plug.Host) plug.Plugin { return newPlugin() },
 }
@@ -304,6 +315,8 @@ type settings struct {
 	jitter        float64
 	smooth, glide float64
 	width         float64
+	// draw moves the random values on, by drawStep a hit.
+	draw int64
 	// pat is the state's steps and curve, as the shapes play them.
 	pat *pattern
 }
@@ -387,9 +400,18 @@ type processor struct {
 	// the frame it stood still at.
 	still      bool
 	stillFrame int64
-	value      plug.Meter
-	cycle      plug.Meter
+	// struck says an LFO counted from the song counts from a hit.
+	struck bool
+	// hits counts the hits, for HitsID.
+	hits  uint8
+	value plug.Meter
+	cycle plug.Meter
+	told  plug.Meter
 }
+
+// drawStep is how far a hit moves the random values on: more cycles
+// than an LFO runs.
+const drawStep = 1 << 32
 
 // Prepare implements [plug.Processor].
 func (p *processor) Prepare(s plug.Setup) {
@@ -401,17 +423,32 @@ func (p *processor) Prepare(s plug.Setup) {
 	if pt := p.pat.Load(); pt != nil {
 		p.s.pat = pt
 	}
-	p.cycles, p.lead, p.playing = 0, 0, false
+	p.cycles, p.lead, p.playing, p.struck = 0, 0, false, false
 }
 
 // Reset implements [plug.Processor]: an LFO counted from the play
 // starts its cycle again, and one counted from the song goes back to
 // where the song is.
-func (p *processor) Reset() {
+func (p *processor) Reset() { p.rejoin() }
+
+// rejoin starts the cycle of an LFO counted from the play again, and
+// puts one counted from the song back where the song is.
+func (p *processor) rejoin() {
 	if p.s.start == FromPlay {
 		p.cycles = 0
 	}
-	p.lead = 0
+	if p.s.start != FreeRunning {
+		p.s.draw = 0
+	}
+	p.lead, p.struck = 0, false
+}
+
+// strike starts the wave again for a hit.
+func (p *processor) strike() {
+	p.cycles, p.struck = 0, p.s.start == FromSong
+	p.s.draw += drawStep
+	p.hits++
+	p.told.Set(float64(p.hits))
 }
 
 // Latency implements [plug.Processor]: the LFO is never late.
@@ -428,23 +465,22 @@ func (p *processor) Report(id uint32) float64 {
 		return p.value.Get()
 	case CycleID:
 		return p.cycle.Get()
+	case HitsID:
+		return p.told.Get()
 	}
 	return 0
 }
 
-// Process implements [plug.Processor]: each change takes effect from its
-// frame on, and a new state from the block's start. The inputs,
-// unconnected, stand at 0.
+// Process implements [plug.Processor]: each change and each hit takes
+// effect from its frame on, and a new state from the block's start. The
+// inputs, unconnected, stand at 0.
 func (p *processor) Process(b *plug.Block) {
 	if pt := p.pat.Load(); pt != nil {
 		p.s.pat = pt
 	}
 	pos := b.Position
 	if pos.Playing && !p.playing {
-		if p.s.start == FromPlay {
-			p.cycles = 0
-		}
-		p.lead = 0
+		p.rejoin()
 	}
 	p.playing = pos.Playing
 	if pos.Still && !p.still {
@@ -459,11 +495,15 @@ func (p *processor) Process(b *plug.Block) {
 	for i := range ins {
 		ins[i] = b.ControlInput(i)
 	}
+	hits := b.ControlInput(RetriggerIn)
 	ci := 0
 	for f := range b.Frames {
 		for ci < len(b.Changes) && b.Changes[ci].Frame <= f {
 			p.s.take(b.Changes[ci].ID, b.Changes[ci].Value)
 			ci++
+		}
+		if hits != nil && hits[f] > 0 {
+			p.strike()
 		}
 		var m [4]float64
 		for i, in := range ins {
@@ -533,7 +573,7 @@ func (p *processor) perFrame(pos plug.Position, f, n int) float64 {
 // at returns the phase at frame f of a block n frames long at pos, in
 // cycles, before the Phase setting turns it.
 func (p *processor) at(pos plug.Position, f, n int) float64 {
-	if p.s.start != FromSong {
+	if p.s.start != FromSong || p.struck {
 		return p.cycles
 	}
 	if !p.s.sync {
@@ -591,7 +631,7 @@ func (s *settings) jitterAt(c float64) float64 {
 	if s.jitter == 0 {
 		return 0
 	}
-	return s.jitter * random(int64(math.Floor(c*jitterSteps)), s.seed+jitterSeed)
+	return s.jitter * random(int64(math.Floor(c*jitterSteps))+s.draw, s.seed+jitterSeed)
 }
 
 // area returns the area under the shape and its jitter from a cycles to
@@ -605,7 +645,7 @@ func (s *settings) area(a, b float64) float64 {
 	if s.jitter != 0 {
 		for k := math.Floor(a * jitterSteps); k < b*jitterSteps; k++ {
 			x0, x1 := max(a, k/jitterSteps), min(b, (k+1)/jitterSteps)
-			sum += s.jitter * random(int64(k), s.seed+jitterSeed) * (x1 - x0)
+			sum += s.jitter * random(int64(k)+s.draw, s.seed+jitterSeed) * (x1 - x0)
 		}
 	}
 	return sum
@@ -645,9 +685,9 @@ func (s *settings) shapeAt(c float64) float64 {
 		e := math.Exp(-expCurve)
 		return 2*(math.Exp(-expCurve*x)-e)/(1-e) - 1
 	case SampleHold:
-		return random(int64(n), s.seed)
+		return random(int64(n)+s.draw, s.seed)
 	case SmoothRandom:
-		a, b := random(int64(n), s.seed), random(int64(n)+1, s.seed)
+		a, b := random(int64(n)+s.draw, s.seed), random(int64(n)+s.draw+1, s.seed)
 		return a + (b-a)*x*x*(3-2*x)
 	case Steps:
 		return s.pat.step(x, s.glide)
@@ -692,9 +732,9 @@ func (s *settings) integral(n int64, x float64) float64 {
 		e := math.Exp(-expCurve)
 		return 2*(-math.Expm1(-expCurve*x)/expCurve-x*e)/(1-e) - x
 	case SampleHold:
-		return random(n, s.seed) * x
+		return random(n+s.draw, s.seed) * x
 	case SmoothRandom:
-		a, b := random(n, s.seed), random(n+1, s.seed)
+		a, b := random(n+s.draw, s.seed), random(n+s.draw+1, s.seed)
 		return a*x + (b-a)*(x*x*x-x*x*x*x/2)
 	case Steps:
 		return s.pat.stepsIntegral(x, s.glide)
