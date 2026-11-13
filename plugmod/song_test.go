@@ -146,10 +146,10 @@ func TestAFreeLFOFromTheSongHoldsAtTheSongsPlaceWhileItStandsStill(t *testing.T)
 
 // others plays every shape counted from the play and running free, free
 // and synced, stopped, then playing, then standing still, then on a
-// tempo ramp. song gives the song's frame for the host's, and tempo is
-// the tempo the host tells while stopped, 0 for none. It returns all the
-// LFO put out.
-func others(t *testing.T, tempo float64, song func(frame int64) int64) []float32 {
+// tempo ramp. The song's frame is apart frames on from the host's as it
+// starts, and holds while the song stands still. tempo is the tempo the
+// host tells while stopped, 0 for none. It returns all the LFO put out.
+func others(t *testing.T, tempo float64, apart int64) []float32 {
 	t.Helper()
 	var out []float32
 	for shape := range Shapes {
@@ -158,6 +158,7 @@ func others(t *testing.T, tempo float64, song func(frame int64) int64) []float32
 				ch := append(free(shape, start), changes(float64(SyncID), float64(sync), float64(NoteID), 14)...)
 				pr := prepared(t)
 				frame := int64(48000)
+				song := frame + apart
 				for i, part := range []plug.Position{
 					{Tempo: tempo},
 					{Playing: true, Tempo: 97, EndTempo: 97},
@@ -165,7 +166,7 @@ func others(t *testing.T, tempo float64, song func(frame int64) int64) []float32
 					{Playing: true, Tempo: 140, EndTempo: 150},
 				} {
 					for k := range 6 {
-						part.Frame, part.Song = frame, song(frame)
+						part.Frame, part.Song = frame, song
 						part.Beat = float64(frame) / rate * 2
 						bl := newBlock(64, part)
 						if i == 0 && k == 0 {
@@ -176,6 +177,9 @@ func others(t *testing.T, tempo float64, song func(frame int64) int64) []float32
 							out = append(out, o...)
 						}
 						frame += 64
+						if !part.Still {
+							song += 64
+						}
 					}
 				}
 			}
@@ -185,8 +189,7 @@ func others(t *testing.T, tempo float64, song func(frame int64) int64) []float32
 }
 
 func TestFromThePlayAndRunningFreeAreAsTheyWereToTheBit(t *testing.T) {
-	with := func(frame int64) int64 { return frame }
-	apart := func(frame int64) int64 { return 5_000_000 - 3*frame }
+	const with, apart = 0, 5_000_000
 	same(t, "with the song's frame apart from the host's", others(t, 97, apart), others(t, 97, with))
 	// A synced LFO whose host knows no tempo steps by the song's frame,
 	// so its last bits round by where the song is.

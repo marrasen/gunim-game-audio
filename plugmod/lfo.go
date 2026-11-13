@@ -117,7 +117,7 @@ const (
 // at the Phase setting on the hit's frame, with new values for the random
 // shapes and the jitter. An LFO counted from the song then counts from
 // the hit, running on while the song stands still, until the next Prepare
-// or Reset or until Position.Playing turns on.
+// or Reset, until Position.Playing turns on, or until the song jumps.
 const RetriggerIn = OffsetIn + 1
 
 // Where the phase counts from, by StartID's value.
@@ -138,14 +138,23 @@ const (
 	// as the input stops or the rate changes. The lead goes back to 0
 	// at each Prepare and Reset, and as Position.Playing turns on: so a
 	// play or a render is in step with the song as it starts.
+	//
+	// A jump of the song does the same, and ends a hit's hold on the
+	// LFO: a block whose Position.Song is not where the last block
+	// ended, as a loop wraps or a seek lands, playing or stopped. So
+	// every pass of a loop plays alike. A tempo edit while playing moves
+	// the song's frame too, and puts an LFO that was hit back on the
+	// song.
 	FromSong = iota
 	// FromPlay counts it from where the playing starts, or jumps to: as
-	// Position.Playing turns on, and at each Prepare and Reset. A render
-	// plays with Playing clear, so the host's Prepare or Reset as the
-	// render starts is what starts it there.
+	// Position.Playing turns on, at each Prepare and Reset, and at each
+	// jump of the song, as [FromSong] tells one. So the cycle starts
+	// again at every wrap of a loop, and at a tempo edit while playing.
+	// A render plays with Playing clear, so the host's Prepare or Reset
+	// as the render starts is what starts it there.
 	FromPlay
 	// FreeRunning counts it on from the first block, through stops and
-	// jumps.
+	// jumps, with the random values its hits moved it on to.
 	FreeRunning
 )
 
@@ -401,6 +410,9 @@ type processor struct {
 	playing bool
 	// struck says an LFO counted from the song counts from a hit.
 	struck bool
+	// next is the song's frame after the last block run, where placed says one ran.
+	next   int64
+	placed bool
 	// hits counts the hits, for HitsID.
 	hits  uint8
 	value plug.Meter
@@ -422,16 +434,20 @@ func (p *processor) Prepare(s plug.Setup) {
 	if pt := p.pat.Load(); pt != nil {
 		p.s.pat = pt
 	}
-	p.cycles, p.lead, p.playing, p.struck = 0, 0, false, false
+	p.cycles, p.lead, p.playing, p.struck, p.placed = 0, 0, false, false, false
 }
 
 // Reset implements [plug.Processor]: an LFO counted from the play
 // starts its cycle again, and one counted from the song goes back to
 // where the song is.
-func (p *processor) Reset() { p.rejoin() }
+func (p *processor) Reset() {
+	p.rejoin()
+	p.placed = false
+}
 
 // rejoin starts the cycle of an LFO counted from the play again, and
-// puts one counted from the song back where the song is.
+// puts one counted from the song back where the song is, with the seed's
+// random values for both.
 func (p *processor) rejoin() {
 	if p.s.start == FromPlay {
 		p.cycles = 0
@@ -482,6 +498,14 @@ func (p *processor) Process(b *plug.Block) {
 		p.rejoin()
 	}
 	p.playing = pos.Playing
+	// A block that starts off the last one's end comes after the playhead jumped, as a loop wraps or a seek lands.
+	if p.placed && pos.Song != p.next {
+		p.rejoin()
+	}
+	p.next, p.placed = pos.Song, true
+	if !pos.Still {
+		p.next += int64(b.Frames)
+	}
 	var outs [4][]float32
 	for i := range outs {
 		outs[i] = b.ControlOutput(i)
