@@ -352,7 +352,7 @@ func TestAnLFOCountedFromThePlayStartsAsThePlayingDoes(t *testing.T) {
 	ch := changes(float64(ShapeID), Saw, float64(SyncID), 0, float64(RateID), 10, float64(StartID), FromPlay)
 	at := int64(5000)
 	block := func(playing bool, c []plug.Change) []float32 {
-		bl := newBlock(100, plug.Position{Frame: at, Playing: playing, Tempo: 120})
+		bl := newBlock(100, plug.Position{Frame: at, Song: at, Playing: playing, Tempo: 120})
 		bl.b.Changes = c
 		pr.Process(&bl.b)
 		at += 100
@@ -377,7 +377,7 @@ func TestAnLFOCountedFromThePlayStartsAsThePlayingDoes(t *testing.T) {
 		t.Errorf("after a jump, the saw starts at %v, want -1", again[0])
 	}
 	// One free-running starts nowhere new.
-	pr.Process(&plug.Block{Frames: 1, Changes: changes(float64(StartID), FreeRunning), Position: plug.Position{Frame: at}})
+	pr.Process(&plug.Block{Frames: 1, Changes: changes(float64(StartID), FreeRunning), Position: plug.Position{Frame: at, Song: at}})
 	at++
 	block(false, nil)
 	pr.Reset()

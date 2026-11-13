@@ -410,7 +410,7 @@ var (
 	}
 	syncTips  = []string{"A rate in hertz, of its own", "A note value of the song's tempo"}
 	startTips = []string{"From the song's start, so it is in the same place each play",
-		"From where the play starts", "On and on, through stops and jumps"}
+		"From where the play starts, and again where the song jumps, as a loop wraps", "On and on, through stops and jumps"}
 	polarityTips = []string{"From -1 to 1, about the parameter's value", "From 0 to 1, up from the parameter's value"}
 )
 
