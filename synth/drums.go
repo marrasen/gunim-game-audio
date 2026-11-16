@@ -357,7 +357,7 @@ func (h *hit) render(l, r []float32, carry bool) {
 			if h.t%control == 0 && h.t > 0 {
 				h.head.retune()
 			}
-			h.hz = h.head.hz[0] * (1 + h.head.bend)
+			h.hz = h.head.hz[0] * h.head.up
 			s = h.head.step(h.t, h.noise)
 		case drModalHat, drModalOHat, drModalCrash, drModalRide, drTR909Hat, drTR909OHat, drTR909Crash, drTR909Ride:
 			if h.t%control == 0 && h.t > 0 {

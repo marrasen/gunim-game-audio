@@ -2286,5 +2286,13 @@
 	"kit/tr9sn/v0/m0": "19eec48f22f0c595",
 	"kit/tr9sn/v0/m1": "892af051007789",
 	"kit/tr9sn/v1/m0": "de0a28c2ae9a61c1",
-	"kit/tr9sn/v1/m1": "abc040e5b7443ce5"
+	"kit/tr9sn/v1/m1": "abc040e5b7443ce5",
+	"seq/[bd sn bd tr8bd sdssn]": "47103e119eaedab5",
+	"seq/[mbd mbd]": "5fb347a68164a769",
+	"seq/[mmt mmt mmt]": "35c453e89040a371",
+	"seq/[moh mhh]": "436caa0c2b5c51f5",
+	"seq/[msn msn]": "aa4371629c324441",
+	"seq/[oh hh oh]": "1290cf4518557ad1",
+	"seq/[tr8oh tr8hh]": "2f464e0b0229eb6d",
+	"seq/[tr9oh tr9hh tr9oh]": "7af06c626648e3cd"
 }

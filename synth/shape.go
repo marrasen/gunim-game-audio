@@ -87,7 +87,8 @@ func ShapeOf(d Drum, name string, vel float64) (DrumShape, error) {
 		}
 		return peaks, hz
 	}
-	_, sh.Pitch = follow(0, dk.pitch)
+	whole, hz := follow(0, dk.pitch)
+	sh.Pitch = hz
 	// A chip drum strikes with noise before its tone sounds: its pitch
 	// is its tone's from the start.
 	if i := slices.IndexFunc(sh.Pitch, func(f float32) bool { return f > 0 }); i > 0 {
@@ -95,9 +96,20 @@ func ShapeOf(d Drum, name string, vel float64) (DrumShape, error) {
 			sh.Pitch[j] = sh.Pitch[i]
 		}
 	}
-	sh.Body, _ = follow(partNoise|partClick, false)
-	sh.Noise, _ = follow(partBody|partClick, false)
-	sh.Click, _ = follow(partBody|partNoise, false)
+	switch p := wholePart(k); p {
+	case 0:
+		sh.Body, _ = follow(partNoise|partClick, false)
+		sh.Noise, _ = follow(partBody|partClick, false)
+		sh.Click, _ = follow(partBody|partNoise, false)
+	default:
+		// A drum whose sound is not split into parts is all one.
+		sh.Body, sh.Noise, sh.Click = make([]float32, len(whole)), make([]float32, len(whole)), make([]float32, len(whole))
+		if p == partBody {
+			sh.Body = whole
+		} else {
+			sh.Noise = whole
+		}
+	}
 	sh.Partials = partialsOf(&dr)
 	if isChipDrum(k) {
 		_, fps := chipDrum(k)
@@ -108,6 +120,19 @@ func ShapeOf(d Drum, name string, vel float64) (DrumShape, error) {
 		sh.Step = fps / max(dec, 0.1)
 	}
 	return sh, nil
+}
+
+// wholePart returns the part a drum kind's whole sound counts as, where
+// its sound is not split into body, noise and click, or 0 where it is.
+func wholePart(k int) partMask {
+	switch k {
+	case drClap, drShaker, drSnap, drRiser, drDown, drTR808Clap, drTR909Clap, drTR808Maracas:
+		return partNoise
+	case drTimpani, drCowbell, drTR808Conga, drTR808Rim, drTR808Clave, drTR808Cowbell, drTR808Hat, drTR808OHat,
+		drTR808Cymbal, drTR909Rim:
+		return partBody
+	}
+	return 0
 }
 
 // partialsOf returns the partials of metal drum dr, as its hit rings

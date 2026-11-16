@@ -47,21 +47,30 @@ func goldenHits(t *testing.T) map[string]string {
 					hs.play(d, vel, 0, 40, rate/2, 0)
 					l, r := make([]float32, rate), make([]float32, rate)
 					hs.render(l, r, true)
-					h := fnv.New64a()
-					for i := range l {
-						var b [8]byte
-						lb, rb := math.Float32bits(l[i]), math.Float32bits(r[i])
-						for j := range 4 {
-							b[j], b[4+j] = byte(lb>>(8*j)), byte(rb>>(8*j))
-						}
-						h.Write(b[:])
-					}
-					out[fmt.Sprintf("%s/%s/v%d/m%d", kit, n, vi, ki)] = strconv.FormatUint(h.Sum64(), 16)
+					out[fmt.Sprintf("%s/%s/v%d/m%d", kit, n, vi, ki)] = hashLR(l, r)
 				}
 			}
 		}
 	}
 	add("kit", &Patch{Kind: "drums"})
+	// A modelled drum struck again as it rings, and open hats choked by
+	// closed ones, a hit taken from the pool for each.
+	c, err := (&Patch{Kind: "drums"}).compile("kit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, seq := range [][]string{{"mbd", "mbd"}, {"mmt", "mmt", "mmt"}, {"msn", "msn"}, {"oh", "hh", "oh"},
+		{"moh", "mhh"}, {"tr8oh", "tr8hh"}, {"tr9oh", "tr9hh", "tr9oh"}, {"bd", "sn", "bd", "tr8bd", "sdssn"}} {
+		hs := newHits(2)
+		l, r := make([]float32, rate), make([]float32, rate)
+		step := rate / 10
+		for i, n := range seq {
+			hs.play(c.kit[n], 0.6+0.2*float32(i%3), 0, 40, rate/2, 0)
+			hs.render(l[i*step:(i+1)*step], r[i*step:(i+1)*step], true)
+		}
+		hs.render(l[len(seq)*step:], r[len(seq)*step:], true)
+		out["seq/"+fmt.Sprint(seq)] = hashLR(l, r)
+	}
 	for _, k := range []int{0, 24, 25} {
 		add("gm"+strconv.Itoa(k), GMKit(k))
 	}
@@ -103,4 +112,18 @@ func TestEveryDrumSoundsAsItDidBeforeTheDeepSettings(t *testing.T) {
 	if bad > 0 {
 		t.Errorf("%d of %d drum sounds differ", bad, len(want))
 	}
+}
+
+// hashLR hashes a stereo sound, bit for bit.
+func hashLR(l, r []float32) string {
+	h := fnv.New64a()
+	for i := range l {
+		var b [8]byte
+		lb, rb := math.Float32bits(l[i]), math.Float32bits(r[i])
+		for j := range 4 {
+			b[j], b[4+j] = byte(lb>>(8*j)), byte(rb>>(8*j))
+		}
+		h.Write(b[:])
+	}
+	return strconv.FormatUint(h.Sum64(), 16)
 }

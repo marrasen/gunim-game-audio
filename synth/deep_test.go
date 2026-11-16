@@ -205,3 +205,31 @@ func TestShapeOfAnUnknownDrumFails(t *testing.T) {
 		t.Error("a kazoo has a shape; want an error")
 	}
 }
+
+func TestEachSplitDrumIsSilentWithEveryPartMuted(t *testing.T) {
+	// Every part of a drum's sound must answer its mute, or its shape
+	// would show a part that is not alone.
+	c, err := (&Patch{Kind: "drums"}).compile("kit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[int]bool{}
+	for _, name := range sortedKeys(drumNames) {
+		d := c.kit[name]
+		if seen[d.kind] || wholePart(d.kind) != 0 {
+			continue
+		}
+		seen[d.kind] = true
+		d.mute = partBody | partNoise | partClick
+		hs := newHits(1)
+		hs.play(d, 1, 0, 40, rate/2, 0)
+		l, r := make([]float32, rate/2), make([]float32, rate/2)
+		hs.render(l, r, true)
+		for i := range l {
+			if l[i] != 0 || r[i] != 0 {
+				t.Errorf("%s (%s) sounds at frame %d with every part muted", name, d.Type, i)
+				break
+			}
+		}
+	}
+}

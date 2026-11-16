@@ -62,6 +62,8 @@ type membrane struct {
 	// control step, pulse how many frames the stick touches the drum, at the frame it last struck, force how hard,
 	// and drive how hard it drives the output.
 	bend, settle float32
+	// up is how far the stretch raised the pitch at the last retune.
+	up           float32
 	pulse, at    int64
 	force, drive float32
 	// slap filters noise into the drum's slap, which is as loud as level and keeps fade of itself a frame.
@@ -183,6 +185,7 @@ func (m *membrane) soften(k float32) {
 // hearing are let go.
 func (m *membrane) retune() {
 	up := 1 + m.bend
+	m.up = up
 	m.bend *= m.settle
 	for i := range m.n {
 		w := 2 * math.Pi * float64(m.hz[i]*up) / rate
