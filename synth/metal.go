@@ -98,7 +98,12 @@ type plate struct {
 	clickLevel float32
 	// gain sets how loud it is, and crush the step it is cut to, as a share of its bands' envelopes.
 	gain, crush float32
+	// nm sets how loud its bands' noise is, against its metal.
+	nm float32
 }
+
+// cymCentre is the middle of a modelled cymbal's partials, in pitch, which Spread moves them from or to.
+const cymCentre = 2121.32
 
 // start strikes the cymbal of hit h, of kind k, tuned by tune, as hard and as bright as vel and tone say, ringing for
 // decay times its own length.
@@ -118,7 +123,11 @@ func (m *plate) start(h *hit, k int, tune, tone, decay float32) {
 	}
 	m.np = 0
 	for _, p := range cymPartials {
-		w := 2 * math.Pi * float64(p.hz*tune*jitter(0.003)) / rate
+		hz := p.hz
+		if h.dp.spread != 1 {
+			hz = cymCentre * float32(math.Pow(float64(hz/cymCentre), float64(h.dp.spread)))
+		}
+		w := 2 * math.Pi * float64(hz*tune*jitter(0.003)) / rate
 		if w > 0.85*math.Pi {
 			continue
 		}
@@ -130,14 +139,20 @@ func (m *plate) start(h *hit, k int, tune, tone, decay float32) {
 		m.pl[i] = p.lvl * jitter(0.1)
 		m.pb[i] = uint8(p.band)
 	}
-	m.metal = cy.metal
+	m.metal = cy.metal * h.dp.bm
+	m.nm = h.dp.nm
 	m.splash, m.splashKeep = cy.splash*h.vel, 0
 	if cy.splashRing > 0 {
 		m.splashKeep = float32(math.Exp(-1 / (float64(cy.splashRing*decay) * rate)))
 	}
 	m.click.reset()
-	m.click.set(cy.clickHz*tune, 0.4)
-	m.clickLevel = 20 * cy.click * h.vel * h.vel
+	click, clickHz := cy.click*h.dp.cm, cy.clickHz
+	if cy.click == 0 && h.d.Click > 0 && h.dp.cm != 0 {
+		// A cymbal with no click of its own gains one as Click rises.
+		click, clickHz = 0.3*float32(min(h.d.Click, 1)), 6000
+	}
+	m.click.set(clickHz*tune, 0.4)
+	m.clickLevel = 20 * click * h.vel * h.vel
 	m.gain = cy.gain
 	m.crush = cy.crush * cy.gain
 }
@@ -184,7 +199,7 @@ func (m *plate) step(t int64, noise *rng) float32 {
 		m.b[b] *= m.kb[b]
 		if !m.bandOff[b] {
 			_, bp, _ := m.band[b].step(n)
-			s += bp * env[b]
+			s += bp * env[b] * m.nm
 		}
 	}
 	m.splash *= m.splashKeep

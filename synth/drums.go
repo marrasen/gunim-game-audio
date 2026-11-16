@@ -48,6 +48,13 @@ type hit struct {
 	head membrane
 	cym  plate
 	cc   circuit
+	// dp is how the drum's deep settings change the hit, and mf the
+	// frequencies of its metal, spread as they say.
+	dp deep
+	mf [6]float32
+	// hz is the pitch it sounds at now, where it has one, for
+	// [DrumShape] to follow.
+	hz float32
 }
 
 // decay starts envelope i falling from 1 to 1/e over tau seconds.
@@ -60,6 +67,15 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 	*h = hit{on: true, d: d, vel: vel, pan: pan + float32(d.Pan), pitch: pitch, dur: dur, age: age, noise: h.noise, fade: 1, tune: tune}
 	if h.noise == nil {
 		h.noise = newRand(age*31 + 7)
+	}
+	h.dp = deepOf(&d, vel)
+	switch d.kind {
+	case drCowbell, drTR808Cowbell:
+		spreadOf(h.mf[:2], cowbellHz[:], h.dp.spread)
+	case drMetal:
+		spreadOf(h.mf[:], metalRatios[:], h.dp.spread)
+	default:
+		spreadOf(h.mf[:], metal[:], h.dp.spread)
 	}
 	tone := float32(d.Tone)
 	decay := float32(d.Decay)
@@ -187,7 +203,15 @@ func (h *hit) start(d drum, vel, pan, pitch float32, dur int64, tune float32, ag
 	if isCircuit(d.kind) {
 		h.circuitStart(exp2((float32(d.Tune)+tune)/12), tone, decay)
 	}
+	if dk := deepKinds[d.kind]; dk.reads&FieldSweepTime != 0 && !isModal(d.kind) {
+		if st := sweepTime(&d.Drum); st != 1 {
+			h.mul[dk.pe] = float32(math.Pow(float64(h.mul[dk.pe]), 1/float64(st)))
+		}
+	}
 }
+
+// cowbellHz are the two squares a TR-808's cowbell rings with.
+var cowbellHz = [2]float32{540, 800}
 
 // render adds the hit's sound to l and r. With carry it ends on the
 // first control step's edge past its end, wherever the call's edges
@@ -204,12 +228,13 @@ func (h *hit) render(l, r []float32, carry bool) {
 		var s float32
 		switch d.kind {
 		case drKick:
-			f := (46 + 110*e[0]) * tune
+			f := (46 + 110*e[0]*h.dp.sk) * tune
+			h.hz = f
 			h.ph[0] += f / rate
 			if h.ph[0] >= 1 {
 				h.ph[0]--
 			}
-			s = sin1(h.ph[0])*e[1] + h.noise.bipolar()*e[2]*(0.25+0.5*tone)
+			s = sin1(h.ph[0])*e[1]*h.dp.bm + h.noise.bipolar()*e[2]*(0.25+0.5*tone)*h.dp.cm
 			s = softClip(s * 1.6)
 		case drSnare:
 			h.ph[0] += 185 * tune / rate
@@ -218,7 +243,7 @@ func (h *hit) render(l, r []float32, carry bool) {
 			h.ph[1] -= float32(int(h.ph[1]))
 			body := (sin1(h.ph[0]) + 0.6*sin1(h.ph[1])) * e[0] * 0.6
 			_, _, hp := h.f1.step(h.noise.bipolar())
-			s = body + hp*e[1]*0.85
+			s = body*h.dp.bm + hp*e[1]*0.85*h.dp.nm
 		case drClap:
 			// Four bursts a hundredth of a second apart, then the tail.
 			if h.t < 4*clapGap && h.t%clapGap == 0 {
@@ -234,19 +259,20 @@ func (h *hit) render(l, r []float32, carry bool) {
 			s = bp * a * 2.4
 		case drHat, drOHat:
 			m := h.metal(1.55 * tune)
-			m = m/6 + 0.35*h.noise.bipolar()
+			m = m/6*h.dp.bm + 0.35*h.noise.bipolar()*h.dp.nm
 			_, bp, _ := h.f1.step(m)
 			s = h.hp.hp(bp) * e[0] * 4
 		case drRim:
 			h.ph[0] += 1700 * tune / rate
 			h.ph[0] -= float32(int(h.ph[0]))
 			_, bp, _ := h.f1.step(h.noise.bipolar())
-			s = (sin1(h.ph[0])*0.6 + bp) * e[0]
+			s = (sin1(h.ph[0])*0.6*h.dp.bm + bp*h.dp.nm) * e[0]
 		case drTom:
-			f := 125 * tune * (1 + 0.55*e[0])
+			f := 125 * tune * (1 + 0.55*e[0]*h.dp.sk)
+			h.hz = f
 			h.ph[0] += f / rate
 			h.ph[0] -= float32(int(h.ph[0]))
-			s = sin1(h.ph[0])*e[1] + h.noise.bipolar()*e[2]*0.2
+			s = sin1(h.ph[0])*e[1]*h.dp.bm + h.noise.bipolar()*e[2]*0.2*h.dp.cm
 			s = softClip(s * 1.3)
 		case drCrash, drRide:
 			m := h.metal(2.3 * tune)
@@ -254,7 +280,7 @@ func (h *hit) render(l, r []float32, carry bool) {
 			if d.kind == drRide {
 				noise = 0.25
 			}
-			m = m/6*(1.2-noise) + noise*h.noise.bipolar()
+			m = m/6*(1.2-noise)*h.dp.bm + noise*h.noise.bipolar()*h.dp.nm
 			_, bp, _ := h.f1.step(m)
 			s = h.hp.hp(bp+m*0.3) * e[0] * 2.6
 		case drShaker:
@@ -271,26 +297,28 @@ func (h *hit) render(l, r []float32, carry bool) {
 		case drTimpani:
 			s = h.timpani(tune)
 		case drBoom:
-			f := (36 + 90*e[0]) * tune
+			f := (36 + 90*e[0]*h.dp.sk) * tune
+			h.hz = f
 			h.ph[0] += f / rate
 			h.ph[0] -= float32(int(h.ph[0]))
 			lp, _, _ := h.f1.step(h.noise.bipolar())
-			s = sin1(h.ph[0])*e[1] + lp*e[2]*0.9
+			s = sin1(h.ph[0])*e[1]*h.dp.bm + lp*e[2]*0.9*h.dp.nm
 			s = softClip(s * 1.4)
 		case drSynTom:
 			// A Simmons SDS-V's tom: a triangle bending down from twice
 			// its pitch, noise through a lowpass, and the stick's click.
-			f := 110 * tune * (1 + e[0])
+			f := 110 * tune * (1 + e[0]*h.dp.sk)
+			h.hz = f
 			h.ph[0] += f / rate
 			h.ph[0] -= float32(int(h.ph[0]))
 			lp, _, _ := h.f1.step(h.noise.bipolar())
-			s = (1-4*abs32(h.ph[0]-0.5))*e[1] + lp*e[2]*(0.4+0.6*tone) + h.noise.bipolar()*e[3]*0.5
+			s = (1-4*abs32(h.ph[0]-0.5))*e[1]*h.dp.bm + lp*e[2]*(0.4+0.6*tone)*h.dp.nm + h.noise.bipolar()*e[3]*0.5*h.dp.cm
 			s = softClip(s * 1.4)
 		case drCowbell:
 			// A TR-808's cowbell: squares at 540 and 800 Hz, through a
 			// bandpass, with a sharp strike and a short ring.
 			var m float32
-			for k, f := range [2]float32{540, 800} {
+			for k, f := range h.mf[:2] {
 				h.ph[k] += f * tune / rate
 				h.ph[k] -= float32(int(h.ph[k]))
 				if h.ph[k] < 0.5 {
@@ -305,11 +333,12 @@ func (h *hit) render(l, r []float32, carry bool) {
 			// A TR-909's kick: a sine falling fast from four times its
 			// pitch, a little squared by its shaper, and the click of
 			// its attack.
-			f := 52 * tune * (1 + 3*e[0])
+			f := 52 * tune * (1 + 3*e[0]*h.dp.sk)
+			h.hz = f
 			h.ph[0] += f / rate
 			h.ph[0] -= float32(int(h.ph[0]))
 			_, _, hp := h.f1.step(h.noise.bipolar())
-			s = softClip(sin1(h.ph[0])*e[1]*1.8) + hp*e[2]*(0.4+0.5*tone)
+			s = softClip(sin1(h.ph[0])*e[1]*1.8*h.dp.bm) + hp*e[2]*(0.4+0.5*tone)*h.dp.cm
 		case drMetal:
 			s = h.metalHit(tune, tone)
 		case drTambourine:
@@ -319,7 +348,7 @@ func (h *hit) render(l, r []float32, carry bool) {
 			if h.t < 3*tambGap && h.t%tambGap == 0 {
 				e[0] = 1
 			}
-			m := h.metal(4.2*tune)/6 + 0.6*h.noise.bipolar()
+			m := h.metal(4.2*tune)/6*h.dp.bm + 0.6*h.noise.bipolar()*h.dp.nm
 			_, bp, _ := h.f1.step(m)
 			s = h.hp.hp(bp) * (e[0] + 0.55*e[1]) * 3.2
 		case drRiser, drDown:
@@ -328,6 +357,7 @@ func (h *hit) render(l, r []float32, carry bool) {
 			if h.t%control == 0 && h.t > 0 {
 				h.head.retune()
 			}
+			h.hz = h.head.hz[0] * h.head.up
 			s = h.head.step(h.t, h.noise)
 		case drModalHat, drModalOHat, drModalCrash, drModalRide, drTR909Hat, drTR909OHat, drTR909Crash, drTR909Ride:
 			if h.t%control == 0 && h.t > 0 {
@@ -429,7 +459,7 @@ const (
 // returns their sum, from -6 to 6.
 func (h *hit) metal(mul float32) float32 {
 	var m float32
-	for k, f := range metal {
+	for k, f := range h.mf {
 		h.ph[k] += f * mul / rate
 		h.ph[k] -= float32(int(h.ph[k]))
 		if h.ph[k] < 0.5 {
@@ -457,7 +487,7 @@ var (
 func (h *hit) metalHit(tune, tone float32) float32 {
 	f := 330 * tune
 	var s float32
-	for k, r := range metalRatios {
+	for k, r := range h.mf {
 		h.ph[k] += f * r / rate
 		h.ph[k] -= float32(int(h.ph[k]))
 		lv := metalLevels[k]
@@ -467,7 +497,7 @@ func (h *hit) metalHit(tune, tone float32) float32 {
 		s += sin1(h.ph[k]) * lv * h.env[k]
 	}
 	_, bp, _ := h.f1.step(h.noise.bipolar())
-	return softClip((s*0.45 + bp*h.env[6]*1.5) * 1.2)
+	return softClip((s*0.45*h.dp.bm + bp*h.env[6]*1.5*h.dp.cm) * 1.2)
 }
 
 // timpani is a kettledrum, tuned to its note: a membrane's partials,

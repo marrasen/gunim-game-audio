@@ -265,6 +265,27 @@ type Drum struct {
 	// the drum's own for either.
 	Strike float64 `json:",omitempty"`
 	Bend   float64 `json:",omitempty"`
+	// The deep settings. Each is 0 for the drum's own sound, so a kit
+	// that leaves them sounds as it always has; [DrumShape] says which a
+	// drum reads.
+	//
+	// Sweep moves how far its pitch dives as it is struck, in octaves,
+	// from -2 to 2, added to the drum's own dive; SweepTime stretches how
+	// long the dive takes, from 0.25 to 4, 1 for its own.
+	Sweep     float64 `json:",omitempty"`
+	SweepTime float64 `json:",omitempty"`
+	// Click turns the strike's click down, to none at -1, or up, to four
+	// times at 1; a drum that has no click of its own gains one as Click
+	// rises past 0.
+	Click float64 `json:",omitempty"`
+	// Noise leans its sound towards its noise, up to 1, or towards its
+	// body, down to -1: the noise four times as loud at 1 and the body
+	// half, and the other way at -1.
+	Noise float64 `json:",omitempty"`
+	// Spread moves a metal drum's partials apart, up to 1, or together,
+	// down to -1, round the middle of them: at 1 each stands twice as far
+	// from the middle in pitch, at -1 half as far.
+	Spread float64 `json:",omitempty"`
 	// Key is the note a SoundFont kit plays it on, where its patch names
 	// a bank: 0 takes General MIDI's for its name, as 36 for bd, or, for
 	// a drum named by a number, as GMKit's are, that note.
@@ -504,6 +525,9 @@ const (
 
 type drum struct {
 	Drum
+	// mute silences parts of its sound, for [ShapeOf] to hear each
+	// part alone.
+	mute partMask
 	// name is the drum's name in its kit, as bd.
 	name string
 	kind int
