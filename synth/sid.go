@@ -155,7 +155,20 @@ func (h *hit) sidDrum(tune, decay, tone float32) float32 {
 		return 0
 	}
 	f := frames[i]
-	hz := float32(noteHz(float64(f.note))) * tune
+	note, vol := f.note, f.vol
+	if f.wave == sfNoise || f.wave == sfNESNoise || f.wave == sfNESMetal {
+		vol *= h.dp.nm
+	} else {
+		vol *= h.dp.bm
+		if h.dp.sk != 1 {
+			// Sweep moves how far the tone falls to its last note.
+			note = h.dp.note + (note-h.dp.note)*h.dp.sk
+		}
+	}
+	hz := float32(noteHz(float64(note))) * tune
+	if isTonal(f) {
+		h.hz = hz
+	}
 	h.ph[0] += hz / rate
 	h.ph[0] -= float32(int(h.ph[0]))
 	var s float32
@@ -177,7 +190,7 @@ func (h *hit) sidDrum(tune, decay, tone float32) float32 {
 	}
 	// The level glides a little between frames, as the SID's envelope
 	// does, so the steps do not click.
-	h.sidVol += (f.vol - h.sidVol) * 0.02
+	h.sidVol += (vol - h.sidVol) * 0.02
 	return s * h.sidVol * 0.8
 }
 

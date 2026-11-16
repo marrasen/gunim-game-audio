@@ -888,7 +888,7 @@ func (e *patchEditor) kitCards() []*plugui.Section {
 		if t := e.pt.Kit[name].Type; t != "" {
 			title += " · " + t
 		}
-		out = append(out, e.card(title,
+		specs := []knobSpec{
 			knobSpec{prm: plug.Param{Name: "Tune", Min: -24, Max: 24, Format: semis}, get: func(pt *synth.Patch) float64 { return d(pt).Tune },
 				set: func(pt *synth.Patch, v float64) { set(func(x *synth.Drum) { x.Tune = v })(pt, v) }},
 			knobSpec{prm: plug.Param{Name: "Decay", Min: 0.25, Max: 4, Default: 1, Log: true, Format: times}, get: func(pt *synth.Patch) float64 { return or(d(pt).Decay, 1) },
@@ -898,7 +898,33 @@ func (e *patchEditor) kitCards() []*plugui.Section {
 			knobSpec{prm: plug.Param{Name: "Gain", Max: 2, Default: 1}, get: func(pt *synth.Patch) float64 { return or(d(pt).Gain, 1) },
 				set: func(pt *synth.Patch, v float64) { set(func(x *synth.Drum) { x.Gain = v })(pt, v) }},
 			knobSpec{prm: plug.Param{Name: "Pan", Min: -1, Max: 1, Format: pan}, get: func(pt *synth.Patch) float64 { return d(pt).Pan },
-				set: func(pt *synth.Patch, v float64) { set(func(x *synth.Drum) { x.Pan = v })(pt, v) }}))
+				set: func(pt *synth.Patch, v float64) { set(func(x *synth.Drum) { x.Pan = v })(pt, v) }},
+		}
+		// The deep settings, those the drum reads.
+		reads := synth.DrumReads(e.pt.Kit[name], name)
+		if reads&synth.FieldSweep != 0 {
+			specs = append(specs, knobSpec{prm: plug.Param{Name: "Sweep", Min: -2, Max: 2, Format: octaves}, get: func(pt *synth.Patch) float64 { return d(pt).Sweep },
+				set: func(pt *synth.Patch, v float64) { set(func(x *synth.Drum) { x.Sweep = v })(pt, v) }})
+		}
+		if reads&synth.FieldSweepTime != 0 {
+			specs = append(specs, knobSpec{prm: plug.Param{Name: "Sweep time", Min: 0.25, Max: 4, Default: 1, Log: true, Format: times}, get: func(pt *synth.Patch) float64 { return or(d(pt).SweepTime, 1) },
+				set: func(pt *synth.Patch, v float64) { set(func(x *synth.Drum) { x.SweepTime = v })(pt, v) }})
+		}
+		for _, f := range []struct {
+			field synth.DrumFields
+			name  string
+			at    func(*synth.Drum) *float64
+		}{
+			{synth.FieldClick, "Click", func(x *synth.Drum) *float64 { return &x.Click }},
+			{synth.FieldNoise, "Noise", func(x *synth.Drum) *float64 { return &x.Noise }},
+			{synth.FieldSpread, "Spread", func(x *synth.Drum) *float64 { return &x.Spread }},
+		} {
+			if reads&f.field != 0 {
+				specs = append(specs, knobSpec{prm: plug.Param{Name: f.name, Min: -1, Max: 1}, get: func(pt *synth.Patch) float64 { x := d(pt); return *f.at(&x) },
+					set: func(pt *synth.Patch, v float64) { set(func(x *synth.Drum) { *f.at(x) = v })(pt, v) }})
+			}
+		}
+		out = append(out, e.card(title, specs...))
 	}
 	return out
 }

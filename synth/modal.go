@@ -70,15 +70,20 @@ type membrane struct {
 	// click filters noise into the stick's click, as loud as clickLevel.
 	click      svf
 	clickLevel float32
+	// clickMore is the click Click adds past the drum's own, heard after
+	// the squash, so a squashed drum's click can still rise.
+	clickMore float32
 	// buzz filters noise into the buzz, as loud as buzzLevel times follow, which follows how loud the drum rings and
 	// keeps fall of itself a frame, with rattle of it pulsing with the head's swing instead.
 	buzz                            svf
 	buzzLevel, follow, fall, rattle float32
 	// squash is how hard the whole sound is squashed, hp highpasses it where hasHP says, and gain sets how loud it is.
 	squash float32
-	hp     svf
-	hasHP  bool
-	gain   float32
+	// bm sets how loud its ringing is, against its noises.
+	bm    float32
+	hp    svf
+	hasHP bool
+	gain  float32
 }
 
 // start strikes the drum of hit h, of kind k, tuned by tune, as hard and as bright as vel and tone say, ringing for
@@ -86,8 +91,8 @@ type membrane struct {
 func (m *membrane) start(h *hit, k int, tune, tone, decay float32) {
 	hd := heads[k]
 	jitter := func(x float32) float32 { return 1 + x*float32(2*h.noise.float()-1) }
-	m.settle = float32(math.Exp(-control / (float64(hd.settle) * rate)))
-	m.drive = hd.drive
+	m.settle = float32(math.Exp(-control / (float64(hd.settle*sweepTime(&h.d.Drum)) * rate)))
+	m.drive, m.bm = hd.drive, h.dp.bm
 	m.n = len(membraneModes)
 	for i, md := range membraneModes {
 		ratio := float32(md.zero / membraneModes[0].zero)
@@ -98,7 +103,7 @@ func (m *membrane) start(h *hit, k int, tune, tone, decay float32) {
 	m.slap.reset()
 	m.fade = float32(math.Exp(-1 / (float64(hd.slapRing) * rate)))
 	m.buzz.reset()
-	m.buzzLevel, m.follow, m.rattle = hd.buzz, 0, hd.rattle
+	m.buzzLevel, m.follow, m.rattle = hd.buzz*h.dp.nm, 0, hd.rattle
 	m.fall = followFall
 	if hd.buzzRing > 0 {
 		m.fall = float32(math.Exp(-1 / (float64(hd.buzzRing) * rate)))
@@ -129,7 +134,12 @@ func (m *membrane) strike(h *hit, k int, tone, vel, force float32, at int64) {
 	if h.d.Bend > 0 {
 		bend = float32(h.d.Bend)
 	}
-	m.bend = max(m.bend, bend*vel*vel)
+	bend = bend * vel * vel
+	if h.d.Sweep != 0 {
+		// Sweep moves how far, in octaves, the strike raises the pitch.
+		bend = max((1+bend)*float32(math.Exp2(clamp64(h.d.Sweep, -2, 2)))-1, 0)
+	}
+	m.bend = max(m.bend, bend)
 	var top float32
 	for i, md := range membraneModes {
 		m.amp[i] = float32(math.Abs(math.Jn(md.order, md.zero*float64(strike)))) * jitter(0.05)
@@ -142,10 +152,19 @@ func (m *membrane) strike(h *hit, k int, tone, vel, force float32, at int64) {
 	m.pulse, m.at, m.force = max(int64(contact*rate), 2), at, force
 	bright := (0.7 + 0.6*tone) * (0.8 + 0.4*vel)
 	m.slap.set(hd.slapHz*bright, 0.3)
-	m.level = max(m.level, hd.slap*vel*force)
+	m.level = max(m.level, hd.slap*vel*force*h.dp.nm)
 	m.buzz.set(hd.buzzHz*bright, 0.2)
-	m.click.set(hd.clickHz*bright, 0.4)
-	m.clickLevel = 20 * hd.click * vel * vel * force
+	click, clickHz := hd.click*min(h.dp.cm, 1), hd.clickHz
+	m.clickMore = 0
+	if h.dp.cm > 1 && hd.click > 0 {
+		m.clickMore = (h.dp.cm - 1) * 0.8 * vel * vel * force
+	}
+	if hd.click == 0 && h.d.Click > 0 && h.dp.cm != 0 {
+		// A drum with no click of its own gains one as Click rises.
+		click, clickHz = 1.5*float32(min(h.d.Click, 1)), 4000
+	}
+	m.click.set(clickHz*bright, 0.4)
+	m.clickLevel = 20 * click * vel * vel * force
 	m.retune()
 }
 
@@ -211,20 +230,26 @@ func (m *membrane) step(t int64, noise *rng) float32 {
 		s += m.im[i]
 	}
 	s = softClip(s * m.drive)
+	body := s
+	s *= m.bm
 	if m.buzzLevel > 0 {
-		m.follow = max(m.follow*m.fall, abs32(s))
+		m.follow = max(m.follow*m.fall, abs32(body))
 		_, bp, _ := m.buzz.step(noise.bipolar())
-		s += bp * ((1-m.rattle)*m.follow + m.rattle*abs32(s)) * m.buzzLevel
+		s += bp * ((1-m.rattle)*m.follow + m.rattle*abs32(body)) * m.buzzLevel
 	}
 	_, bp, _ := m.slap.step(noise.bipolar())
 	s += bp * m.level
 	m.level *= m.fade
+	var clickBP float32
 	if m.clickLevel > 0 && t >= 0 {
-		_, bp, _ := m.click.step(noise.bipolar())
-		s += bp * m.clickLevel * clickFade[min(t, int64(len(clickFade)-1))]
+		_, clickBP, _ = m.click.step(noise.bipolar())
+		s += clickBP * m.clickLevel * clickFade[min(t, int64(len(clickFade)-1))]
 	}
 	if m.squash > 0 {
 		s = softClip(s * m.squash)
+	}
+	if m.clickMore > 0 && t >= 0 {
+		s += clickBP * m.clickMore * clickFade[min(t, int64(len(clickFade)-1))]
 	}
 	if m.hasHP {
 		_, _, s = m.hp.step(s)

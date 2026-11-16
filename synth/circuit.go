@@ -59,7 +59,7 @@ func square(p, dt float32) float32 {
 // their sum, from about -1 to 1.
 func (h *hit) metal808(mul float32) float32 {
 	var m float32
-	for k, f := range metal {
+	for k, f := range h.mf {
 		dt := f * mul / rate
 		m += square(adv(&h.ph[k], f*mul), dt)
 	}
@@ -201,18 +201,21 @@ func (h *hit) circuitStep(tune, tone float32) float32 {
 	}
 	switch h.d.kind {
 	case drTR808Kick:
-		s := sin1(adv(&h.ph[0], 49*tune*(1+0.4*e[0]))) * e[1]
+		h.hz = 49 * tune * (1 + 0.4*e[0]*h.dp.sk)
+		s := sin1(adv(&h.ph[0], h.hz)) * e[1] * h.dp.bm
 		lp, _, _ := h.f1.step(pulse)
-		return softClip(s*1.2 + lp*0.6*(0.3+tone))
+		return softClip(s*1.2 + lp*0.6*(0.3+tone)*h.dp.cm)
 	case drTR808Snare:
-		f := tune * (1 + 0.08*e[3])
+		f := tune * (1 + 0.08*e[3]*h.dp.sk)
+		h.hz = 180 * f
 		body := sin1(adv(&h.ph[0], 180*f))*e[0]*(1-0.5*tone) + sin1(adv(&h.ph[1], 330*f))*e[1]*(0.5+0.5*tone)
 		_, _, hp := h.f1.step(h.noise.bipolar())
-		return softClip(body*0.9 + hp*e[2]*0.75)
+		return softClip(body*0.9*h.dp.bm + hp*e[2]*0.75*h.dp.nm)
 	case drTR808Tom, drTR909Tom, drSDSTom:
 		return h.tomStep(&h.cc.tom, tune, tone)
 	case drTR808Conga:
-		return softClip(sin1(adv(&h.ph[0], 250*tune*(1+0.08*e[0]))) * e[1] * 1.1)
+		h.hz = 250 * tune * (1 + 0.08*e[0]*h.dp.sk)
+		return softClip(sin1(adv(&h.ph[0], h.hz)) * e[1] * 1.1)
 	case drTR808Rim:
 		s := sin1(adv(&h.ph[0], 455*tune))*e[0] + 0.7*sin1(adv(&h.ph[1], 1667*tune))*e[1]
 		_, _, hp := h.f1.step(s)
@@ -246,7 +249,7 @@ func (h *hit) circuitStep(tune, tone float32) float32 {
 		return hp * a
 	case drTR808Cowbell:
 		var m float32
-		for k, f := range [2]float32{540, 800} {
+		for k, f := range h.mf[:2] {
 			m += square(adv(&h.ph[k], f*tune), f*tune/rate)
 		}
 		_, bp, _ := h.f1.step(m * 0.5)
@@ -264,30 +267,34 @@ func (h *hit) circuitStep(tune, tone float32) float32 {
 		return (lo*e[0]*(1-0.5*tone) + mid*e[1] + hi*e[2]*(0.6+0.8*tone)) * 1.3
 	case drTR909Kick:
 		// A triangle bent towards a sine, sweeping down fast from about four times its pitch.
-		p := adv(&h.ph[0], 52*tune*(1+3.2*e[0]))
-		s := (0.75*sin1(p) + 0.25*tri(p)) * e[1]
+		h.hz = 52 * tune * (1 + 3.2*e[0]*h.dp.sk)
+		p := adv(&h.ph[0], h.hz)
+		s := (0.75*sin1(p) + 0.25*tri(p)) * e[1] * h.dp.bm
 		lp, _, _ := h.f1.step(h.noise.bipolar()*0.5 + pulse)
-		return softClip(s*1.5 + lp*e[2]*(0.3+0.9*tone))
+		return softClip(s*1.5 + lp*e[2]*(0.3+0.9*tone)*h.dp.cm)
 	case drTR909Snare:
-		f := tune * (1 + 0.25*e[0])
+		f := tune * (1 + 0.25*e[0]*h.dp.sk)
+		h.hz = 180 * f
 		body := tri(adv(&h.ph[0], 180*f))*e[1] + 0.6*tri(adv(&h.ph[1], 330*f))*e[2]
 		lp, _, _ := h.f1.step(h.noise.bipolar())
 		_, _, hp := c.f2.step(lp)
-		return softClip(body*0.8 + hp*(e[3]*0.8+e[1]*0.3))
+		return softClip(body*0.8*h.dp.bm + hp*(e[3]*0.8+e[1]*0.3)*h.dp.nm)
 	case drTR909Rim:
 		s := sin1(adv(&h.ph[0], 500*tune))*e[0] + 0.8*sin1(adv(&h.ph[1], 1800*tune))*e[1] + h.noise.bipolar()*e[2]*0.4
 		_, _, hp := h.f1.step(s)
 		return softClip(hp*3.5) * 0.6
 	case drSDSKick:
 		bend := 2.5 * h.vel
-		s := sin1(adv(&h.ph[0], 55*tune*(1+bend*e[0]))) * e[1]
+		h.hz = 55 * tune * (1 + bend*e[0]*h.dp.sk)
+		s := sin1(adv(&h.ph[0], h.hz)) * e[1] * h.dp.bm
 		lp, _, _ := h.f1.step(h.noise.bipolar())
-		return softClip(s*1.5 + lp*e[2]*0.4 + h.noise.bipolar()*e[3]*0.8)
+		return softClip(s*1.5 + lp*e[2]*0.4*h.dp.nm + h.noise.bipolar()*e[3]*0.8*h.dp.cm)
 	case drSDSSnare:
-		s := tri(adv(&h.ph[0], 180*tune*(1+0.8*h.vel*e[0]))) * e[1]
+		h.hz = 180 * tune * (1 + 0.8*h.vel*e[0]*h.dp.sk)
+		s := tri(adv(&h.ph[0], h.hz)) * e[1] * h.dp.bm
 		lp, _, _ := h.f1.step(h.noise.bipolar())
 		_, _, hp := c.f2.step(lp)
-		return softClip(s*0.8 + hp*e[2]*1.1 + h.noise.bipolar()*e[3]*0.7)
+		return softClip(s*0.8 + hp*e[2]*1.1*h.dp.nm + h.noise.bipolar()*e[3]*0.7*h.dp.cm)
 	}
 	return 0
 }
@@ -324,16 +331,17 @@ var toms = map[int]tomCircuit{
 func (h *hit) tomStep(tc *tomCircuit, tune, tone float32) float32 {
 	c, e := &h.cc, &h.env
 	hz := tc.hz * tune
-	p := adv(&h.ph[0], hz*(1+tc.bend*(0.4+0.6*h.vel)*e[0]))
-	body := softClip(((1-tc.wave)*sin1(p)+tc.wave*tri(p))*tc.drive) * e[1]
+	h.hz = hz * (1 + tc.bend*(0.4+0.6*h.vel)*e[0]*h.dp.sk)
+	p := adv(&h.ph[0], h.hz)
+	body := softClip(((1-tc.wave)*sin1(p)+tc.wave*tri(p))*tc.drive) * e[1] * h.dp.bm
 	lp, _, _ := h.f1.step(h.noise.bipolar())
-	s := body + lp*e[2]*tc.noise*h.vel
+	s := body + lp*e[2]*tc.noise*h.vel*h.dp.nm
 	if tc.cutoff > 0 {
 		if h.t%control == 0 {
 			c.f2.set(hz*tc.cutoff*(0.7+0.6*tone)*(1+tc.sweep*h.vel*e[4]), 0.2)
 		}
 		s, _, _ = c.f2.step(s)
 	}
-	s += h.noise.bipolar() * e[3] * tc.click * h.vel
+	s += h.noise.bipolar() * e[3] * tc.click * h.vel * h.dp.cm
 	return softClip(s) * tc.gain
 }
