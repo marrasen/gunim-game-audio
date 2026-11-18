@@ -311,7 +311,7 @@ func (in *Instrument) noteOn(id int32, pitch, vel float64, group int32, turn int
 		in.let(i)
 	}
 	if in.n == maxLive {
-		in.let(0)
+		in.let(in.oldest(live))
 	}
 	n := note{pitch: float32(pitch), vel: float32(vel), res: -1, seed: seed}
 	if vs := in.p.vowels; len(vs) > 0 {
@@ -345,6 +345,19 @@ func (in *Instrument) noteOn(id int32, pitch, vel float64, group int32, turn int
 	}
 	in.held[in.n] = liveNote{id: id, group: group, v: v, age: age, n: n, turn: turn, live: live}
 	in.n++
+}
+
+// oldest returns where the oldest note held of the part live says is,
+// for a new note of that part to let go once maxLive are held: so a busy
+// song never lets go of a key the player holds. Where the part holds
+// none, it is the oldest of all.
+func (in *Instrument) oldest(live bool) int {
+	for i := range in.n {
+		if in.held[i].live == live {
+			return i
+		}
+	}
+	return 0
 }
 
 // partOf returns the place of the part live says among two: 0 for the
@@ -394,6 +407,7 @@ func (in *Instrument) playFont(note uint64, pitch, vel float64, live bool) {
 	src, k := in.orig, &in.k
 	in.regions = in.p.font.AppendRegions(in.regions[:0], src.Bank, src.Program, key, v127)
 	for i := range in.regions {
+		in.sf.part = live
 		v := in.sf.play(&in.regions[i], key, v127, 0)
 		v.note, v.livePart = note, live
 		v.fine = pitch - float64(key)
@@ -845,8 +859,15 @@ func (in *Instrument) SilencePart(live bool) {
 	}
 }
 
-// LiveSounding reports whether a note of the live part still sounds.
+// LiveSounding reports whether a note of the live part is still held,
+// or still sounds: a key held whose voice a song's note took counts, as
+// it plays again where the patch changes.
 func (in *Instrument) LiveSounding() bool {
+	for i := range in.n {
+		if in.held[i].live {
+			return true
+		}
+	}
 	if in.vs != nil {
 		for _, v := range in.vs.vs {
 			if v.on && v.live {

@@ -141,3 +141,50 @@ func TestPlayingLiveAllocatesNothing(t *testing.T) {
 		t.Errorf("playing the live part allocated %d times", n)
 	}
 }
+
+func TestAMonoPatchPlaysEachPartsOwnLine(t *testing.T) {
+	// The acid line is mono, with glide and slide: each part keeps its own
+	// voice, so neither line glides from, or cuts, the other's notes.
+	n := 16384
+	song := append(note(1, 45, 0, 6000), note(2, 52, 4000, 12000)...)
+	live := append(liveNote(1, 57, 2000, 8000), liveNote(2, 60, 7000, 14000)...)
+	drive := func(events []plug.Event) plugtest.Result {
+		slices.SortStableFunc(events, func(a, b plug.Event) int { return a.Frame - b.Frame })
+		return plugtest.Drive(t, &Descriptor, synthOf(t, "Acid line").Processor(), liveSetup, n, plugtest.Ports{Events: events})
+	}
+	songAlone := drive(slices.Clone(song))
+	liveAlone := drive(slices.Clone(live))
+	both := drive(append(slices.Clone(song), live...))
+	for c := range both.Out {
+		if !slices.Equal(both.Out[c], songAlone.Out[c]) {
+			t.Errorf("the live line changed the song's line on the main output's channel %d", c)
+		}
+		if !slices.Equal(both.LiveOut[c], liveAlone.LiveOut[c]) {
+			t.Errorf("the song's line changed the live line on the live output's channel %d", c)
+		}
+	}
+	if rms(both.LiveOut[0][2400:8000]) < 0.01 || rms(both.Out[0][2400:8000]) < 0.01 {
+		t.Error("the two lines do not both sound")
+	}
+}
+
+func TestAHeldKeyKeepsTheLivePartWhenASongNoteTakesItsVoice(t *testing.T) {
+	// The lead has four voices: the fourth song note takes the held key's.
+	// The key is still down, so the live part runs on: where the patch
+	// changes, the key plays again, on the live output.
+	n := 24576
+	// The key is never let go within the run.
+	events := liveNote(1, 69, 0, n-1)[:1]
+	for i := range int32(4) {
+		events = append(events, note(i+2, 57+float64(i)*3, 2000, n-1)...)
+	}
+	slices.SortStableFunc(events, func(a, b plug.Event) int { return a.Frame - b.Frame })
+	pr := synthOf(t, "Jupiter brass lead").Processor()
+	res := plugtest.Drive(t, &Descriptor, pr, liveSetup, n, plugtest.Ports{Events: events})
+	if got := rms(res.LiveOut[0][n-4800:]); got != 0 {
+		t.Fatalf("the song took no voice from the held key: it sounds at %.5f", got)
+	}
+	if !pr.(*processor).live {
+		t.Error("the live part stopped while its key is held")
+	}
+}

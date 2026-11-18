@@ -401,7 +401,8 @@ type processor struct {
 	ll, lr, ltl, ltr []float32
 	live             bool
 	liveOut          [][]float32
-	// at counts the host's frames since the last Reset.
+	// at counts the host's frames since the last Reset that found the
+	// live part silent: one while it sounds leaves the clock running.
 	at int64
 	// offline says the host renders offline: a bank's notes wait for
 	// their samples.

@@ -223,6 +223,10 @@ type sfVoices struct {
 	vs   []sfVoice
 	age  uint64
 	live bool
+	// part says the next voice played is of an Instrument's live part:
+	// its exclusive class cuts off only the voices of its own part. It
+	// is taken with the voice.
+	part bool
 }
 
 func newSFVoices(n int) *sfVoices { return &sfVoices{vs: make([]sfVoice, n)} }
@@ -231,9 +235,11 @@ func newSFVoices(n int) *sfVoices { return &sfVoices{vs: make([]sfVoice, n)} }
 // class, and returns the voice.
 func (vv *sfVoices) play(r *soundfont.Region, key, vel int, gate int64) *sfVoice {
 	vv.age++
+	part := vv.part
+	vv.part = false
 	if r.Exclusive != 0 {
 		for i := range vv.vs {
-			if v := &vv.vs[i]; v.on && v.r.Exclusive == r.Exclusive {
+			if v := &vv.vs[i]; v.on && v.livePart == part && v.r.Exclusive == r.Exclusive {
 				v.choke()
 			}
 		}
