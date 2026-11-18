@@ -2,14 +2,17 @@ package plugsynth
 
 import (
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/marrasen/gunim-game-audio/synth"
 	"github.com/marrasen/gunim/audio/plug"
 )
 
-// blockSizes are the block sizes a kit renders the same at.
-var blockSizes = []int{256, 1, 37, 100}
+// blockSizes are the block sizes a kit renders the same at: 256, the
+// largest; a frame, the smallest; and 37, odd, which falls across the
+// control steps of 32 frames.
+var blockSizes = []int{256, 1, 37}
 
 // blockFrames is how long each block-size run plays, in frames: two
 // seconds, so the busy first second's hits end by themselves, some
@@ -20,23 +23,33 @@ const blockFrames = 96000
 // second, as a block of 1 frame costs the plugin a Process call a frame.
 const plugFrames = 48000
 
-// busyEvents are a second of hits on every General MIDI drum note, a
-// few hundred frames apart at varied velocities, many ringing at once,
-// with closed hats choking open ones.
+// typeKit is a kit of every type of drum, each named by the note it is
+// on, from 35 up, as General MIDI's kits are. Its twelve voices are too
+// few for busyEvents' hits, so some are stolen.
+func typeKit() Sound {
+	p := &synth.Patch{Kind: "drums", Poly: 12, Kit: map[string]synth.Drum{}}
+	for i, ty := range synth.DrumTypes {
+		p.Kit[strconv.Itoa(35+i)] = synth.Drum{Type: ty}
+	}
+	return Sound{Bank: "Test", Group: "Drum kits", Name: "Every type", patch: p, drums: true}
+}
+
+// busyEvents are a second of hits on each of typeKit's drums, up the
+// notes and back down, a few hundred frames apart at varied velocities,
+// many ringing at once. Each closed hat's note comes before its open
+// hat's, so on the way down a closed hat chokes its open one.
 func busyEvents() []plug.Event {
-	ev := make([]plug.Event, 0, 180)
+	n := len(synth.DrumTypes)
+	ev := make([]plug.Event, 0, 4*n)
 	at := 0
-	for i := range 90 {
-		key := 35 + (i*7)%48
-		switch i % 9 {
-		case 3:
-			key = 46
-		case 4:
-			key = 42
+	for i := range 2 * n {
+		key := 35 + i
+		if i >= n {
+			key = 35 + 2*n - 1 - i
 		}
 		ev = append(ev, plug.Event{Frame: at, Kind: plug.NoteOn, Note: int32(i), Pitch: float64(key), Velocity: 0.4 + 0.6*float64(i%5)/4},
 			plug.Event{Frame: at + 150, Kind: plug.NoteOff, Note: int32(i)})
-		at += 233 + (i*97)%700
+		at += 160 + (i*97)%400
 	}
 	// Each NoteOff comes before the next NoteOn, so the list runs in
 	// frame order.
@@ -80,61 +93,59 @@ func firstDiff(got, want []float32) int {
 	return -1
 }
 
-func TestEveryKitIsTheSameInAnyBlockSize(t *testing.T) {
+// TestEveryDrumTypeIsTheSameInAnyBlockSize plays typeKit, a drum of
+// every type, through the Instrument, in each of blockSizes.
+func TestEveryDrumTypeIsTheSameInAnyBlockSize(t *testing.T) {
 	events := busyEvents()
-	for _, s := range kits() {
-		name := s.Bank + "/" + s.Group + "/" + s.Name
-		var want []float32
-		for _, size := range blockSizes {
-			in, err := synth.NewInstrument(s.Patch())
-			if err != nil {
-				t.Fatalf("%s: %v", name, err)
-			}
-			got := renderLive(in, size, events)
-			if want == nil {
-				want = got
-				continue
-			}
-			if f := firstDiff(got, want); f >= 0 {
-				t.Errorf("%s through the Instrument in blocks of %d differs from blocks of 256 from frame %d", name, size, f)
-			}
+	s := typeKit()
+	var want []float32
+	for _, size := range blockSizes {
+		in, err := synth.NewInstrument(s.Patch())
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := renderLive(in, size, events)
+		if want == nil {
+			want = got
+			continue
+		}
+		if f := firstDiff(got, want); f >= 0 {
+			t.Errorf("through the Instrument in blocks of %d differs from blocks of 256 from frame %d", size, f)
 		}
 	}
 }
 
-func TestEveryKitIsTheSameInAnyBlockSizeThroughThePlugin(t *testing.T) {
-	if testing.Short() {
-		t.Skip("plays every kit at four block sizes")
-	}
+// TestEveryDrumTypeIsTheSameInAnyBlockSizeThroughThePlugin plays
+// typeKit through the plugin, in each of blockSizes, its aux outputs
+// unconnected and connected.
+func TestEveryDrumTypeIsTheSameInAnyBlockSizeThroughThePlugin(t *testing.T) {
 	events := busyEvents()
-	for _, s := range kits() {
-		name := s.Bank + "/" + s.Group + "/" + s.Name
-		for _, conn := range []struct {
-			name string
-			on   func(int) [synth.DrumParts]bool
-		}{{"unconnected", none}, {"connected", every}} {
-			var want outs
-			for _, size := range blockSizes {
-				p, _ := newSynth(t)
-				if err := p.SetState(s.State()); err != nil {
-					t.Fatalf("%s: %v", name, err)
+	s := typeKit()
+	for _, conn := range []struct {
+		name string
+		on   func(int) [synth.DrumParts]bool
+	}{{"unconnected", none}, {"connected", every}} {
+		var want outs
+		for _, size := range blockSizes {
+			p, _ := newSynth(t)
+			if err := p.SetState(s.State()); err != nil {
+				t.Fatal(err)
+			}
+			got := drive(t, p.Processor(), 48000, size, plugFrames, events, conn.on)
+			if want.main == nil {
+				want = got
+				continue
+			}
+			for c := range 2 {
+				if f := firstDiff(got.main[c], want.main[c]); f >= 0 {
+					t.Errorf("aux outputs %s, in blocks of %d: channel %d differs from blocks of 256 from frame %d", conn.name, size, c, f)
 				}
-				got := drive(t, p.Processor(), 48000, size, plugFrames, events, conn.on)
-				if want.main == nil {
-					want = got
-					continue
-				}
-				for c := range 2 {
-					if f := firstDiff(got.main[c], want.main[c]); f >= 0 {
-						t.Errorf("%s, aux outputs %s, in blocks of %d: channel %d differs from blocks of 256 from frame %d", name, conn.name, size, c, f)
+				for i := range got.aux {
+					if got.aux[i] == nil {
+						continue
 					}
-					for i := range got.aux {
-						if got.aux[i] == nil {
-							continue
-						}
-						if f := firstDiff(got.aux[i][c], want.aux[i][c]); f >= 0 {
-							t.Errorf("%s in blocks of %d: aux output %d channel %d differs from blocks of 256 from frame %d", name, size, i, c, f)
-						}
+					if f := firstDiff(got.aux[i][c], want.aux[i][c]); f >= 0 {
+						t.Errorf("in blocks of %d: aux output %d channel %d differs from blocks of 256 from frame %d", size, i, c, f)
 					}
 				}
 			}

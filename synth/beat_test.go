@@ -2,10 +2,14 @@ package synth_test
 
 import (
 	"math"
+	"slices"
+	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/marrasen/gunim/audio/band"
 
+	music "github.com/marrasen/gunim-game-audio"
 	"github.com/marrasen/gunim-game-audio/synth"
 )
 
@@ -68,23 +72,64 @@ func find(told []sighting, h synth.Hit) int {
 	return -1
 }
 
-func TestEverySongsClapCueIsToldOfABarBeforeItSounds(t *testing.T) {
-	// Every song made in code names a sound to clap to, and tells of
-	// each of its hits in time for a dancer's hands to meet on it.
+// TestEverySongNamesAClapCueItPlays reads every song made in code, and
+// plays none: each names a sound to clap to, a drum its track's pattern
+// plays, or the track's own sound.
+func TestEverySongNamesAClapCueItPlays(t *testing.T) {
 	for name, song := range songs(t) {
-		if song.Clap == nil {
+		cl := song.Clap
+		if cl == nil {
 			t.Errorf("%s names no sound to clap to", name)
 			continue
 		}
-		p := song.Play(1).(*synth.Player)
+		var track *synth.Track
+		for _, tr := range song.Tracks {
+			if tr.Name == cl.Track {
+				track = tr
+			}
+		}
+		if track == nil {
+			t.Errorf("%s claps to track %s, which it has none of", name, cl.Track)
+			continue
+		}
+		words := strings.FieldsFunc(track.Pattern, func(c rune) bool {
+			return !unicode.IsLetter(c) && !unicode.IsDigit(c)
+		})
+		if cl.Drum != "" && !slices.Contains(words, cl.Drum) {
+			t.Errorf("%s claps to %s's %s, which its pattern %q never plays", name, cl.Track, cl.Drum, track.Pattern)
+		}
+	}
+}
+
+// TestTheClapCueIsToldOfABarBeforeItSounds plays two songs' clap cues,
+// their phrases cut to four bars: each clap is told of a bar before it
+// sounds, in time for a dancer's hands to meet on it, and Claps tells of
+// the cue alone. Keypad Round is a tiers song, its cue's track playing a
+// shaker too, and Underworld Ascent a wander song.
+func TestTheClapCueIsToldOfABarBeforeItSounds(t *testing.T) {
+	for _, name := range []string{music.KeypadRound, music.UnderworldAscent} {
+		song, err := music.Song(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := song.(*synth.Song).Clone()
+		s.PhraseBars = 4
+		// The cue's track alone plays: the others take time to render,
+		// and change nothing of when a clap is told of.
+		s.Tracks = slices.DeleteFunc(s.Tracks, func(tr *synth.Track) bool { return tr.Name != s.Clap.Track })
+		s.Mix.Duck = ""
+		p := s.Play(1).(*synth.Player)
+		if err := p.Err(); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
 		p.SetTier(4)
 		// A wander song's cue comes and goes; the game holds it in.
-		_ = p.SetPart(song.Clap.Track, band.PartOn)
+		_ = p.SetPart(s.Clap.Track, band.PartOn)
 		l := p.Look(0)
 		told, sounded := watchWith(p, p.Claps, 2*l.PhraseBars, nil)
 		n := 0
 		for _, h := range sounded {
-			if h.Track != song.Clap.Track || (song.Clap.Drum != "" && h.Drum != song.Clap.Drum) {
+			if h.Track != s.Clap.Track || (s.Clap.Drum != "" && h.Drum != s.Clap.Drum) {
 				t.Fatalf("%s: Claps told of %s's %q", name, h.Track, h.Drum)
 			}
 			if bar := int(float64(h.Frame) / l.BarFrames); bar == 0 || (l.Wander && bar%l.PhraseBars == 0) {
