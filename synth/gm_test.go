@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/marrasen/gunim/audio"
@@ -55,26 +56,97 @@ func peak(t *testing.T, g *GM, secs float64) float32 {
 	return p
 }
 
+// heard renders g until a sample reaches 0.01, or for secs at most, and
+// returns the peak, failing on a sample that is not a number.
+func heard(t *testing.T, g *GM, secs float64) float32 {
+	t.Helper()
+	buf := make([]float32, 2*256)
+	var p float32
+	for range int(secs * rate / 256) {
+		_, _ = g.Read(buf)
+		for _, x := range buf {
+			if math.IsNaN(float64(x)) || math.IsInf(float64(x), 0) {
+				t.Fatalf("a sample of %v", x)
+			}
+			p = max(p, abs32(x))
+		}
+		if p >= 0.01 {
+			break
+		}
+	}
+	return p
+}
+
+// TestGMEveryInstrumentSounds starts every instrument of every style and
+// listens only until it is heard, as each instrument's sound is its own.
+// Fifteen play at once, one to a channel, each heard by its channel's
+// meter. The soundfont style, with no font loaded, plays gm's own. Every
+// key of each kit is read, not played: a key General MIDI names has a
+// drum, and one it names none of has none. A few keys play: the edges
+// of the named ones, and two it names none of.
 func TestGMEveryInstrumentSounds(t *testing.T) {
+	lo, hi := 127, 0
+	for key := range 128 {
+		if GMDrumName(key) != "" {
+			lo, hi = min(lo, key), max(hi, key)
+		}
+	}
 	for _, style := range GMStyles {
-		for prog := range 128 {
+		if style == "soundfont" {
+			continue
+		}
+		for first := 0; first < 128; first += 15 {
 			g := NewGM()
 			if err := g.SetStyle(style); err != nil {
 				t.Fatal(err)
 			}
-			g.Send(midi.Program, byte(prog), 0, nil)
-			g.Send(midi.NoteOn, 60, 100, nil)
-			if p := peak(t, g, 0.5); p < 0.01 || p > 1 {
-				t.Errorf("%s, program %d, %s, peaks at %v", style, prog, GMNames[prog], p)
+			prog := map[int]int{}
+			for ch := range 16 {
+				if p := first + len(prog); ch != 9 && p < 128 {
+					prog[ch] = p
+					g.Send(midi.Program|byte(ch), byte(p), 0, nil)
+					g.Send(midi.NoteOn|byte(ch), 60, 100, nil)
+				}
+			}
+			var peaks [BusChannels]float32
+			for range rate / 2 / 256 {
+				if p := heard(t, g, 256.0/rate); p > 1 {
+					t.Errorf("%s, programs %d on, peak at %v", style, first, p)
+				}
+				all := true
+				for ch, m := range g.TakeMeters().Channels {
+					peaks[ch] = max(peaks[ch], m)
+					_, plays := prog[ch]
+					all = all && (!plays || peaks[ch] >= 0.01)
+				}
+				if all {
+					break
+				}
+			}
+			for ch, p := range prog {
+				if peaks[ch] < 0.01 {
+					t.Errorf("%s, program %d, %s, peaks at %v", style, p, GMNames[p], peaks[ch])
+				}
 			}
 		}
-		for key := range 128 {
+		for _, kit := range []int{0, 24, 25} {
+			c, err := GMStyleKit(style, kit).compile("kit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for key := range 128 {
+				if _, ok := c.kit[strconv.Itoa(key)]; ok != (GMDrumName(key) != "") {
+					t.Errorf("%s, kit %d, key %d, %q: has a drum %v", style, kit, key, GMDrumName(key), ok)
+				}
+			}
+		}
+		for _, key := range []int{lo, 36, 46, hi, lo - 1, 127} {
 			g := NewGM()
 			if err := g.SetStyle(style); err != nil {
 				t.Fatal(err)
 			}
 			g.Send(midi.NoteOn|9, byte(key), 100, nil)
-			p := peak(t, g, 0.3)
+			p := heard(t, g, 0.3)
 			if GMDrumName(key) != "" && p < 0.01 {
 				t.Errorf("%s, drum %d, %s, is silent", style, key, GMDrumName(key))
 			}

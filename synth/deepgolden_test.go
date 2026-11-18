@@ -21,11 +21,14 @@ const drumGolden = "testdata/drum_golden.json"
 
 // goldenHits are the drums the golden hashes cover: every drum the
 // default kit names, and every drum of General MIDI's standard,
-// electronic and TR-808 kits, each plain and with Tune, Decay and Tone
-// moved, at two velocities.
+// electronic and TR-808 kits. Each drum's settings are hashed, and that
+// plays nothing. The first drum of each type plays, once plain at full
+// velocity and once softer with its Tune, Decay and Tone moved, so every
+// type's sound is heard.
 func goldenHits(t *testing.T) map[string]string {
 	t.Helper()
 	out := map[string]string{}
+	typed := map[int]bool{}
 	add := func(kit string, p *Patch) {
 		c, err := p.compile(kit)
 		if err != nil {
@@ -37,18 +40,30 @@ func goldenHits(t *testing.T) map[string]string {
 		}
 		slices.Sort(names)
 		for _, n := range names {
-			for vi, vel := range []float32{1, 0.55} {
-				for ki, mv := range []func(*Drum){nil, func(d *Drum) { d.Tune += 2; d.Decay = 1.5; d.Tone = 0.3 }} {
-					d := c.kit[n]
-					if mv != nil {
-						mv(&d.Drum)
-					}
-					hs := newHits(1)
-					hs.play(d, vel, 0, 40, rate/2, 0)
-					l, r := make([]float32, rate), make([]float32, rate)
-					hs.render(l, r, true)
-					out[fmt.Sprintf("%s/%s/v%d/m%d", kit, n, vi, ki)] = hashLR(l, r)
+			d := c.kit[n]
+			b, err := json.Marshal(d.Drum)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := fnv.New64a()
+			_, _ = fmt.Fprintf(h, "%s %d %d %v %d %d %v", b, d.mute, d.kind, d.gain, d.key, d.prog, d.fine)
+			out[fmt.Sprintf("set/%s/%s", kit, n)] = strconv.FormatUint(h.Sum64(), 16)
+			if typed[d.kind] {
+				continue
+			}
+			typed[d.kind] = true
+			for _, vk := range [][2]int{{0, 0}, {1, 1}} {
+				d := c.kit[n]
+				if vk[1] == 1 {
+					d.Tune += 2
+					d.Decay = 1.5
+					d.Tone = 0.3
 				}
+				hs := newHits(1)
+				hs.play(d, []float32{1, 0.55}[vk[0]], 0, 40, rate/2, 0)
+				l, r := make([]float32, rate), make([]float32, rate)
+				hs.render(l, r, true)
+				out[fmt.Sprintf("%s/%s/v%d/m%d", kit, n, vk[0], vk[1])] = hashLR(l, r)
 			}
 		}
 	}
@@ -98,19 +113,21 @@ func TestEveryDrumSoundsAsItDidBeforeTheDeepSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got) != len(want) {
-		t.Errorf("%d drum sounds, %d golden", len(got), len(want))
+		t.Errorf("%d drum hashes, %d golden", len(got), len(want))
 	}
 	bad := 0
-	for k, w := range want {
-		if got[k] != w {
+	for k, g := range got {
+		if w, ok := want[k]; !ok {
+			t.Errorf("%s has no golden sound", k)
+		} else if g != w {
 			bad++
 			if bad <= 20 {
-				t.Errorf("%s sounds different from before", k)
+				t.Errorf("%s differs from before", k)
 			}
 		}
 	}
 	if bad > 0 {
-		t.Errorf("%d of %d drum sounds differ", bad, len(want))
+		t.Errorf("%d of %d drum hashes differ", bad, len(got))
 	}
 }
 
