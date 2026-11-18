@@ -20,6 +20,14 @@
 //
 //	import _ "github.com/marrasen/gunim-game-audio/plugsynth"
 //
+// It plays a live part ([plug.Descriptor.LivePart]): the keys a player
+// plays, marked [plug.Event.Live], sound on [plug.Block.LiveOut], each
+// with its own bend, expression, pedal and mono line, while the song's
+// notes play on the main output. Both parts share the patch, the knobs
+// and the voices. The live output has its own resampler and buffers,
+// which run only while a live note or its tail sounds. A Reset stops the
+// song's notes and leaves the live part's playing.
+//
 // The engine runs at [synth.Rate], 48 kHz. A host at another rate gets
 // the sound resampled to its own, through a cubic interpolation, which
 // costs a few frames of latency the processor reports.
@@ -104,6 +112,8 @@ var Descriptor = plug.Descriptor{
 	Version: "0.3.0",
 	Kind:    "Instrument|Synth",
 	Notes:   true,
+	// The keys a player plays sound on an output of their own.
+	LivePart: true,
 	// The swell and the ghost sound ahead of the notes.
 	LookAhead: lookAhead,
 	AuxOut:    drumOuts(),
@@ -383,7 +393,16 @@ type processor struct {
 	// outs are the parts' outputs in the block running, nil where one is
 	// unconnected.
 	outs [synth.DrumParts][][]float32
-	// at counts the host's frames since the last Reset.
+	// ll and lr hold the live part's sound, from frame base on, as bl and
+	// br hold the song's, while live is set: from a live note's start
+	// until the live part and its tail fall silent. ltl and ltr are room
+	// for the live part of the sound ringing out. liveOut is the live
+	// output in the block running, nil where the host connects none.
+	ll, lr, ltl, ltr []float32
+	live             bool
+	liveOut          [][]float32
+	// at counts the host's frames since the last Reset that found the
+	// live part silent: one while it sounds leaves the clock running.
 	at int64
 	// offline says the host renders offline: a bank's notes wait for
 	// their samples.
@@ -418,6 +437,9 @@ func (p *processor) Prepare(s plug.Setup) {
 	p.bl, p.br = make([]float32, n), make([]float32, n)
 	p.tl, p.tr = make([]float32, n), make([]float32, n)
 	p.al, p.ar = make([]float32, aheadStep), make([]float32, aheadStep)
+	p.ll, p.lr = make([]float32, n), make([]float32, n)
+	p.ltl, p.ltr = make([]float32, n), make([]float32, n)
+	p.live = false
 	for i := range p.parts {
 		p.parts[i] = synth.Part{L: make([]float32, n), R: make([]float32, n)}
 		p.tails[i] = synth.Part{L: make([]float32, n), R: make([]float32, n)}
@@ -425,14 +447,28 @@ func (p *processor) Prepare(s plug.Setup) {
 	p.Reset()
 }
 
-// Reset implements [plug.Processor]: every note ends at once, every
-// pedal lifts, every bend goes back to none, and the notes told of are
-// forgotten.
+// Reset implements [plug.Processor]: every note of the song ends at
+// once, every pedal of the song lifts, every bend goes back to none, and
+// the notes told of are forgotten. The live part plays on, unbroken.
 func (p *processor) Reset() {
 	p.adopt()
-	p.cur.Silence()
 	p.pre.Silence()
 	p.ahead.n = 0
+	if p.live {
+		// The engine's clock runs on, for the live part's sound; the
+		// song's, made and not yet given, is dropped.
+		p.cur.SilencePart(false)
+		if p.prev != nil {
+			p.prev.SilencePart(false)
+		}
+		clear(p.bl[:p.have])
+		clear(p.br[:p.have])
+		p.split = false
+		p.routed = [synth.DrumParts]int64{}
+		p.keepTail()
+		return
+	}
+	p.cur.Silence()
 	p.prev = nil
 	clear(p.bl[:before])
 	clear(p.br[:before])
@@ -464,6 +500,9 @@ func (p *processor) Sounding() bool {
 		return false
 	}
 	if !quiet(p.bl[from:p.have]) || !quiet(p.br[from:p.have]) {
+		return true
+	}
+	if p.live && (!quiet(p.ll[from:p.have]) || !quiet(p.lr[from:p.have])) {
 		return true
 	}
 	if p.split {
@@ -509,6 +548,7 @@ func (p *processor) Process(b *plug.Block) {
 	p.song = b.Position.Song
 	swapped := p.adopt()
 	p.connect(b)
+	p.connectLive(b.LiveOut)
 	p.prune(int64(math.Ceil(p.engineAt(p.at))))
 	for _, u := range b.Upcoming {
 		p.hear(u)
@@ -540,9 +580,50 @@ func (p *processor) Process(b *plug.Block) {
 		p.play(b.Events[ei])
 	}
 	p.at += int64(b.Frames)
+	p.settleLive()
 	if swapped || len(b.Changes) > 0 {
 		p.keepTail()
 	}
+}
+
+// connectLive takes the block's live output. Where the host connects
+// none, it sends no live events: the live part's notes, if any, stop at
+// once, as they have nowhere to sound.
+func (p *processor) connectLive(out [][]float32) {
+	p.liveOut = out
+	if out != nil || !p.live {
+		return
+	}
+	p.cur.SilencePart(true)
+	if p.prev != nil {
+		p.prev.SilencePart(true)
+	}
+	p.live = false
+}
+
+// wakeLive starts the live part's sound apart from the song's, silent up
+// to the frames made, as a live note starts.
+func (p *processor) wakeLive() {
+	if p.live {
+		return
+	}
+	clear(p.ll[:p.have])
+	clear(p.lr[:p.have])
+	p.live = true
+}
+
+// settleLive ends the live part's sound apart once no live note sounds
+// and the sound made for it, not yet given, is silent: from then on the
+// live output is silence, and nothing runs for it.
+func (p *processor) settleLive() {
+	if !p.live || p.cur.LiveSounding() || p.prev != nil && p.prev.LiveSounding() {
+		return
+	}
+	from := max(p.firstRead(p.at), 0)
+	if from < p.have && (!quiet(p.ll[from:p.have]) || !quiet(p.lr[from:p.have])) {
+		return
+	}
+	p.live = false
 }
 
 // voicing is a sound to play: in plays the notes, and pre the same sound
@@ -724,6 +805,10 @@ func (p *processor) seedOf(frame int64, pitch float64, group int32, turn int64) 
 // mod wheel and pressure, which the patch answers as its
 // [synth.Patch.Responses] say.
 func (p *processor) play(e plug.Event) {
+	if e.Live {
+		p.playLive(e)
+		return
+	}
 	switch e.Kind {
 	case plug.NoteOn:
 		p.landed(e.Note)
@@ -744,6 +829,32 @@ func (p *processor) play(e plug.Event) {
 	}
 }
 
+// playLive plays an event of the live part, as play does the song's.
+// The host sends none where it connects no live output.
+func (p *processor) playLive(e plug.Event) {
+	if p.liveOut == nil {
+		return
+	}
+	switch e.Kind {
+	case plug.NoteOn:
+		p.wakeLive()
+		p.cur.LiveNoteOn(e.Note, e.Pitch, e.Velocity, e.Group)
+	case plug.NoteOff:
+		p.cur.LiveNoteOff(e.Note)
+	case plug.Expression:
+		switch e.Expr {
+		case plug.Bend:
+			p.cur.LiveBend(e.Note, e.Value)
+		case plug.Mod:
+			p.cur.LiveMod(e.Note, e.Value)
+		case plug.Pressure:
+			p.cur.LivePressure(e.Note, e.Value)
+		}
+	case plug.Pedal:
+		p.cur.LivePedal(e.Group, e.Value)
+	}
+}
+
 // fill writes the frames of out from index from up to index to,
 // resampled from the engine's sound, which it makes up to the host's
 // time at to.
@@ -756,6 +867,10 @@ func (p *processor) fill(out [][]float32, from, to int) {
 	if drop := p.firstRead(j0); drop > 0 {
 		copy(p.bl, p.bl[drop:p.have])
 		copy(p.br, p.br[drop:p.have])
+		if p.live {
+			copy(p.ll, p.ll[drop:p.have])
+			copy(p.lr, p.lr[drop:p.have])
+		}
 		if p.split {
 			for i := range p.parts {
 				copy(p.parts[i].L, p.parts[i].L[drop:p.have])
@@ -790,6 +905,15 @@ func (p *processor) fill(out [][]float32, from, to int) {
 			}
 		}
 		put(out, j, l, r)
+		if p.live {
+			ll, lr := p.ll, p.lr
+			put(p.liveOut, j, cubic(ll[i-1], ll[i], ll[i+1], ll[i+2], f), cubic(lr[i-1], lr[i], lr[i+1], lr[i+2], f))
+		}
+	}
+	if !p.live {
+		for _, ch := range p.liveOut {
+			clear(ch[from:to])
+		}
 	}
 }
 
@@ -824,10 +948,16 @@ func (p *processor) engineAt(j int64) float64 {
 // part's room, and the rest into bl and br, as before.
 func (p *processor) render(n int) {
 	l, r := p.bl[p.have:p.have+n], p.br[p.have:p.have+n]
+	// The live part plays into its own room while it sounds.
+	var ll, lr, ltl, ltr []float32
+	if p.live {
+		ll, lr = p.ll[p.have:p.have+n], p.lr[p.have:p.have+n]
+		ltl, ltr = p.ltl[:n], p.ltr[:n]
+	}
 	if !p.split {
-		p.cur.Render(l, r)
+		p.cur.RenderSplit(l, r, nil, ll, lr)
 	} else {
-		p.cur.RenderParts(l, r, p.rooms(&p.parts, p.have, n))
+		p.cur.RenderSplit(l, r, p.rooms(&p.parts, p.have, n), ll, lr)
 	}
 	if p.prev != nil {
 		if !p.prev.Sounding() {
@@ -835,14 +965,17 @@ func (p *processor) render(n int) {
 		} else {
 			tl, tr := p.tl[:n], p.tr[:n]
 			if !p.split {
-				p.prev.Render(tl, tr)
+				p.prev.RenderSplit(tl, tr, nil, ltl, ltr)
 			} else {
-				p.prev.RenderParts(tl, tr, p.rooms(&p.tails, 0, n))
+				p.prev.RenderSplit(tl, tr, p.rooms(&p.tails, 0, n), ltl, ltr)
 				for k := range p.parts {
 					add(p.parts[k].L[p.have:p.have+n], p.parts[k].R[p.have:p.have+n], p.tails[k].L[:n], p.tails[k].R[:n])
 				}
 			}
 			add(l, r, tl, tr)
+			if p.live {
+				add(ll, lr, ltl, ltr)
+			}
 		}
 	}
 	if p.split {

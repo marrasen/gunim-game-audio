@@ -26,6 +26,15 @@ const Rate = rate
 // on 36, as a song's pattern plays them by name. Its notes ring out by
 // themselves, so a NoteOff, a Bend and the pedal leave them be.
 //
+// It plays two parts, each its own stream of notes: the song's, by
+// NoteOn and its kin, and the live part, the keys a player plays, by
+// LiveNoteOn and its kin. Each part keeps its own notes, IDs, pedals and
+// mono line, so a pedal or a bend of one never touches the other's notes.
+// Both parts take their voices from one pool, by the patch's usual
+// stealing rule, except that a mono patch plays each part on a voice of
+// its own. [Instrument.RenderSplit] plays the live part's notes into room
+// of their own.
+//
 // Its methods run on one goroutine at a time, as a plugin's processor
 // runs on the audio thread; none of them allocates, locks or waits.
 type Instrument struct {
@@ -39,8 +48,8 @@ type Instrument struct {
 	level float32
 	k     Knobs
 	// vowels counts the notes struck with no turn of their own, for a
-	// patch's Vowels to sing in turn.
-	vowels int
+	// patch's Vowels to sing in turn: the song's, then the live part's.
+	vowels [2]int
 	vs     *voices
 	hs     *hits
 	ctx    renderCtx
@@ -83,6 +92,8 @@ type liveNote struct {
 	turn int64
 	// sustained says its NoteOff came while the pedal held it.
 	sustained bool
+	// live says it is a note of the live part.
+	live bool
 }
 
 // pedal is a group's sustain pedal.
@@ -90,6 +101,8 @@ type pedal struct {
 	group int32
 	used  bool
 	down  bool
+	// live says it is the live part's pedal of the group.
+	live bool
 }
 
 // Knobs turn an Instrument's patch as it plays, from how the patch is
@@ -181,7 +194,13 @@ func NewInstrument(p *Patch) (*Instrument, error) {
 		}
 		return in, nil
 	}
-	in.vs = newVoices(c.poly, 1)
+	// A mono patch keeps a voice for each part, so each plays its own
+	// line and glides from its own note before.
+	n := c.poly
+	if n == 1 {
+		n = 2
+	}
+	in.vs = newVoices(n, 1)
 	// Each voice gets what it plays with now, so a note takes nothing new
 	// as it starts.
 	for _, v := range in.vs.vs {
@@ -275,20 +294,33 @@ func (in *Instrument) NoteOnTurn(id int32, pitch, vel float64, group int32, turn
 // sound of those after it as it was. A seed of 0 goes on from the
 // numbers the voice stands at, as for notes played live.
 func (in *Instrument) NoteOnSeeded(id int32, pitch, vel float64, group int32, turn int64, seed uint64) {
+	in.noteOn(id, pitch, vel, group, turn, seed, false)
+}
+
+// LiveNoteOn starts note id of the live part, as NoteOn does for the
+// song's: its ID is the live part's own, apart from the song's IDs, and
+// its group's pedal is the live part's.
+func (in *Instrument) LiveNoteOn(id int32, pitch, vel float64, group int32) {
+	in.noteOn(id, pitch, vel, group, 0, 0, true)
+}
+
+// noteOn starts a note of the part live says, as NoteOnSeeded does.
+func (in *Instrument) noteOn(id int32, pitch, vel float64, group int32, turn int64, seed uint64, live bool) {
 	vel = min(max(vel, 0), 1)
-	if i := in.find(id); i >= 0 {
+	if i := in.find(id, live); i >= 0 {
 		in.let(i)
 	}
 	if in.n == maxLive {
-		in.let(0)
+		in.let(in.oldest(live))
 	}
 	n := note{pitch: float32(pitch), vel: float32(vel), res: -1, seed: seed}
 	if vs := in.p.vowels; len(vs) > 0 {
-		i := in.vowels
+		part := partOf(live)
+		i := in.vowels[part]
 		if turn > 0 {
 			i = int((turn - 1) % int64(len(vs)))
 		} else {
-			in.vowels++
+			in.vowels[part]++
 		}
 		n.vowel = vs[i%len(vs)]
 	}
@@ -298,21 +330,59 @@ func (in *Instrument) NoteOnSeeded(id int32, pitch, vel float64, group int32, tu
 	case kindFont:
 		in.notes++
 		age = in.notes
-		in.playFont(age, pitch, vel)
+		in.playFont(age, pitch, vel, live)
 	case kindDrums:
 		// A drum rings out by itself; the note is kept, voiceless, for
 		// Pass to hand on.
 		if key := int(math.Round(pitch)); key >= 0 && key <= 127 && in.kit[key] != nil {
-			in.hs.seed = seed
+			in.hs.seed, in.hs.live = seed, live
 			h := in.hs.play(*in.kit[key], float32(vel), 0, float32(pitch), rate/2, 0)
-			h.part = drumParts[key]
+			h.part, h.live = drumParts[key], live
 		}
 	default:
-		v = in.vs.play(in.p, n)
+		v = in.voice(n, live)
 		age = v.age
 	}
-	in.held[in.n] = liveNote{id: id, group: group, v: v, age: age, n: n, turn: turn}
+	in.held[in.n] = liveNote{id: id, group: group, v: v, age: age, n: n, turn: turn, live: live}
 	in.n++
+}
+
+// oldest returns where the oldest note held of the part live says is,
+// for a new note of that part to let go once maxLive are held: so a busy
+// song never lets go of a key the player holds. Where the part holds
+// none, it is the oldest of all.
+func (in *Instrument) oldest(live bool) int {
+	for i := range in.n {
+		if in.held[i].live == live {
+			return i
+		}
+	}
+	return 0
+}
+
+// partOf returns the place of the part live says among two: 0 for the
+// song's, 1 for the live part.
+func partOf(live bool) int {
+	if live {
+		return 1
+	}
+	return 0
+}
+
+// voice gives n to a voice of the part live says, and returns it: from
+// the pool, or a mono patch's voice of that part.
+func (in *Instrument) voice(n note, live bool) *voice {
+	if in.p.poly == 1 && live {
+		vv := in.vs
+		vv.age++
+		v := vv.vs[1]
+		v.start(in.p, n, vv.age)
+		v.live = true
+		return v
+	}
+	v := in.vs.play(in.p, n)
+	v.live = live
+	return v
 }
 
 // SetOffline says the instrument renders offline, as for an export,
@@ -328,7 +398,7 @@ func (in *Instrument) SetOffline(on bool) {
 // playFont plays a SoundFont patch's note at pitch and velocity vel,
 // from 0 to 1, as note: each region the bank plays for it, through the
 // knobs as they stand.
-func (in *Instrument) playFont(note uint64, pitch, vel float64) {
+func (in *Instrument) playFont(note uint64, pitch, vel float64, live bool) {
 	key := int(math.Round(pitch))
 	if key < 0 || key > 127 {
 		return
@@ -337,8 +407,9 @@ func (in *Instrument) playFont(note uint64, pitch, vel float64) {
 	src, k := in.orig, &in.k
 	in.regions = in.p.font.AppendRegions(in.regions[:0], src.Bank, src.Program, key, v127)
 	for i := range in.regions {
+		in.sf.part = live
 		v := in.sf.play(&in.regions[i], key, v127, 0)
-		v.note = note
+		v.note, v.livePart = note, live
 		v.fine = pitch - float64(key)
 		v.gainBy = float64(in.p.gain)
 		reg := &v.reg
@@ -374,7 +445,7 @@ func (in *Instrument) fontVoices(note uint64, fn func(v *sfVoice)) {
 // once for none: for a swell into a note, or a fade out of one. A drums
 // patch's notes ring at their own level.
 func (in *Instrument) Fade(id int32, level float64, frames int) {
-	i := in.find(id)
+	i := in.find(id, false)
 	if i < 0 {
 		return
 	}
@@ -385,12 +456,19 @@ func (in *Instrument) Fade(id int32, level float64, frames int) {
 
 // NoteOff lets note id go: it rings out through its release, or on
 // while its group's pedal is down, until the pedal lifts.
-func (in *Instrument) NoteOff(id int32) {
-	i := in.find(id)
+func (in *Instrument) NoteOff(id int32) { in.noteOff(id, false) }
+
+// LiveNoteOff lets note id of the live part go, as NoteOff does for the
+// song's, held by the live part's pedal alone.
+func (in *Instrument) LiveNoteOff(id int32) { in.noteOff(id, true) }
+
+// noteOff lets note id of the part live says go, as NoteOff does.
+func (in *Instrument) noteOff(id int32, live bool) {
+	i := in.find(id, live)
 	if i < 0 {
 		return
 	}
-	if in.pedalDown(in.held[i].group) {
+	if in.pedalDown(in.held[i].group, live) {
 		in.held[i].sustained = true
 		return
 	}
@@ -410,7 +488,7 @@ func (in *Instrument) back(i int) bool {
 	}
 	j := -1
 	for k := in.n - 1; k >= 0 && j < 0; k-- {
-		if k != i && !in.held[k].sustained {
+		if k != i && !in.held[k].sustained && in.held[k].live == h.live {
 			j = k
 		}
 	}
@@ -418,7 +496,7 @@ func (in *Instrument) back(i int) bool {
 		return false
 	}
 	to := &in.held[j]
-	v := in.vs.play(in.p, to.n)
+	v := in.voice(to.n, to.live)
 	v.bend, v.mod, v.press = to.bend, to.mod, to.press
 	to.v, to.age = v, v.age
 	copy(in.held[i:in.n], in.held[i+1:in.n])
@@ -429,8 +507,14 @@ func (in *Instrument) back(i int) bool {
 // Bend bends note id by semis semitones from its pitch, up, or down
 // below 0, from now on: the note held, or else the last of that ID the
 // pedal holds after its NoteOff.
-func (in *Instrument) Bend(id int32, semis float64) {
-	if h := in.control(id); h != nil {
+func (in *Instrument) Bend(id int32, semis float64) { in.bend(id, semis, false) }
+
+// LiveBend bends note id of the live part, as Bend does the song's.
+func (in *Instrument) LiveBend(id int32, semis float64) { in.bend(id, semis, true) }
+
+// bend bends note id of the part live says, as Bend does.
+func (in *Instrument) bend(id int32, semis float64, live bool) {
+	if h := in.control(id, live); h != nil {
 		h.bend = float32(semis)
 		if h.v != nil && h.v.on && h.v.age == h.age {
 			h.v.bend = h.bend
@@ -441,8 +525,15 @@ func (in *Instrument) Bend(id int32, semis float64) {
 
 // Mod moves note id's mod wheel to value, from 0 to 1, from now on, as
 // Bend finds the note; the patch answers it as its Mod says.
-func (in *Instrument) Mod(id int32, value float64) {
-	if h := in.control(id); h != nil {
+func (in *Instrument) Mod(id int32, value float64) { in.mod(id, value, false) }
+
+// LiveMod moves the mod wheel of note id of the live part, as Mod does
+// the song's.
+func (in *Instrument) LiveMod(id int32, value float64) { in.mod(id, value, true) }
+
+// mod moves the mod wheel of note id of the part live says, as Mod does.
+func (in *Instrument) mod(id int32, value float64, live bool) {
+	if h := in.control(id, live); h != nil {
 		h.mod = float32(min(max(value, 0), 1))
 		if h.v != nil && h.v.on && h.v.age == h.age {
 			h.v.mod = h.mod
@@ -453,8 +544,16 @@ func (in *Instrument) Mod(id int32, value float64) {
 // Pressure moves note id's pressure, how hard its key is pressed, to
 // value, from 0 to 1, from now on, as Bend finds the note; the patch
 // answers it as its Pressure says.
-func (in *Instrument) Pressure(id int32, value float64) {
-	if h := in.control(id); h != nil {
+func (in *Instrument) Pressure(id int32, value float64) { in.pressure(id, value, false) }
+
+// LivePressure moves the pressure of note id of the live part, as
+// Pressure does the song's.
+func (in *Instrument) LivePressure(id int32, value float64) { in.pressure(id, value, true) }
+
+// pressure moves the pressure of note id of the part live says, as
+// Pressure does.
+func (in *Instrument) pressure(id int32, value float64, live bool) {
+	if h := in.control(id, live); h != nil {
 		h.press = float32(min(max(value, 0), 1))
 		if h.v != nil && h.v.on && h.v.age == h.age {
 			h.v.press = h.press
@@ -465,10 +564,10 @@ func (in *Instrument) Pressure(id int32, value float64) {
 // control returns note id, for its controllers to move: the note held,
 // or else the last of that ID the pedal holds after its NoteOff; nil
 // for none.
-func (in *Instrument) control(id int32) *liveNote {
-	i := in.find(id)
+func (in *Instrument) control(id int32, live bool) *liveNote {
+	i := in.find(id, live)
 	for j := in.n - 1; i < 0 && j >= 0; j-- {
-		if in.held[j].id == id {
+		if in.held[j].id == id && in.held[j].live == live {
 			i = j
 		}
 	}
@@ -480,15 +579,22 @@ func (in *Instrument) control(id int32) *liveNote {
 
 // Pedal moves group's sustain pedal to value, from 0, up, to 1, down; it
 // is down from a half. As it lifts, the notes it held are let go.
-func (in *Instrument) Pedal(group int32, value float64) {
+func (in *Instrument) Pedal(group int32, value float64) { in.pedal(group, value, false) }
+
+// LivePedal moves group's sustain pedal of the live part, as Pedal does
+// the song's: it holds only the live part's notes.
+func (in *Instrument) LivePedal(group int32, value float64) { in.pedal(group, value, true) }
+
+// pedal moves group's pedal of the part live says, as Pedal does.
+func (in *Instrument) pedal(group int32, value float64, live bool) {
 	down := value >= 0.5
 	free := -1
 	for i := range in.pedals {
 		pd := &in.pedals[i]
 		switch {
-		case pd.used && pd.group == group:
+		case pd.used && pd.group == group && pd.live == live:
 			if pd.down && !down {
-				in.lift(group)
+				in.lift(group, live)
 			}
 			pd.down = down
 			return
@@ -497,24 +603,25 @@ func (in *Instrument) Pedal(group int32, value float64) {
 		}
 	}
 	if down && free >= 0 {
-		in.pedals[free] = pedal{group: group, used: true, down: true}
+		in.pedals[free] = pedal{group: group, used: true, down: true, live: live}
 	}
 }
 
 // pedalDown reports whether group's pedal is down.
-func (in *Instrument) pedalDown(group int32) bool {
+func (in *Instrument) pedalDown(group int32, live bool) bool {
 	for i := range in.pedals {
-		if pd := &in.pedals[i]; pd.used && pd.group == group {
+		if pd := &in.pedals[i]; pd.used && pd.group == group && pd.live == live {
 			return pd.down
 		}
 	}
 	return false
 }
 
-// lift lets go of the notes of group the pedal held.
-func (in *Instrument) lift(group int32) {
+// lift lets go of the notes of group of the part live says that the
+// pedal held.
+func (in *Instrument) lift(group int32, live bool) {
 	for i := 0; i < in.n; {
-		if h := &in.held[i]; h.group == group && h.sustained {
+		if h := &in.held[i]; h.group == group && h.sustained && h.live == live {
 			in.let(i)
 			continue
 		}
@@ -522,11 +629,12 @@ func (in *Instrument) lift(group int32) {
 	}
 }
 
-// find returns where note id is held, or -1. A note the pedal holds
-// after its NoteOff has given its ID up, for a new note to take.
-func (in *Instrument) find(id int32) int {
+// find returns where note id of the part live says is held, or -1. A
+// note the pedal holds after its NoteOff has given its ID up, for a new
+// note to take.
+func (in *Instrument) find(id int32, live bool) int {
 	for i := range in.n {
-		if in.held[i].id == id && !in.held[i].sustained {
+		if in.held[i].id == id && !in.held[i].sustained && in.held[i].live == live {
 			return i
 		}
 	}
@@ -647,7 +755,7 @@ func (in *Instrument) Tail() float64 {
 func (in *Instrument) Pass(to *Instrument) {
 	for i := range in.pedals {
 		if pd := &in.pedals[i]; pd.used && pd.down {
-			to.Pedal(pd.group, 1)
+			to.pedal(pd.group, 1, pd.live)
 		}
 	}
 	// held runs oldest first, so a note the pedal holds starts before a
@@ -662,18 +770,18 @@ func (in *Instrument) Pass(to *Instrument) {
 			}
 			continue
 		}
-		to.NoteOnSeeded(h.id, float64(h.n.pitch), float64(h.n.vel), h.group, h.turn, h.n.seed)
+		to.noteOn(h.id, float64(h.n.pitch), float64(h.n.vel), h.group, h.turn, h.n.seed, h.live)
 		if h.bend != 0 {
-			to.Bend(h.id, float64(h.bend))
+			to.bend(h.id, float64(h.bend), h.live)
 		}
 		if h.mod != 0 {
-			to.Mod(h.id, float64(h.mod))
+			to.mod(h.id, float64(h.mod), h.live)
 		}
 		if h.press != 0 {
-			to.Pressure(h.id, float64(h.press))
+			to.pressure(h.id, float64(h.press), h.live)
 		}
 		if h.sustained {
-			to.NoteOff(h.id)
+			to.noteOff(h.id, h.live)
 		}
 	}
 	in.Release()
@@ -691,7 +799,7 @@ func (in *Instrument) Release() {
 // Vowels start again from the first.
 func (in *Instrument) Silence() {
 	in.Release()
-	in.vowels = 0
+	in.vowels = [2]int{}
 	if in.vs != nil {
 		for _, v := range in.vs.vs {
 			v.on = false
@@ -705,6 +813,83 @@ func (in *Instrument) Silence() {
 	if in.sf != nil {
 		in.sf.silence()
 	}
+}
+
+// ReleasePart lets go of every note of the part live says, and lifts
+// that part's pedals, as Release does for both.
+func (in *Instrument) ReleasePart(live bool) {
+	for i := in.n - 1; i >= 0; i-- {
+		if in.held[i].live == live {
+			in.let(i)
+		}
+	}
+	for i := range in.pedals {
+		if pd := &in.pedals[i]; pd.used && pd.live == live {
+			*pd = pedal{}
+		}
+	}
+}
+
+// SilencePart stops every note of the part live says at once, and lifts
+// that part's pedals, as Silence does for both: a song that jumps stops
+// its own notes, and the keys held play on.
+func (in *Instrument) SilencePart(live bool) {
+	in.ReleasePart(live)
+	in.vowels[partOf(live)] = 0
+	if in.vs != nil {
+		for _, v := range in.vs.vs {
+			if v.live == live {
+				v.on = false
+			}
+		}
+	}
+	if in.hs != nil {
+		for i := range in.hs.hs {
+			if in.hs.hs[i].live == live {
+				in.hs.hs[i].on = false
+			}
+		}
+	}
+	if in.sf != nil {
+		for i := range in.sf.vs {
+			if in.sf.vs[i].livePart == live {
+				in.sf.vs[i].on = false
+			}
+		}
+	}
+}
+
+// LiveSounding reports whether a note of the live part is still held,
+// or still sounds: a key held whose voice a song's note took counts, as
+// it plays again where the patch changes.
+func (in *Instrument) LiveSounding() bool {
+	for i := range in.n {
+		if in.held[i].live {
+			return true
+		}
+	}
+	if in.vs != nil {
+		for _, v := range in.vs.vs {
+			if v.on && v.live {
+				return true
+			}
+		}
+	}
+	if in.hs != nil {
+		for i := range in.hs.hs {
+			if h := &in.hs.hs[i]; h.on && h.live {
+				return true
+			}
+		}
+	}
+	if in.sf != nil {
+		for i := range in.sf.vs {
+			if v := &in.sf.vs[i]; v.on && v.livePart {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // fontTail is how long, in seconds, a SoundFont patch is taken to ring
@@ -762,7 +947,7 @@ func (p *patch) sameShape(q *patch) bool {
 // Vowel returns the vowel note id sings, as a, or 0 where it sings
 // none or is not held.
 func (in *Instrument) Vowel(id int32) byte {
-	if h := in.control(id); h != nil {
+	if h := in.control(id, false); h != nil {
 		return h.n.vowel
 	}
 	return 0

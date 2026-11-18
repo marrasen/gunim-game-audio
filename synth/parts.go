@@ -62,29 +62,67 @@ func (in *Instrument) Drums() bool { return in.p.kind == kindDrums }
 // part of nil L plays into l and r. A nil parts plays every drum into l
 // and r, as Render does.
 func (in *Instrument) RenderParts(l, r []float32, parts *[DrumParts]Part) {
+	in.RenderSplit(l, r, parts, nil, nil)
+}
+
+// RenderSplit fills l and r with the song's notes, as RenderParts does,
+// and ll and lr, as long as l, with the live part's: each drum of the
+// live part plays into them too, whatever part of the kit it is. Nil ll
+// and lr play the live part into l and r, as RenderParts does.
+func (in *Instrument) RenderSplit(l, r []float32, parts *[DrumParts]Part, ll, lr []float32) {
 	clear(l)
 	clear(r)
+	clear(ll)
+	clear(lr)
 	if parts != nil {
 		for i := range parts {
 			clear(parts[i].L)
 			clear(parts[i].R)
 		}
 	}
+	split := ll != nil
 	if in.vs != nil {
-		in.vs.render(l, r, &in.ctx)
+		for _, v := range in.vs.vs {
+			switch {
+			case !v.on:
+			case split && v.live:
+				v.render(ll, lr, &in.ctx)
+			default:
+				v.render(l, r, &in.ctx)
+			}
+		}
 	}
 	if in.sf != nil {
-		in.sf.render(l, r, float64(in.p.live.tune))
+		shift := float64(in.p.live.tune)
+		for i := range in.sf.vs {
+			switch v := &in.sf.vs[i]; {
+			case !v.on:
+			case split && v.livePart:
+				v.shift = shift
+				v.render(ll, lr)
+			default:
+				v.shift = shift
+				v.render(l, r)
+			}
+		}
 	}
 	if in.hs != nil {
-		if parts != nil {
-			in.hs.renderParts(l, r, parts, in.ctx.carry)
-		} else {
-			in.hs.render(l, r, in.ctx.carry)
+		for i := range in.hs.hs {
+			h := &in.hs.hs[i]
+			switch {
+			case !h.on:
+			case split && h.live:
+				h.render(ll, lr, in.ctx.carry)
+			case parts != nil && parts[h.part].L != nil:
+				h.render(parts[h.part].L, parts[h.part].R, in.ctx.carry)
+			default:
+				h.render(l, r, in.ctx.carry)
+			}
 		}
 	}
 	if in.level != 1 {
 		scale(l, r, in.level)
+		scale(ll, lr, in.level)
 		if parts != nil {
 			for i := range parts {
 				scale(parts[i].L, parts[i].R, in.level)

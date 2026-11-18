@@ -38,6 +38,8 @@ type hit struct {
 	// fade falls from 1 once the hit is choked, as an open hat is by a
 	// closed one.
 	fade, choke float32
+	// live says it plays a note of an Instrument's live part.
+	live bool
 	// sid is a SID drum's noise, and sidVol its level.
 	sid    lfsr
 	nes    nesNoise
@@ -561,6 +563,10 @@ type hits struct {
 	age uint64
 	// seed, where set, starts the next hit's random numbers afresh.
 	seed uint64
+	// live says the next hit is of an Instrument's live part: it
+	// restrikes and chokes only the hits of its own part. It is taken
+	// with the hit.
+	live bool
 }
 
 func newHits(n int) *hits { return &hits{hs: make([]hit, n)} }
@@ -569,9 +575,11 @@ func newHits(n int) *hits { return &hits{hs: make([]hit, n)} }
 // chokes an open one, and a modelled drum still ringing is struck again.
 func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *hit {
 	hh.age++
+	live := hh.live
+	hh.live = false
 	if isModal(d.kind) {
 		for i := range hh.hs {
-			if h := &hh.hs[i]; h.on && h.d.name == d.name && h.d.kind == d.kind && h.tune == tune && h.fade == 1 {
+			if h := &hh.hs[i]; h.on && h.live == live && h.d.name == d.name && h.d.kind == d.kind && h.tune == tune && h.fade == 1 {
 				hh.seeded(h)
 				h.restrike(vel, hh.age)
 				return h
@@ -580,7 +588,7 @@ func (hh *hits) play(d drum, vel, pan, pitch float32, dur int64, tune float32) *
 	}
 	if open, ok := chokes[d.kind]; ok {
 		for i := range hh.hs {
-			if k := hh.hs[i].d.kind; hh.hs[i].on && slices.Contains(open, k) {
+			if k := hh.hs[i].d.kind; hh.hs[i].on && hh.hs[i].live == live && slices.Contains(open, k) {
 				hh.hs[i].choke = 0.997
 			}
 		}
