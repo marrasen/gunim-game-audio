@@ -116,15 +116,45 @@ func kits() []Sound {
 	return out
 }
 
-// TestEachKitPlaysAsItsSongsDo plays each kit's kick, snare, hats and
-// crash through the plugin, and the drum a song's pattern plays by name
-// in the same kit, and holds their spectra alike, octave by octave.
-func TestEachKitPlaysAsItsSongsDo(t *testing.T) {
+// kitByName returns the kit of bank and name.
+func kitByName(t *testing.T, bank, group, name string) Sound {
+	t.Helper()
+	for _, s := range kits() {
+		if s.Bank == bank && s.Group == group && s.Name == name {
+			return s
+		}
+	}
+	t.Fatalf("no kit %s/%s/%s", bank, group, name)
+	return Sound{}
+}
+
+// TestEveryKitNamesItsDrumsPlainly reads every kit, and plays none: a
+// song's pattern can tell which of a kit's drums plays each of
+// kitTestNotes.
+func TestEveryKitNamesItsDrumsPlainly(t *testing.T) {
 	ks := kits()
 	if lib := len(slices.DeleteFunc(slices.Clone(ks), func(s Sound) bool { return s.Bank != Library })); lib != 9 {
 		t.Errorf("the library offers %d kits, not 9", lib)
 	}
 	for _, s := range ks {
+		for _, key := range kitTestNotes {
+			patternDrum(t, s.patch.Kit, key)
+		}
+	}
+}
+
+// TestEachKitPlaysAsItsSongsDo plays a few kits' kick, snare, hats and
+// crash through the plugin, and the drum a song's pattern plays by name
+// in the same kit, and holds their spectra alike, octave by octave. The
+// kits name their drums each way a kit can: General MIDI's by number,
+// the Commodore 64's by its chip's names, with no crash of its own, and
+// Meridian's by the built-in drums' names, its kick a TR-909's.
+func TestEachKitPlaysAsItsSongsDo(t *testing.T) {
+	for _, s := range []Sound{
+		kitByName(t, GeneralMIDI, GMDrums, "Standard kit"),
+		kitByName(t, Library, "Drum kits", "Commodore 64 kit"),
+		kitByName(t, Songs, "Meridian", "kit"),
+	} {
 		for _, key := range kitTestNotes {
 			name := patternDrum(t, s.patch.Kit, key)
 			want, err := synth.PreviewDrum(s.patch, name, 0.75)

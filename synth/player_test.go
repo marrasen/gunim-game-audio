@@ -60,14 +60,37 @@ func phrase(p *synth.Player) int {
 	return int(float64(l.PhraseBars) * l.BarFrames)
 }
 
-func TestEverySongPlaysCleanly(t *testing.T) {
+// TestEverySongMakesAPlayer reads every song made in code into a player,
+// and plays none.
+func TestEverySongMakesAPlayer(t *testing.T) {
 	for name, s := range songs(t) {
+		if err := synth.NewPlayer(s, 1).Err(); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// TestSongsPlayCleanly plays two bars of three songs at their top tier:
+// Graveyard Gallop's SID chips and distortion, Hero's Field's NES chips,
+// and Notte di Neon, a wander song of many synths and effects. A tiers
+// song's phrases are cut to a bar, so its top tier comes in at the
+// second.
+func TestSongsPlayCleanly(t *testing.T) {
+	for _, name := range []string{music.GraveyardGallop, music.HerosField, music.NotteDiNeon} {
+		song, err := music.Song(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := song.(*synth.Song).Clone()
+		if s.Mode != "wander" {
+			s.PhraseBars = 1
+		}
 		p := synth.NewPlayer(s, 1)
 		if err := p.Err(); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		p.SetTier(p.Tiers())
-		x := play(p, 2*phrase(p))
+		x := play(p, int(2*p.Look(0).BarFrames))
 		for i, v := range x {
 			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
 				t.Fatalf("%s: sample %d is %v", name, i, v)
