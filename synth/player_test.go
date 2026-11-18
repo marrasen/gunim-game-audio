@@ -89,22 +89,53 @@ func TestSameSeedPlaysTheSame(t *testing.T) {
 	}
 }
 
-func TestTiersGrowLouder(t *testing.T) {
+// TestEveryTierAddsAPart checks every tiers song's tracks: each tier
+// above the first brings in a part of its own, so a tier up is heard.
+func TestEveryTierAddsAPart(t *testing.T) {
 	for name, s := range songs(t) {
-		p := synth.NewPlayer(s, 3)
-		if p.Look(0).Wander {
+		if s.Mode == "wander" {
 			continue
 		}
-		var last float64
-		for tier := 1; tier <= p.Tiers(); tier++ {
-			p.SetTier(tier)
-			// The tier comes in at the next phrase.
-			rms, _, _ := stats(play(p, phrase(p)))
-			if tier > 1 && rms <= last {
-				t.Errorf("%s: tier %d is no louder than the one below: %.4f, then %.4f", name, tier, last, rms)
-			}
-			last = rms
+		adds, tiers := map[int]bool{}, 0
+		for _, tr := range s.Tracks {
+			adds[tr.Tier] = true
+			tiers = max(tiers, tr.Tier)
 		}
+		for tier := 2; tier <= tiers; tier++ {
+			if !adds[tier] {
+				t.Errorf("%s: tier %d brings in no part", name, tier)
+			}
+		}
+	}
+}
+
+// TestTiersGrowLouder plays one song up through its tiers. Its phrases
+// are cut to a bar, so each tier comes in a bar after it is asked for.
+func TestTiersGrowLouder(t *testing.T) {
+	song, err := music.Song(music.EmberCrown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := song.(*synth.Song).Clone()
+	s.PhraseBars = 1
+	p := synth.NewPlayer(s, 3)
+	if p.Tiers() < 4 {
+		t.Fatalf("%d tiers, want 4", p.Tiers())
+	}
+	var last float64
+	for tier := 1; tier <= p.Tiers(); tier++ {
+		p.SetTier(tier)
+		// The tier comes in at the next phrase.
+		rms, _, _ := stats(play(p, phrase(p)))
+		for _, tr := range p.Look(p.Played() - 1).Tracks {
+			if tr.Playing != (tr.Tier <= tier) {
+				t.Errorf("at tier %d, %s of tier %d plays: %v", tier, tr.Name, tr.Tier, tr.Playing)
+			}
+		}
+		if tier > 1 && rms <= last {
+			t.Errorf("tier %d is no louder than the one below: %.4f, then %.4f", tier, last, rms)
+		}
+		last = rms
 	}
 }
 
