@@ -20,8 +20,10 @@ type sfVoice struct {
 	reg    soundfont.Region
 	frames []int16
 	age    uint64
-	// note is the note of an Instrument it plays, 0 for a song's.
-	note uint64
+	// note is the note of an Instrument it plays, 0 for a song's, and
+	// livePart says the note is of the Instrument's live part.
+	note     uint64
+	livePart bool
 	// key is the note, vel its velocity, 0 to 1, shift the semitones
 	// a channel's bend wheel and vibrato move it, and bend those a
 	// note's own bend does.

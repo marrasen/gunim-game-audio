@@ -93,6 +93,8 @@ type voice struct {
 	// accent is the charge of the voice's accents, which each accented
 	// note adds to and which drains, opening the filter as it stands.
 	accent float32
+	// live says it plays a note of an Instrument's live part.
+	live bool
 	// hz is the pitch heard, from pitchAt, and cut and res the filter's
 	// tuning, kept to tune it again only once they move.
 	hz, pitchAt, cut, res float32
