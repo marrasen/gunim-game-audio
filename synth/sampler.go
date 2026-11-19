@@ -40,9 +40,13 @@ type sfVoice struct {
 	// gate counts down the frames until it lets go, for a note of a known
 	// length; 0 for one held until let go.
 	gate int64
-	// The filter, both sides, and the cutoff it was tuned for.
-	fl, fr svf
-	cut    float32
+	// The filter, both sides, and the cutoff it was tuned for. filtered
+	// says the voice runs it: decided once, at its start, so a cutoff
+	// an LFO sweeps past the top never switches it off and on, which
+	// clicks.
+	fl, fr   svf
+	cut      float32
+	filtered bool
 	// level is the volume envelope's level as it stood, for a release to
 	// start from, and gain the voice's level the block before, so a
 	// change ramps.
@@ -86,6 +90,18 @@ func (v *sfVoice) start(r *soundfont.Region, key, vel int, age uint64, gate int6
 	}
 	pl, pr := panGains(float32(r.Pan))
 	v.panL, v.panR = pl, pr
+	v.filtered = lowestCutoff(r) < sfFilterTop
+}
+
+// sfFilterTop is the cutoff from which a voice's filter is left out:
+// up there it does nothing one can hear.
+const sfFilterTop = 18000
+
+// lowestCutoff returns the lowest cutoff region r's filter reaches,
+// with its envelope and its LFO at their lowest.
+func lowestCutoff(r *soundfont.Region) float64 {
+	cents := min(r.ModToFilter, 0) - math.Abs(r.ModLFOToFilter)
+	return r.Cutoff * math.Pow(2, cents/1200)
 }
 
 // release lets go of the note: its envelopes go to their release.
@@ -160,7 +176,7 @@ func (v *sfVoice) render(l, r []float32) {
 		// The filter, closing as the velocity falls where the region's
 		// modulators say, as the SoundFont's default one has it.
 		cutHz := reg.Cutoff * math.Pow(2, (mod*reg.ModToFilter+mlfo*reg.ModLFOToFilter)/1200)
-		filtered := cutHz < 18000
+		filtered := v.filtered
 		if filtered {
 			c := float32(min(cutHz, 20000))
 			if d := c - v.cut; d > v.cut*0.01 || d < -v.cut*0.01 {
