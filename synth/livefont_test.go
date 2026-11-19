@@ -3,6 +3,7 @@ package synth
 import (
 	"bytes"
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/marrasen/gunim-game-audio/internal/sftest"
@@ -132,5 +133,56 @@ func TestABanksSoundRetunesToItself(t *testing.T) {
 	}
 	if a.Retune(c) {
 		t.Error("another program plays on in the notes of the first")
+	}
+}
+
+// A bank's tremolo can sweep its filter's cutoff past the top, where a
+// voice leaves its filter out, as MuseScore General's Strings Tremolo
+// does 14 times a second. The filter must run all through the note:
+// switched off and back on, it clicks at every turn. So in no 5 ms of
+// the note does it sound as the same note unfiltered.
+func TestAFilterSweptPastTheTopRunsAllThroughTheNote(t *testing.T) {
+	f := testFont(t, "sweep-test")
+	rs := f.Regions(0, 0, 60, 100)
+	if len(rs) == 0 {
+		t.Fatal("the test bank has no region")
+	}
+	swept, plain := rs[0], rs[0]
+	swept.Cutoff, swept.ModHz, swept.ModDelay, swept.ModLFOToFilter = 14830, 14, 0, 2000
+	plain.Cutoff = 20000
+	var a, b sfVoice
+	a.start(&swept, 60, 100, 1, 0, true)
+	b.start(&plain, 60, 100, 1, 0, true)
+	w := rate / 200
+	al, ar := make([]float32, w), make([]float32, w)
+	bl, br := make([]float32, w), make([]float32, w)
+	for at := 0; at < rate/2; at += w {
+		clear(al)
+		clear(ar)
+		clear(bl)
+		clear(br)
+		a.render(al, ar)
+		b.render(bl, br)
+		if slices.Equal(al, bl) && slices.Equal(ar, br) {
+			t.Fatalf("at %d ms the note sounds unfiltered", at*1000/rate)
+		}
+	}
+}
+
+// The Cutoff knob turned down filters a bank's note whose own cutoff
+// is too high for its voice to run its filter.
+func TestTheCutoffKnobFiltersABanksNote(t *testing.T) {
+	testFont(t, "knob-test")
+	play := func(k Knobs) []float32 {
+		in, err := NewInstrument(&Patch{SoundFont: "knob-test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		in.SetKnobs(k)
+		in.NoteOn(1, 60, 1, 0)
+		return hear(in, 0.1)
+	}
+	if slices.Equal(play(Knobs{}), play(Knobs{Cutoff: -4})) {
+		t.Fatal("the note sounds the same with the cutoff 4 octaves down")
 	}
 }
