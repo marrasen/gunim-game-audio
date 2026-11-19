@@ -421,6 +421,7 @@ func (in *Instrument) playFont(note uint64, pitch, vel float64, live bool) {
 		reg.Vol.Sustain = min(max(reg.Vol.Sustain+k.Sustain, 0), 1)
 		if k.Cutoff != 0 {
 			reg.Cutoff = min(max(reg.Cutoff*math.Exp2(k.Cutoff), 20), 20000)
+			v.filtered = lowestCutoff(reg) < sfFilterTop
 		}
 		l, r := panGains(min(max(float32(reg.Pan+k.Pan), -1), 1))
 		v.panL, v.panR = l, r

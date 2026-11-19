@@ -168,3 +168,21 @@ func TestAFilterSweptPastTheTopRunsAllThroughTheNote(t *testing.T) {
 		}
 	}
 }
+
+// The Cutoff knob turned down filters a bank's note whose own cutoff
+// is too high for its voice to run its filter.
+func TestTheCutoffKnobFiltersABanksNote(t *testing.T) {
+	testFont(t, "knob-test")
+	play := func(k Knobs) []float32 {
+		in, err := NewInstrument(&Patch{SoundFont: "knob-test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		in.SetKnobs(k)
+		in.NoteOn(1, 60, 1, 0)
+		return hear(in, 0.1)
+	}
+	if slices.Equal(play(Knobs{}), play(Knobs{Cutoff: -4})) {
+		t.Fatal("the note sounds the same with the cutoff 4 octaves down")
+	}
+}
